@@ -14,8 +14,8 @@ let now: number;
 let ctx: AuthRouteContext;
 
 function post(path: string, body: unknown, over: { cookie?: string; origin?: string | null } = {}): APIGatewayProxyEventV2 {
-  const headers: Record<string, string> = { host: 'budget.example.com' };
-  if (over.origin !== null) headers.origin = over.origin ?? 'https://budget.example.com';
+  const headers: Record<string, string> = { host: 'hearth.example.com' };
+  if (over.origin !== null) headers.origin = over.origin ?? 'https://hearth.example.com';
   return {
     rawPath: path,
     body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -28,7 +28,7 @@ function post(path: string, body: unknown, over: { cookie?: string; origin?: str
 function get(path: string, cookie?: string): APIGatewayProxyEventV2 {
   return {
     rawPath: path,
-    headers: { host: 'budget.example.com' },
+    headers: { host: 'hearth.example.com' },
     cookies: cookie ? [cookie] : undefined,
     requestContext: { routeKey: `GET ${path}`, http: { method: 'GET', sourceIp: '203.0.113.9' } },
   } as unknown as APIGatewayProxyEventV2;

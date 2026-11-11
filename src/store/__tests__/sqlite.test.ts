@@ -28,7 +28,7 @@ describe('SqliteStore on disk', () => {
   });
 
   it('keeps data across reopening and records the schema version', async () => {
-    const path = join(dir, 'budget.sqlite');
+    const path = join(dir, 'hearthwise.sqlite');
     const first = new SqliteStore(path);
     await first.put({ PK, SK: 'CAT#a', name: 'Food' });
     first.close();

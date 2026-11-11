@@ -55,18 +55,18 @@ describe('cookie formatting', () => {
 });
 
 describe('originAllowed', () => {
-  const host = { host: 'budget.example.com' };
+  const host = { host: 'hearth.example.com' };
 
   it.each(['GET', 'HEAD', 'OPTIONS'])('does not ask %s requests for an Origin', method => {
     expect(originAllowed(event({ method, headers: host }))).toBe(true);
   });
 
   it('accepts a state-changing request from the same host', () => {
-    expect(originAllowed(event({ method: 'POST', headers: { ...host, origin: 'https://budget.example.com' } }))).toBe(true);
+    expect(originAllowed(event({ method: 'POST', headers: { ...host, origin: 'https://hearth.example.com' } }))).toBe(true);
   });
 
   it('compares the host case-insensitively', () => {
-    const headers = { host: 'Budget.Example.COM', origin: 'https://budget.example.com' };
+    const headers = { host: 'Hearth.Example.COM', origin: 'https://hearth.example.com' };
     expect(originAllowed(event({ method: 'POST', headers }))).toBe(true);
     expect(originAllowed(event({ method: 'POST', headers: { ...headers, origin: 'https://evil.example.com' } }))).toBe(false);
   });
@@ -75,18 +75,18 @@ describe('originAllowed', () => {
     ['no Origin', {}],
     ['a null Origin', { origin: 'null' }],
     ['another host', { origin: 'https://evil.example.com' }],
-    ['the same host on another port', { origin: 'https://budget.example.com:8443' }],
+    ['the same host on another port', { origin: 'https://hearth.example.com:8443' }],
     ['an unparseable Origin', { origin: 'not a url' }],
   ])('refuses a POST with %s', (_label, extra) => {
     expect(originAllowed(event({ method: 'POST', headers: { ...host, ...extra } }))).toBe(false);
   });
 
   it('refuses when there is no host to compare with', () => {
-    expect(originAllowed(event({ method: 'POST', headers: { origin: 'https://budget.example.com' } }))).toBe(false);
+    expect(originAllowed(event({ method: 'POST', headers: { origin: 'https://hearth.example.com' } }))).toBe(false);
   });
 
   it('prefers x-forwarded-host behind a proxy', () => {
-    const headers = { host: 'internal:3000', 'x-forwarded-host': 'budget.example.com', origin: 'https://budget.example.com' };
+    const headers = { host: 'internal:3000', 'x-forwarded-host': 'hearth.example.com', origin: 'https://hearth.example.com' };
     expect(originAllowed(event({ method: 'DELETE', headers }))).toBe(true);
   });
 });
@@ -118,20 +118,20 @@ describe('originAllowed with APP_ORIGIN', () => {
   const post = (headers: Record<string, string>) => event({ method: 'POST', headers });
 
   it('compares scheme, host and port against APP_ORIGIN and ignores the Host header', () => {
-    const appOrigin = 'https://budget.example.com';
-    expect(originAllowed(post({ origin: 'https://budget.example.com', host: 'internal:8080' }), appOrigin)).toBe(true);
+    const appOrigin = 'https://hearth.example.com';
+    expect(originAllowed(post({ origin: 'https://hearth.example.com', host: 'internal:8080' }), appOrigin)).toBe(true);
     expect(originAllowed(post({ origin: 'https://evil.example.com', host: 'evil.example.com' }), appOrigin)).toBe(false);
-    expect(originAllowed(post({ origin: 'http://budget.example.com', host: 'budget.example.com' }), appOrigin)).toBe(false);
-    expect(originAllowed(post({ origin: 'https://budget.example.com:8443', host: 'budget.example.com' }), appOrigin)).toBe(false);
+    expect(originAllowed(post({ origin: 'http://hearth.example.com', host: 'hearth.example.com' }), appOrigin)).toBe(false);
+    expect(originAllowed(post({ origin: 'https://hearth.example.com:8443', host: 'hearth.example.com' }), appOrigin)).toBe(false);
   });
 
   it('refuses a missing, null or unparseable Origin, and an unparseable APP_ORIGIN', () => {
-    expect(originAllowed(post({ host: 'budget.example.com' }), 'https://budget.example.com')).toBe(false);
-    expect(originAllowed(post({ origin: 'null' }), 'https://budget.example.com')).toBe(false);
-    expect(originAllowed(post({ origin: 'https://budget.example.com' }), 'not a url')).toBe(false);
+    expect(originAllowed(post({ host: 'hearth.example.com' }), 'https://hearth.example.com')).toBe(false);
+    expect(originAllowed(post({ origin: 'null' }), 'https://hearth.example.com')).toBe(false);
+    expect(originAllowed(post({ origin: 'https://hearth.example.com' }), 'not a url')).toBe(false);
   });
 
   it('still lets safe methods through', () => {
-    expect(originAllowed(event({ method: 'GET' }), 'https://budget.example.com')).toBe(true);
+    expect(originAllowed(event({ method: 'GET' }), 'https://hearth.example.com')).toBe(true);
   });
 });

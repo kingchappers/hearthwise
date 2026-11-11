@@ -298,6 +298,6 @@ describe('fromEnv', () => {
   });
 
   it('builds a store when the table is named', () => {
-    expect(DynamoStore.fromEnv({ DYNAMODB_TABLE: 'budget-data' })).toBeInstanceOf(DynamoStore);
+    expect(DynamoStore.fromEnv({ DYNAMODB_TABLE: 'hearthwise-data' })).toBeInstanceOf(DynamoStore);
   });
 });

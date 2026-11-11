@@ -13,7 +13,7 @@ const now = () => Math.floor(Date.now() / 1000);
 function event(over: { method?: string; cookie?: string; origin?: string } = {}): APIGatewayProxyEventV2 {
   return {
     rawPath: '/api/categories',
-    headers: { host: 'budget.example.com', ...(over.origin ? { origin: over.origin } : {}) },
+    headers: { host: 'hearth.example.com', ...(over.origin ? { origin: over.origin } : {}) },
     cookies: over.cookie ? [over.cookie] : undefined,
     requestContext: { routeKey: 'GET /x', http: { method: over.method ?? 'GET' } },
   } as unknown as APIGatewayProxyEventV2;
@@ -69,7 +69,7 @@ describe('createLocalProvider', () => {
     const token = await createSession(store, 'local|u1', now());
     const send = (method: string, path: string) => handler({
       rawPath: path,
-      headers: { host: 'budget.example.com' },
+      headers: { host: 'hearth.example.com' },
       cookies: [`__Host-hearthwise_session=${token}`],
       body: '{}',
       requestContext: { routeKey: 'ANY /api/{proxy+}', http: { method, sourceIp: '198.51.100.9' } },
@@ -95,12 +95,12 @@ describe('createLocalProvider', () => {
   });
 
   it('checks Origin against APP_ORIGIN, not the Host header, for state-changing requests', async () => {
-    const provider = await createLocalProvider({ APP_ORIGIN: 'https://budget.example.com' });
+    const provider = await createLocalProvider({ APP_ORIGIN: 'https://hearth.example.com' });
     const token = await createSession(store, 'local|u1', now());
     const cookie = `__Host-hearthwise_session=${token}`;
-    const ok = await provider.authenticate(event({ method: 'DELETE', cookie, origin: 'https://budget.example.com' }));
+    const ok = await provider.authenticate(event({ method: 'DELETE', cookie, origin: 'https://hearth.example.com' }));
     expect(ok).toEqual({ userId: 'local|u1' });
-    const bad = await provider.authenticate(event({ method: 'DELETE', cookie, origin: 'https://budget.example.com.evil.test' }));
+    const bad = await provider.authenticate(event({ method: 'DELETE', cookie, origin: 'https://hearth.example.com.evil.test' }));
     expect('rejection' in bad && bad.rejection.statusCode).toBe(403);
   });
 
@@ -114,7 +114,7 @@ function publicEvent(method: string, path: string, body?: unknown): APIGatewayPr
   return {
     rawPath: path,
     body: body === undefined ? undefined : JSON.stringify(body),
-    headers: { host: 'budget.example.com', origin: 'https://budget.example.com' },
+    headers: { host: 'hearth.example.com', origin: 'https://hearth.example.com' },
     requestContext: { routeKey: `${method} ${path}`, http: { method } },
   } as unknown as APIGatewayProxyEventV2;
 }

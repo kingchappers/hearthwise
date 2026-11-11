@@ -7,7 +7,7 @@ afterEach(() => { setStore(undefined); });
 
 describe('initStore', () => {
   it('builds a DynamoStore by default', async () => {
-    const store = await initStore({ DYNAMODB_TABLE: 'budget-data' });
+    const store = await initStore({ DYNAMODB_TABLE: 'hearthwise-data' });
     expect(store).toBeInstanceOf(DynamoStore);
     expect(getStore()).toBe(store);
   });
