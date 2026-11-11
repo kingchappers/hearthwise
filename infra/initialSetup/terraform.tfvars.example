@@ -1,0 +1,14 @@
+aws_region   = "eu-west-2"
+# The existing shared state bucket. This stack reads it; it never creates or changes it.
+state_bucket = "your-terraform-state-bucket"
+environment  = "production"
+# Must match app_name in ../terraform.tfvars. The deploy role's permissions are scoped to resources named after it.
+app_name = "hearthwise"
+# Optional: the app's custom hostname, if you set app_domain in ../terraform.tfvars. The deploy role may only manage this one.
+# custom_domain = "hearth.example.com"
+# The GitHub repository whose workflows may assume the deploy role. The IDs are public and keep a renamed or
+# re-created repository from inheriting the role:
+#   owner: gh api users/kingchappers --jq .id        repository: gh api repos/kingchappers/hearthwise --jq .id
+github_repo     = "hearthwise"
+github_owner_id = "10738951"
+github_repo_id  = "1453794772"
