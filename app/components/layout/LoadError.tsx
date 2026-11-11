@@ -8,7 +8,7 @@ export interface LoadErrorProps {
 
 export function LoadError({ thing, onRetry }: LoadErrorProps) {
   return (
-    <Alert color="danger" title={`We couldn't load your ${thing}`}>
+    <Alert color="honey" title={`We couldn't load your ${thing}`}>
       <Text mb="sm">Nothing has been lost. Check your connection and try again.</Text>
       <Button onClick={onRetry}>Try again</Button>
     </Alert>

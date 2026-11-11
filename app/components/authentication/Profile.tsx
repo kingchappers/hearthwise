@@ -33,16 +33,16 @@ export const Profile = () => {
                       height: '2.2rem',
                       borderRadius: '50%',
                       objectFit: 'cover',
-                      border: '3px solid var(--mantine-color-hoard-text)'
+                      border: '3px solid var(--mantine-color-hearth-text)'
                     }}
                   />
                 ) : (
                   <Avatar
                     radius="xl"
-                    color="hoard"
+                    color="hearth"
                     size="2.2rem"
                     aria-label={user.name || user.email || 'User'}
-                    style={{ border: '3px solid var(--mantine-color-hoard-text)' }}
+                    style={{ border: '3px solid var(--mantine-color-hearth-text)' }}
                   >
                     {initialsFor(user.name, user.email) || <IconUser size={16} />}
                   </Avatar>
