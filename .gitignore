@@ -1,0 +1,17 @@
+# Superseded working draft; the approved design is docs/designs/phase-1-foundation.md
+design_draft.md
+
+# Secrets and local config (step 1 replaces this with Hoardwise's full .gitignore)
+.env
+.env.*
+*.tfvars
+!*.tfvars.example
+vapid.json
+
+# Build output and dependencies
+node_modules/
+build/
+*.sqlite*
+
+# OS
+.DS_Store
