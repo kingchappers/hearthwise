@@ -10,13 +10,15 @@ Hearthwise shares an AWS account with another app. This stack therefore **reads*
 ## What it creates
 
 - the role `<app_name>-github-actions` (`hearthwise-github-actions`)
+- the permissions boundary policy `<app_name>-lambda-boundary`, the ceiling for every Lambda execution role
 - the policy `<app_name>-github-actions-iam-policy`, attached to that role
 
 ## How the role is limited
 
-- **Who can assume it:** only workflows from `kingchappers/hearthwise` on `main` or a pull request. The OIDC subject embeds the owner and repository IDs, so a fork or a re-created repository with the same name cannot.
+- **Who can assume it:** only workflows from `kingchappers/hearthwise` running on `main`. A pull request cannot: any collaborator can change a pull request's workflow, and this role can deploy. Pull request workflows get no AWS access. The OIDC subject embeds the owner and repository IDs, so a fork or a re-created repository with the same name cannot.
 - **What it can touch:** Lambda functions, IAM roles, log groups, DynamoDB tables and EventBridge rules named `<app_name>*`, and the app's own custom domain.
 - **State:** read and write only under the `<app_name>/` key prefix of the shared bucket, so it can never read or overwrite the other app's state.
+- **Roles it creates:** only with the boundary attached, which it cannot change or remove. So even a role with a broad inline policy can do no more than the boundary allows: this app's logs, table, parameters and alert topics.
 - **Itself:** an explicit deny stops it changing its own role. The role's name starts with `<app_name>-`, which the role statements would otherwise cover.
 - **ACM certificates:** it can read any certificate, but can only create or change ones tagged `Application = <app_name>`.
 

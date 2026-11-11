@@ -4,8 +4,9 @@
 
 # API Lambda execution role (INFRA-01): DynamoDB access only
 resource "aws_iam_role" "api_role" {
-  name        = "${var.app_name}-api-role"
-  description = "Execution role for the protected API Lambda"
+  permissions_boundary = local.lambda_boundary_arn
+  name                 = "${var.app_name}-api-role"
+  description          = "Execution role for the protected API Lambda"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

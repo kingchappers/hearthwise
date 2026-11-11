@@ -42,6 +42,67 @@ locals {
 }
 
 # ============================================================================
+# Permissions boundary for every Lambda execution role
+#
+# The deploy role can create roles and write their policies. Without a ceiling, a workflow could give a new role broad
+# access and run code under it, reaching anything in the account, including the other app's data. The deploy role may only
+# create a role with this boundary attached, and cannot change or remove it, so no role it creates can do more than this.
+# Widening what the Lambdas may do (a new AWS service) is a change to this file, applied by hand with administrator credentials.
+# ============================================================================
+
+data "aws_iam_policy_document" "lambda_boundary" {
+  statement {
+    sid     = "Logs"
+    effect  = "Allow"
+    actions = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${local.account_id}:log-group:/aws/lambda/${var.app_name}*:*",
+      "arn:aws:logs:${var.aws_region}:${local.account_id}:log-group:/${var.app_name}/lambda/*:*",
+    ]
+  }
+
+  statement {
+    sid    = "Data"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Query",
+      "dynamodb:UpdateItem",
+      "dynamodb:ConditionCheckItem",
+    ]
+    resources = ["arn:aws:dynamodb:${var.aws_region}:${local.account_id}:table/${var.app_name}-*"]
+  }
+
+  statement {
+    sid       = "Parameters"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = ["arn:aws:ssm:${var.aws_region}:${local.account_id}:parameter/${var.app_name}/*"]
+  }
+
+  statement {
+    sid       = "Alerts"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = ["arn:aws:sns:${var.aws_region}:${local.account_id}:${var.app_name}-*"]
+  }
+}
+
+resource "aws_iam_policy" "lambda_boundary" {
+  name        = "${var.app_name}-lambda-boundary"
+  description = "Ceiling for every ${var.app_name} Lambda execution role. A role the deploy role creates cannot do more than this."
+  policy      = data.aws_iam_policy_document.lambda_boundary.json
+
+  tags = {
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Application = var.app_name
+  }
+}
+
+# ============================================================================
 # IAM Role for GitHub Actions (INFRA-01)
 # ============================================================================
 
@@ -55,15 +116,13 @@ data "aws_iam_policy_document" "assume_role" {
       identifiers = [data.aws_iam_openid_connect_provider.github_actions.arn]
     }
 
-    # SECURITY: Allow main branch and pull requests from this repository only. The subject embeds the owner and
-    # repository IDs, so a fork, or a new repository that takes this name later, cannot assume the role.
+    # SECURITY: only workflows running on main in this repository. A pull request is deliberately not trusted: any
+    # collaborator can change a pull request's workflow, and this role can deploy. The subject embeds the owner and
+    # repository IDs, so a fork, or a new repository that takes this name later, cannot assume the role either.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "${local.repo_subject}:ref:refs/heads/main",
-        "${local.repo_subject}:pull_request",
-      ]
+      values   = ["${local.repo_subject}:ref:refs/heads/main"]
     }
 
     condition {
@@ -129,12 +188,25 @@ data "aws_iam_policy_document" "github_iam_policy_document" {
     ]
   }
 
+  # Creating a role needs the boundary. iam:PermissionsBoundary is only present when one is attached, so a CreateRole
+  # without it matches nothing and is refused. Changing or removing a boundary later is not granted anywhere.
+  statement {
+    sid       = "IAMCreateRoleWithBoundary"
+    effect    = "Allow"
+    actions   = ["iam:CreateRole"]
+    resources = ["arn:aws:iam::${local.account_id}:role/${var.app_name}-*"]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [aws_iam_policy.lambda_boundary.arn]
+    }
+  }
+
   # IAM role management for Lambda execution
   statement {
     sid    = "IAMRoleManagement"
     effect = "Allow"
     actions = [
-      "iam:CreateRole",
       "iam:DeleteRole",
       "iam:GetRole",
       "iam:ListAttachedRolePolicies",

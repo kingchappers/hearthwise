@@ -14,3 +14,9 @@ terraform {
 provider "aws" {
   region = var.aws_region
 }
+
+# Every Lambda execution role is created under this boundary, which infra/initialSetup creates. The deploy role cannot create a
+# role without it.
+locals {
+  lambda_boundary_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.app_name}-lambda-boundary"
+}

@@ -13,8 +13,9 @@ locals {
 
 # Scheduler execution role (INFRA-01): its own table access, and one parameter
 resource "aws_iam_role" "push_role" {
-  name        = "${var.app_name}-push-role"
-  description = "Execution role for the reminder scheduler Lambda"
+  permissions_boundary = local.lambda_boundary_arn
+  name                 = "${var.app_name}-push-role"
+  description          = "Execution role for the reminder scheduler Lambda"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
