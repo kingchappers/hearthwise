@@ -13,7 +13,7 @@ let store: SqliteStore;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'backup-'));
-  store = new SqliteStore(join(dir, 'budget.sqlite'));
+  store = new SqliteStore(join(dir, 'hearthwise.sqlite'));
   await store.put({ PK: 'USER#u1', SK: 'CAT#a', name: 'Food' });
 });
 afterEach(() => {
@@ -25,7 +25,7 @@ const at = (iso: string) => new Date(iso);
 
 describe('backupFileName', () => {
   it('uses local time in a sortable fixed-width form', () => {
-    expect(backupFileName(new Date(2026, 9, 10, 3, 4, 5))).toBe('hoardwise-20261010-030405.sqlite');
+    expect(backupFileName(new Date(2026, 9, 10, 3, 4, 5))).toBe('hearthwise-20261010-030405.sqlite');
   });
 });
 
@@ -122,51 +122,51 @@ describe('pruneBackups and listing', () => {
     return backups;
   }
 
-  it('lists and prunes backups with either prefix together, oldest first', () => {
-    const backups = seed(['budget-20261001-030000.sqlite', 'budget-20261002-030000.sqlite', 'hoardwise-20261003-030000.sqlite']);
-    expect(listBackups(backups)).toEqual(['budget-20261001-030000.sqlite', 'budget-20261002-030000.sqlite', 'hoardwise-20261003-030000.sqlite']);
-    expect(pruneBackups(backups, 2)).toBe(1);
-    expect(readdirSync(backups).sort()).toEqual(['budget-20261002-030000.sqlite', 'hoardwise-20261003-030000.sqlite']);
+  it("never lists or prunes another app's backups, so a shared folder loses nothing", () => {
+    const backups = seed(['hoardwise-20261001-030000.sqlite', 'budget-20261001-030000.sqlite', 'hearthwise-20261001-030000.sqlite']);
+    expect(listBackups(backups)).toEqual(['hearthwise-20261001-030000.sqlite']);
+    expect(pruneBackups(backups, 1)).toBe(0);
+    expect(readdirSync(backups).sort()).toEqual(['budget-20261001-030000.sqlite', 'hearthwise-20261001-030000.sqlite', 'hoardwise-20261001-030000.sqlite']);
   });
 
-  it('does not treat lookalike hoardwise- files as backups, so pruning never deletes them', () => {
-    const backups = seed(['hoardwise-20261001-030000.sqlite', 'hoardwise-bad.sqlite', 'hoardwise-20261001-030000.sqlite.tmp', 'hoardwise-20261001-0300.sqlite']);
-    expect(listBackups(backups)).toEqual(['hoardwise-20261001-030000.sqlite']);
+  it('does not treat lookalike hearthwise- files as backups, so pruning never deletes them', () => {
+    const backups = seed(['hearthwise-20261001-030000.sqlite', 'hearthwise-bad.sqlite', 'hearthwise-20261001-030000.sqlite.tmp', 'hearthwise-20261001-0300.sqlite']);
+    expect(listBackups(backups)).toEqual(['hearthwise-20261001-030000.sqlite']);
     expect(pruneBackups(backups, 1)).toBe(0);
     expect(readdirSync(backups)).toHaveLength(4);
   });
 
-  it('takes the age of the newest backup across both prefixes', () => {
-    const backups = seed(['budget-20261001-030000.sqlite', 'hoardwise-20261002-030000.sqlite']);
+  it('takes the age of the newest backup', () => {
+    const backups = seed(['hearthwise-20261001-030000.sqlite', 'hearthwise-20261002-030000.sqlite']);
     expect(newestBackupAgeSeconds(backups, new Date(Date.UTC(2026, 9, 1, 3, 10, 0)))).toBe(540);
   });
 
   it('keeps the newest N backups and ignores files that are not backups', () => {
-    const backups = seed(['budget-20261001-030000.sqlite', 'budget-20261002-030000.sqlite', 'budget-20261003-030000.sqlite', 'notes.txt', 'budget-bad.sqlite']);
+    const backups = seed(['hearthwise-20261001-030000.sqlite', 'hearthwise-20261002-030000.sqlite', 'hearthwise-20261003-030000.sqlite', 'notes.txt', 'hearthwise-bad.sqlite']);
     expect(pruneBackups(backups, 2)).toBe(1);
-    expect(readdirSync(backups).sort()).toEqual(['budget-20261002-030000.sqlite', 'budget-20261003-030000.sqlite', 'budget-bad.sqlite', 'notes.txt']);
+    expect(readdirSync(backups).sort()).toEqual(['hearthwise-20261002-030000.sqlite', 'hearthwise-20261003-030000.sqlite', 'hearthwise-bad.sqlite', 'notes.txt']);
   });
 
   it('never prunes when keep is below 1', () => {
-    const backups = seed(['budget-20261001-030000.sqlite']);
+    const backups = seed(['hearthwise-20261001-030000.sqlite']);
     expect(pruneBackups(backups, 0)).toBe(0);
     expect(pruneBackups(backups, -1)).toBe(0);
     expect(listBackups(backups)).toHaveLength(1);
   });
 
   it('orders by file time, not by name: a newer file with a smaller name survives pruning', () => {
-    const backups = seed(['budget-20261030-013000.sqlite', 'budget-20261030-010000.sqlite']);
+    const backups = seed(['hearthwise-20261030-013000.sqlite', 'hearthwise-20261030-010000.sqlite']);
     expect(pruneBackups(backups, 1)).toBe(1);
-    expect(readdirSync(backups)).toEqual(['budget-20261030-010000.sqlite']);
+    expect(readdirSync(backups)).toEqual(['hearthwise-20261030-010000.sqlite']);
   });
 
   it('ignores a zero-byte backup-named file everywhere and never deletes it', () => {
-    const backups = seed(['budget-20261001-030000.sqlite']);
-    const reserved = join(backups, 'budget-20261002-030000.sqlite');
+    const backups = seed(['hearthwise-20261001-030000.sqlite']);
+    const reserved = join(backups, 'hearthwise-20261002-030000.sqlite');
     writeFileSync(reserved, '');
     const newer = new Date(Date.UTC(2026, 9, 5));
     utimesSync(reserved, newer, newer);
-    expect(listBackups(backups)).toEqual(['budget-20261001-030000.sqlite']);
+    expect(listBackups(backups)).toEqual(['hearthwise-20261001-030000.sqlite']);
     expect(pruneBackups(backups, 1)).toBe(0);
     expect(existsSync(reserved)).toBe(true);
     expect(newestBackupAgeSeconds(backups, at('2026-10-01T04:00:00Z'))).toBe(3600);
@@ -182,7 +182,7 @@ describe('newestBackupAgeSeconds', () => {
     const backups = join(dir, 'backups');
     expect(newestBackupAgeSeconds(backups)).toBe(Infinity);
     mkdirSync(backups, { recursive: true });
-    const file = join(backups, 'budget-20261001-030000.sqlite');
+    const file = join(backups, 'hearthwise-20261001-030000.sqlite');
     writeFileSync(file, 'x');
     chmodSync(file, 0o600);
     const mtime = at('2026-10-01T03:00:00Z');
