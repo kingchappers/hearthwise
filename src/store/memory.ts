@@ -1,4 +1,4 @@
-import { matchesAll, planPatch } from './patch';
+import { applyUpdate, matchesAll, opKey, planPatch, planUpdate, updateConditionsHold } from './patch';
 import {
   ConditionFailedError, type Item, type Key, type PatchOptions, type QueryOptions, type Store, type TxOp,
 } from './types';
@@ -66,11 +66,14 @@ export class MemoryStore implements Store {
 
   async transact(ops: TxOp[]): Promise<void> {
     if (ops.length === 0) return;
-    const keys = ops.map(op => ('put' in op ? op.put : op.delete));
+    const keys = ops.map(opKey);
     const identities = new Set(keys.map(key => `${key.PK}\u0000${key.SK}`));
     if (identities.size !== keys.length) {
       throw new Error('transact cannot touch the same item twice');
     }
+
+    // A malformed update is rejected before anything is checked or written.
+    const plans = ops.map(op => ('update' in op ? planUpdate(op) : undefined));
 
     // Every condition is checked against the state before anything is written, so a failure leaves the store untouched.
     ops.forEach((op, index) => {
@@ -78,12 +81,17 @@ export class MemoryStore implements Store {
         if (op.ifAbsent && this.rowOf(op.put) !== undefined) throw new ConditionFailedError(index);
         return;
       }
-      if (op.ifPresent && this.rowOf(op.delete) === undefined) throw new ConditionFailedError(index);
+      if ('delete' in op) {
+        if (op.ifPresent && this.rowOf(op.delete) === undefined) throw new ConditionFailedError(index);
+        return;
+      }
+      if (!updateConditionsHold(this.rowOf(op.update), plans[index]!)) throw new ConditionFailedError(index);
     });
-    for (const op of ops) {
+    ops.forEach((op, index) => {
       if ('put' in op) this.write(op.put);
-      else this.remove(op.delete);
-    }
+      else if ('delete' in op) this.remove(op.delete);
+      else this.write({ ...applyUpdate(this.rowOf(op.update), plans[index]!), PK: op.update.PK, SK: op.update.SK });
+    });
   }
 
   private rowOf(key: Key): Attributes | undefined {

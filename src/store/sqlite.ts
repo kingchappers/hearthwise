@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { matchesAll, planPatch } from './patch';
+import { applyUpdate, matchesAll, opKey, planPatch, planUpdate, updateConditionsHold } from './patch';
 import {
   ConditionFailedError, type Item, type Key, type PatchOptions, type QueryOptions, type Store, type TxOp,
 } from './types';
@@ -118,11 +118,14 @@ export class SqliteStore implements Store {
 
   async transact(ops: TxOp[]): Promise<void> {
     if (ops.length === 0) return;
-    const keys = ops.map(op => ('put' in op ? op.put : op.delete));
+    const keys = ops.map(opKey);
     const identities = new Set(keys.map(key => `${key.PK}\u0000${key.SK}`));
     if (identities.size !== keys.length) {
       throw new Error('transact cannot touch the same item twice');
     }
+
+    // A malformed update is rejected before the transaction starts.
+    const plans = ops.map(op => ('update' in op ? planUpdate(op) : undefined));
 
     this.inTransaction(() => {
       ops.forEach((op, index) => {
@@ -131,8 +134,15 @@ export class SqliteStore implements Store {
           this.write(op.put);
           return;
         }
-        if (op.ifPresent && !this.exists(op.delete)) throw new ConditionFailedError(index);
-        this.remove(op.delete);
+        if ('delete' in op) {
+          if (op.ifPresent && !this.exists(op.delete)) throw new ConditionFailedError(index);
+          this.remove(op.delete);
+          return;
+        }
+        const stored = this.readData(op.update);
+        const current: Record<string, unknown> | undefined = stored === undefined ? undefined : JSON.parse(stored);
+        if (!updateConditionsHold(current, plans[index]!)) throw new ConditionFailedError(index);
+        this.write({ ...applyUpdate(current, plans[index]!), PK: op.update.PK, SK: op.update.SK });
       });
     });
   }

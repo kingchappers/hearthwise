@@ -257,5 +257,145 @@ export function runStoreContract(name: string, backend: ContractBackend, options
         await expect(store.transact([])).resolves.toBeUndefined();
       });
     });
+
+    describe('transact update', () => {
+      const task = (PK: string) => ({ PK, SK: 'TASK#t1' });
+
+      it('sets attributes and keeps the rest of the item', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), title: 'Hoover', cycleSeq: 1 });
+        await store.transact([{ update: task(PK), set: { cycleSeq: 2 } }]);
+        expect(await store.get(task(PK))).toEqual({ ...task(PK), title: 'Hoover', cycleSeq: 2 });
+      });
+
+      it('applies when an ifEquals condition holds', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), cycleSeq: 1 });
+        await store.transact([{ update: task(PK), set: { cycleSeq: 2 }, ifEquals: { cycleSeq: 1 } }]);
+        expect(await store.get(task(PK))).toMatchObject({ cycleSeq: 2 });
+      });
+
+      it('fails at index 0 and changes nothing when an ifEquals condition does not hold', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), cycleSeq: 5 });
+        await expect(store.transact([{ update: task(PK), set: { cycleSeq: 2 }, ifEquals: { cycleSeq: 1 } }]))
+          .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+        expect(await store.get(task(PK))).toMatchObject({ cycleSeq: 5 });
+      });
+
+      it('applies when an ifMissing attribute is absent', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), title: 'Hoover' });
+        await store.transact([{ update: task(PK), set: { deletedAt: 10 }, ifMissing: ['deletedAt'] }]);
+        expect(await store.get(task(PK))).toMatchObject({ deletedAt: 10 });
+      });
+
+      it('fails at index 0 when an ifMissing attribute is present', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), deletedAt: 10 });
+        await expect(store.transact([{ update: task(PK), set: { deletedAt: 20 }, ifMissing: ['deletedAt'] }]))
+          .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+        expect(await store.get(task(PK))).toMatchObject({ deletedAt: 10 });
+      });
+
+      it('treats an attribute removed by an earlier update as missing', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), deletedAt: 10 });
+        await store.transact([{ update: task(PK), remove: ['deletedAt'] }]);
+        await store.transact([{ update: task(PK), set: { deletedAt: 30 }, ifMissing: ['deletedAt'] }]);
+        expect(await store.get(task(PK))).toMatchObject({ deletedAt: 30 });
+      });
+
+      it('removes an attribute so it is absent from the item', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), title: 'Hoover', notes: 'x' });
+        await store.transact([{ update: task(PK), remove: ['notes'] }]);
+        expect(await store.get(task(PK))).toEqual({ ...task(PK), title: 'Hoover' });
+      });
+
+      it('fails on a missing item by default and does not create it', async () => {
+        const PK = newUser();
+        await expect(store.transact([{ update: task(PK), set: { title: 'Hoover' } }]))
+          .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+        expect(await store.get(task(PK))).toBeUndefined();
+      });
+
+      it('creates a missing item from its set values when mustExist is false', async () => {
+        const PK = newUser();
+        await store.transact([{ update: task(PK), set: { title: 'Hoover' }, ifMissing: ['title'], mustExist: false }]);
+        expect(await store.get(task(PK))).toEqual({ ...task(PK), title: 'Hoover' });
+      });
+
+      it('fails an ifEquals condition on a missing item even when mustExist is false', async () => {
+        const PK = newUser();
+        await expect(store.transact([{ update: task(PK), set: { n: 2 }, ifEquals: { n: 1 }, mustExist: false }]))
+          .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+        expect(await store.get(task(PK))).toBeUndefined();
+      });
+
+      it('never stores an undefined set value as null', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), title: 'Hoover' });
+        await store.transact([{ update: task(PK), set: { gone: undefined, b: 1 } }]);
+        const item = await store.get(task(PK));
+        expect(Object.keys(item ?? {}).sort()).toEqual(['PK', 'SK', 'b', 'title']);
+      });
+
+      it('writes nothing when a later operation fails, and reports its index', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), cycleSeq: 5 });
+        await expect(store.transact([
+          { put: { PK, SK: 'DONE#t1#00000001', by: 'a' }, ifAbsent: true },
+          { update: task(PK), set: { cycleSeq: 2 }, ifEquals: { cycleSeq: 1 } },
+        ])).rejects.toMatchObject({ failedIndex: 1 });
+        expect(await store.get({ PK, SK: 'DONE#t1#00000001' })).toBeUndefined();
+      });
+
+      it('writes nothing when an earlier update fails, and reports index 0', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), cycleSeq: 5 });
+        await expect(store.transact([
+          { update: task(PK), set: { cycleSeq: 2 }, ifEquals: { cycleSeq: 1 } },
+          { put: { PK, SK: 'DONE#t1#00000001', by: 'a' }, ifAbsent: true },
+        ])).rejects.toMatchObject({ failedIndex: 0 });
+        expect(await store.get({ PK, SK: 'DONE#t1#00000001' })).toBeUndefined();
+      });
+
+      it('applies an update together with a put when both succeed', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), cycleSeq: 1 });
+        await store.transact([
+          { put: { PK, SK: 'DONE#t1#00000001', by: 'a' }, ifAbsent: true },
+          { update: task(PK), set: { cycleSeq: 2 }, ifEquals: { cycleSeq: 1 } },
+        ]);
+        expect(await store.get({ PK, SK: 'DONE#t1#00000001' })).toMatchObject({ by: 'a' });
+        expect(await store.get(task(PK))).toMatchObject({ cycleSeq: 2 });
+      });
+
+      it('rejects an update and a put on the same item', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), cycleSeq: 1 });
+        await expect(store.transact([
+          { update: task(PK), set: { cycleSeq: 2 } },
+          { put: { ...task(PK), cycleSeq: 3 } },
+        ])).rejects.toThrow(/same item twice/);
+        expect(await store.get(task(PK))).toMatchObject({ cycleSeq: 1 });
+      });
+
+      it.each([
+        ['nothing to set or remove', { set: { a: undefined } }],
+        ['an attribute in both set and remove', { set: { a: 1 }, remove: ['a'] }],
+        ['a key attribute in set', { set: { PK: 'x' } }],
+        ['a key attribute in remove', { remove: ['SK'] }],
+        ['an ifEquals value of undefined', { set: { a: 1 }, ifEquals: { b: undefined } }],
+      ])('rejects a malformed update with %s as a plain error', async (_name, fields) => {
+        const PK = newUser();
+        await store.put({ ...task(PK), a: 0 });
+        const attempt = store.transact([{ update: task(PK), ...fields }]);
+        await expect(attempt).rejects.toThrow();
+        await expect(attempt).rejects.not.toBeInstanceOf(ConditionFailedError);
+        expect(await store.get(task(PK))).toMatchObject({ a: 0 });
+      });
+    });
   });
 }

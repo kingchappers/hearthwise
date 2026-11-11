@@ -76,6 +76,21 @@ describe('purgeExpired', () => {
     expect(store.purgeExpired(200)).toBe(0);
     expect(store.purgeExpired(1000)).toBe(1);
   });
+
+  it('follows a transact update that sets expiresAt', async () => {
+    const store = new SqliteStore(':memory:');
+    await store.put({ PK, SK: 'TASK#a', title: 'Hoover' });
+    await store.transact([{ update: { PK, SK: 'TASK#a' }, set: { expiresAt: 100 } }]);
+    expect(store.purgeExpired(200)).toBe(1);
+  });
+
+  it('keeps an item whose expiresAt a transact update removed', async () => {
+    const store = new SqliteStore(':memory:');
+    await store.put({ PK, SK: 'TASK#a', title: 'Hoover', deletedAt: 50, expiresAt: 100 });
+    await store.transact([{ update: { PK, SK: 'TASK#a' }, remove: ['deletedAt', 'expiresAt'] }]);
+    expect(store.purgeExpired(1000)).toBe(0);
+    expect(await store.get({ PK, SK: 'TASK#a' })).toEqual({ PK, SK: 'TASK#a', title: 'Hoover' });
+  });
 });
 
 describe('prefix ranges', () => {

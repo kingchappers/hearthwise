@@ -193,14 +193,101 @@ describe('transact', () => {
       .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 1 });
   });
 
-  it('lets a cancellation without a failed condition through unchanged', async () => {
-    const conflict = awsError('TransactionCanceledException', { CancellationReasons: [{ Code: 'TransactionConflict' }] });
-    send.mockRejectedValueOnce(conflict);
-    await expect(store.transact([{ put: { PK, SK: 'A' } }])).rejects.toBe(conflict);
+  it('lets a cancellation that is neither a failed condition nor a conflict through unchanged', async () => {
+    const throttled = awsError('TransactionCanceledException', { CancellationReasons: [{ Code: 'ThrottlingError' }] });
+    send.mockRejectedValueOnce(throttled);
+    await expect(store.transact([{ put: { PK, SK: 'A' } }])).rejects.toBe(throttled);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('does not call DynamoDB for an empty list', async () => {
     await store.transact([]);
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe('transact update', () => {
+  const sleep = vi.fn(async (_ms: number) => {});
+  const retrying = new DynamoStore({ send }, 'test-table', { sleep, random: () => 0.5 });
+  const task = { PK: 'HH#h1', SK: 'TASK#t1' };
+  const conflict = () => awsError('TransactionCanceledException', { CancellationReasons: [{ Code: 'TransactionConflict' }] });
+
+  beforeEach(() => { sleep.mockClear(); });
+
+  it('builds an Update with SET, REMOVE and every condition', async () => {
+    send.mockResolvedValueOnce({});
+    await retrying.transact([{
+      update: task, set: { cycleSeq: 2, gone: undefined, dueOn: '2026-11-12' }, remove: ['checklistState'],
+      ifEquals: { cycleSeq: 1 }, ifMissing: ['deletedAt'],
+    }]);
+    expect(sentInput().TransactItems).toEqual([{
+      Update: {
+        TableName: 'test-table',
+        Key: task,
+        UpdateExpression: 'SET #s0 = :s0, #s1 = :s1 REMOVE #r0',
+        ConditionExpression: 'attribute_exists(PK) AND #e0 = :e0 AND attribute_not_exists(#m0)',
+        ExpressionAttributeNames: { '#s0': 'cycleSeq', '#s1': 'dueOn', '#r0': 'checklistState', '#e0': 'cycleSeq', '#m0': 'deletedAt' },
+        ExpressionAttributeValues: { ':s0': 2, ':s1': '2026-11-12', ':e0': 1 },
+      },
+    }]);
+  });
+
+  it('leaves out the condition and the values when there is nothing to put in them', async () => {
+    send.mockResolvedValueOnce({});
+    await retrying.transact([{ update: task, remove: ['notes'], mustExist: false }]);
+    expect(sentInput().TransactItems[0].Update).toEqual({
+      TableName: 'test-table',
+      Key: task,
+      UpdateExpression: 'REMOVE #r0',
+      ExpressionAttributeNames: { '#r0': 'notes' },
+    });
+  });
+
+  it('retries a transaction conflict once and then succeeds', async () => {
+    send.mockRejectedValueOnce(conflict()).mockResolvedValueOnce({});
+    await retrying.transact([{ update: task, set: { n: 1 } }]);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits a jittered, doubling delay between retries', async () => {
+    send.mockRejectedValueOnce(conflict()).mockRejectedValueOnce(conflict()).mockRejectedValueOnce(conflict()).mockResolvedValueOnce({});
+    await retrying.transact([{ update: task, set: { n: 1 } }]);
+    expect(sleep.mock.calls.map(call => call[0])).toEqual([25, 50, 100]);
+  });
+
+  it('gives up after three retries and throws the conflict', async () => {
+    const last = conflict();
+    send.mockRejectedValueOnce(conflict()).mockRejectedValueOnce(conflict()).mockRejectedValueOnce(conflict()).mockRejectedValueOnce(last);
+    await expect(retrying.transact([{ update: task, set: { n: 1 } }])).rejects.toBe(last);
+    expect(send).toHaveBeenCalledTimes(4);
+    expect(sleep).toHaveBeenCalledTimes(3);
+  });
+
+  it('never retries a failed condition', async () => {
+    send.mockRejectedValueOnce(awsError('TransactionCanceledException', { CancellationReasons: [{ Code: 'ConditionalCheckFailed' }] }));
+    await expect(retrying.transact([{ update: task, set: { n: 1 }, ifEquals: { n: 0 } }]))
+      .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('treats a failed condition as final even when another operation hit a conflict', async () => {
+    send.mockRejectedValueOnce(awsError('TransactionCanceledException', {
+      CancellationReasons: [{ Code: 'TransactionConflict' }, { Code: 'ConditionalCheckFailed' }],
+    }));
+    await expect(retrying.transact([{ put: { PK, SK: 'A' } }, { update: task, set: { n: 1 }, ifEquals: { n: 0 } }]))
+      .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 1 });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a malformed update without calling DynamoDB', async () => {
+    await expect(retrying.transact([{ update: task, set: { a: undefined } }])).rejects.toThrow(/needs at least one/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('rejects two operations on the same item without calling DynamoDB', async () => {
+    await expect(retrying.transact([{ update: task, set: { n: 1 } }, { put: { ...task, n: 2 } }])).rejects.toThrow(/same item twice/);
     expect(send).not.toHaveBeenCalled();
   });
 });

@@ -5,9 +5,24 @@ export interface Key {
 
 export type Item = Key & Record<string, unknown>;
 
+// An update sets or removes attributes on an existing item, and applies only if every condition holds. It never creates an
+// item unless mustExist is false. An attribute left out of `set` (or set to undefined) is never stored as null.
+export interface UpdateOp {
+  update: Key;
+  set?: Record<string, unknown>;
+  remove?: string[];
+  // Each named attribute must hold exactly this value.
+  ifEquals?: Record<string, unknown>;
+  // Each named attribute must be absent. A stored null does not count as absent.
+  ifMissing?: string[];
+  // Defaults to true: the update fails on a missing item.
+  mustExist?: boolean;
+}
+
 export type TxOp =
   | { put: Item; ifAbsent?: boolean }
-  | { delete: Key; ifPresent?: boolean };
+  | { delete: Key; ifPresent?: boolean }
+  | UpdateOp;
 
 export interface QueryOptions {
   skPrefix?: string;
