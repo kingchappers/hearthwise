@@ -5,7 +5,7 @@
 Each step is its own pull request, in this order. Design: [`designs/phase-1-foundation.md`](designs/phase-1-foundation.md).
 
 1. **Scaffold** (built): tooling, Store with conditional update, auth, static and API Lambdas, container, infrastructure, brand, empty signed-in shell.
-2. **Accounts, households and invites:** multi-account local login, households, membership guard, invites, member removal, sign-up alerts.
+2. **Accounts, households and invites** (built): multi-account local login, households, membership guard, invites, member removal, sign-up alerts.
 3. **Tasks:** model, repeat rules, completions, proposals, "I did this today", views, task recycle bin.
 4. **Shopping list:** list, item recycle bin, "clear ticked".
 5. **Offline:** persistence spike, service worker, persisted query cache, persisted paused mutations.

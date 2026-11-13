@@ -65,3 +65,28 @@ The deploy role (`hearthwise-github-actions`) lives in an account that also hold
 
 - **State locking:** both backends use `use_lockfile = true` and the deploy job has a `concurrency` group that never cancels a running deploy, so two pushes to `main` cannot apply at once.
 - **`ifEquals` is scalar-only:** the Store rejects an object or array condition value, because DynamoDB compares by structure and the in-process stores by identity. Task completion and the other step 3 conditions use scalars.
+
+## Step 2: accounts, households and invites (2026-11-13)
+
+Decisions the spec was silent or inconsistent about; the plan is `docs/superpowers/plans/2026-11-13-phase-1-step-2-accounts-households-invites.md`.
+
+| Spec says | Built | Why |
+|---|---|---|
+| `POST /api/invites/accept` takes `{ token, confirmMove? }` | Also takes `displayName` (1 to 40 characters); `POST /api/households` too | The MEMBER row needs a name and the server only has the Auth0 subject |
+| Local accounts have an email | Also a `displayName`, returned by `GET /api/auth/me` | So the welcome form can prefill it |
+| Router has no PATCH | `patch` added, and path parameters are decoded once (malformed escape is 400) | `PATCH /api/hh/members/me` and `DELETE /api/hh/members/auth0%7Cabc` |
+| Household name length unspecified | 1 to 60 characters | |
+| `GET /api/hh` returns members | Each member as `{ userId, displayName, joinedAt }`; only the caller's own settings come back | The other person's reminder settings are theirs |
+| Alerts | SNS topic and email subscription in the main stack, from the repository variable `ALERT_EMAIL`; the IAM user for the Auth0 Action and the deploy role's SNS permissions are in `infra/initialSetup` (applied by hand) | The deploy role cannot create users. AWS emails a confirmation link: **until it is clicked, no alert is delivered** |
+| Open invites unlimited | At most 10 per household | Keeps a "move" transaction under DynamoDB's 100-operation limit |
+| A link of the wrong shape: 400 or 410 | Always `410 invite_expired`, before any lookup | A garbage token must never become a store key |
+| Invited sign-up answers `email_taken` | After 5 such answers the invite is deleted | A valid link must not become a way to list which emails have accounts |
+| 410 and 409 messages name the inviter | They say "your partner" | The server sends no inviter or household name; adding one is a server change |
+| Auth0 accept is automatic | A small form (name prefilled, **Join household**) | Accept needs a valid display name |
+| Show Auth0's error text on a failed sign-in | Only when this tab started the sign-in (a `sessionStorage` marker), and always stripped from the address | A crafted link could otherwise put someone else's words in the panel |
+
+**Unmigrated Step 1 accounts.** Local accounts made in step 1 use the old key scheme and are not migrated. Delete the SQLite file and set up again (`docs/SELF-HOSTING.md`). This is the resolution of the step 1 deviation that kept `reset-password` single-account: it now takes an email, and the unused recovery flag is gone.
+
+**Accepted: the email-existence leak to an invite holder.** Someone holding a valid invite can learn that an email already has an account (`email_taken`). Invites are one-time, trusted links the creator hands to one person, and the 5-answer cap burns a link that is being used to probe.
+
+**Accepted: best-effort limits.** The open-invite cap and the `email_taken` counter are read-then-write, so two simultaneous requests can pass either by one. Nothing depends on the exact number.

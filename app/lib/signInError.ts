@@ -42,3 +42,16 @@ export function consumeSignInStarted(): boolean {
     return false;
   }
 }
+
+// Sign-in failures the app can explain beyond Auth0's own words. docs/AUTH0.md quotes each `contains` text (a test checks it),
+// so the panel and the doc stay in step.
+export const EXPLAINED_SYMPTOMS: readonly { contains: string; hint: string }[] = [
+  {
+    contains: 'is not authorized to access resource server',
+    hint: "This app's Auth0 application has not been given access to its API yet. See docs/AUTH0.md.",
+  },
+];
+
+export function explainSignInError(message: string): string | undefined {
+  return EXPLAINED_SYMPTOMS.find(symptom => message.includes(symptom.contains))?.hint;
+}

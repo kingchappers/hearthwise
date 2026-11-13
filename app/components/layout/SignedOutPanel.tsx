@@ -2,6 +2,7 @@ import { Alert, Button, Stack, Text, Title } from '@mantine/core';
 import { IconLock } from '@tabler/icons-react';
 import { useAuth } from '~/lib/auth';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
+import { explainSignInError } from '~/lib/signInError';
 import type { SignInError } from '~/lib/signInError';
 import { Logo } from './Logo';
 
@@ -10,11 +11,9 @@ export interface SignedOutPanelProps {
   signInError?: SignInError;
 }
 
-const UNAUTHORIZED_RESOURCE_SERVER = 'is not authorized to access resource server';
-const AUTH0_SETUP_HINT = "This app's Auth0 application has not been given access to its API yet. See docs/AUTH0.md.";
-
 export function SignedOutPanel({ sessionEnded, signInError }: SignedOutPanelProps) {
   const { login } = useAuth();
+  const hint = signInError ? explainSignInError(signInError.message) : undefined;
 
   async function signIn(): Promise<void> {
     try {
@@ -34,7 +33,7 @@ export function SignedOutPanel({ sessionEnded, signInError }: SignedOutPanelProp
         <Alert color="honey" role="alert" ta="start" title="Sign-in did not finish">
           {/* Auth0's text, shown as text only. */}
           {signInError.message && <Text size="sm">{signInError.message}</Text>}
-          {signInError.message.includes(UNAUTHORIZED_RESOURCE_SERVER) && <Text size="sm" mt="xs">{AUTH0_SETUP_HINT}</Text>}
+          {hint && <Text size="sm" mt="xs">{hint}</Text>}
         </Alert>
       )}
       <Button size="lg" onClick={() => void signIn()}>Sign in</Button>

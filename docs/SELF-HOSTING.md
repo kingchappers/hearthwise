@@ -2,7 +2,7 @@
 
 Hearthwise runs as one container: a Node server, the built app, and Caddy for HTTPS, with all data in a single SQLite file. It uses the same code as the AWS deployment. Sign-in is Hearthwise's own email and password (`AUTH_MODE=local`), so it needs no Auth0 account.
 
-**What works today (phase 1, step 1):** first-run setup, sign-in, sessions, backups and the store command line tool. Households, invites, tasks and the shopping list arrive in steps 2 to 7 (`docs/ROADMAP.md`); upgrading is a new image tag and a restart.
+**What works today (phase 1, step 2):** first-run setup, several accounts, households of two with invite links, sessions, backups and the store command line tool. Tasks and the shopping list arrive in steps 3 to 7 (`docs/ROADMAP.md`); upgrading is a new image tag and a restart.
 
 ## What you need
 
@@ -31,7 +31,19 @@ A fresh install has no account. The first time the container starts it prints a 
 docker compose logs hearthwise | grep "Setup code"
 ```
 
-The code is also saved as `SETUP_CODE.txt` in the data folder until it is used. Open the app, enter the code, and create your account. The file is removed once setup completes. After that, setup is closed and there is no open sign-up.
+The code is also saved as `SETUP_CODE.txt` in the data folder until it is used. Open the app, enter the code, your email, a name and a password. The file is removed once setup completes. After that, setup is closed and there is no open sign-up.
+
+## Accounts, households and invites
+
+The first account makes a household (a name and a time zone). A household holds at most two people. To add the second person, open Settings, choose **Create invite link**, and send them the link. The link:
+
+- works once, and expires after 7 days;
+- carries its secret after the `#`, so it never appears in a server log;
+- is shown only when you create it (copy it then; you can revoke an open invite from the same place and make a new one).
+
+The invited person opens the link, chooses an email, a name and a password, and lands in your household. That is the only way to add an account after first-run setup. The household's creator can remove the other person from Settings; their account stays, and they can be invited again.
+
+Accounts made by step 1 are not carried over (the keys changed). If you ran step 1 with data you want to keep, back up the database, then delete `hearthwise.sqlite` and set up again.
 
 ## Settings
 
@@ -83,12 +95,10 @@ To take a one-off copy by hand: `docker compose exec -e STORE=sqlite hearthwise 
 There is no "forgot password" email, and nothing in the app can reset a password: that would let anyone who reaches the page take over the install. Resetting is something only the person who runs the server can do:
 
 ```bash
-docker compose exec -it -e STORE=sqlite hearthwise node build/store-cli/store-cli.js reset-password
+docker compose exec -it -e STORE=sqlite hearthwise node build/store-cli/store-cli.js reset-password you@example.com
 ```
 
-It asks for the new password (the password is never read from the command line or the environment), sets it, ends every signed-in session and clears any sign-in lock-out. It does not reopen first-run setup.
-
-In step 1 there is one account, so the command takes no argument. Step 2 adds multiple accounts; the command will then take the account's email address.
+Give the email address of the account. It asks for the new password (the password is never read from the command line or the environment), sets it, ends that person's signed-in sessions and clears their sign-in lock-out. Nobody else is affected, and it does not reopen first-run setup.
 
 ## Updating
 
