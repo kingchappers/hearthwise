@@ -3,121 +3,148 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { LocalAuthForm } from '../LocalAuthForm';
 
-function renderForm(props: { setupRequired: boolean; recoveryOpen?: boolean; onLogin?: any; onSetup?: any; onRecover?: any }) {
+type Mode = 'login' | 'setup' | 'invite';
+
+function renderForm(props: { mode: Mode; onLogin?: any; onSetup?: any; onSignup?: any; defaultDisplayName?: string }) {
   return render(
     <MantineProvider env="test">
       <LocalAuthForm
-        setupRequired={props.setupRequired}
-        recoveryOpen={props.recoveryOpen}
+        mode={props.mode}
         onLogin={props.onLogin ?? vi.fn()}
         onSetup={props.onSetup ?? vi.fn()}
-        onRecover={props.onRecover ?? vi.fn()}
+        onSignup={props.onSignup ?? vi.fn()}
       />
     </MantineProvider>,
   );
 }
 
+function fill(label: string, value: string): void {
+  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+}
+
 describe('LocalAuthForm', () => {
   it('shows email and password only when signing in', () => {
-    renderForm({ setupRequired: false });
+    renderForm({ mode: 'login' });
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.queryByLabelText('Setup code')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 
-  it('asks for the setup code on first run, and says where to find it', () => {
-    renderForm({ setupRequired: true });
+  it('asks for the setup code and a name on first run, and says where to find the code', () => {
+    renderForm({ mode: 'setup' });
     expect(screen.getByLabelText('Setup code')).toBeInTheDocument();
+    expect(screen.getByLabelText('Your name')).toBeInTheDocument();
     expect(screen.getByText(/SETUP_CODE\.txt/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument();
+  });
+
+  it('asks for a name but no setup code when joining by invite', () => {
+    renderForm({ mode: 'invite' });
+    expect(screen.queryByLabelText('Setup code')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Your name')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument();
   });
 
   it('submits the login fields', async () => {
     const onLogin = vi.fn().mockResolvedValue(undefined);
-    renderForm({ setupRequired: false, onLogin });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'me@example.com' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a long enough password' } });
+    renderForm({ mode: 'login', onLogin });
+    fill('Email', 'me@example.com');
+    fill('Password', 'a long enough password');
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith('me@example.com', 'a long enough password'));
   });
 
   it('submits the setup fields', async () => {
     const onSetup = vi.fn().mockResolvedValue(undefined);
-    renderForm({ setupRequired: true, onSetup });
-    fireEvent.change(screen.getByLabelText('Setup code'), { target: { value: 'abc123' } });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'me@example.com' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a long enough password' } });
+    renderForm({ mode: 'setup', onSetup });
+    fill('Setup code', 'abc123');
+    fill('Email', 'me@example.com');
+    fill('Your name', ' Me ');
+    fill('Password', 'a long enough password');
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    await waitFor(() => expect(onSetup).toHaveBeenCalledWith({ code: 'abc123', email: 'me@example.com', password: 'a long enough password' }));
+    await waitFor(() => expect(onSetup).toHaveBeenCalledWith({ code: 'abc123', email: 'me@example.com', password: 'a long enough password', displayName: 'Me' }));
+  });
+
+  it('submits the invite fields without a code', async () => {
+    const onSignup = vi.fn().mockResolvedValue(undefined);
+    renderForm({ mode: 'invite', onSignup });
+    fill('Email', 'you@example.com');
+    fill('Your name', 'You');
+    fill('Password', 'a long enough password');
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    await waitFor(() => expect(onSignup).toHaveBeenCalledWith({ email: 'you@example.com', password: 'a long enough password', displayName: 'You' }));
   });
 
   it('shows the server message when it fails, without clearing the email', async () => {
     const onLogin = vi.fn().mockRejectedValue(new Error('Invalid email or password'));
-    renderForm({ setupRequired: false, onLogin });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'me@example.com' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong password here' } });
+    renderForm({ mode: 'login', onLogin });
+    fill('Email', 'me@example.com');
+    fill('Password', 'wrong password here');
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(await screen.findByText('Invalid email or password')).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toHaveValue('me@example.com');
   });
 
   it('says every field is required', () => {
-    renderForm({ setupRequired: false });
+    renderForm({ mode: 'login' });
     expect(screen.getByText('All fields are required.')).toBeInTheDocument();
   });
 
   it('does not create an account with a password that is too short', () => {
     const onSetup = vi.fn();
-    renderForm({ setupRequired: true, onSetup });
-    fireEvent.change(screen.getByLabelText('Setup code'), { target: { value: 'abc123' } });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'me@example.com' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } });
+    renderForm({ mode: 'setup', onSetup });
+    fill('Setup code', 'abc123');
+    fill('Email', 'me@example.com');
+    fill('Your name', 'Me');
+    fill('Password', 'short');
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Password must be at least 12 characters');
     expect(onSetup).not.toHaveBeenCalled();
   });
 
+  it('does not create an account without a name, or with one over 40 characters', () => {
+    const onSetup = vi.fn();
+    renderForm({ mode: 'setup', onSetup });
+    fill('Setup code', 'abc123');
+    fill('Email', 'me@example.com');
+    fill('Password', 'a long enough password');
+    fill('Your name', '   ');
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Your name must be 1 to 40 characters');
+    fill('Your name', 'N'.repeat(41));
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Your name must be 1 to 40 characters');
+    expect(onSetup).not.toHaveBeenCalled();
+  });
+
   it('still submits a short password when signing in', async () => {
     const onLogin = vi.fn().mockResolvedValue(undefined);
-    renderForm({ setupRequired: false, onLogin });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'me@example.com' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } });
+    renderForm({ mode: 'login', onLogin });
+    fill('Email', 'me@example.com');
+    fill('Password', 'short');
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith('me@example.com', 'short'));
   });
 
   it('tells a first-run user where the code is without naming Docker', () => {
-    renderForm({ setupRequired: true });
+    renderForm({ mode: 'setup' });
     expect(screen.getByText(/host's logs/i)).toBeInTheDocument();
     expect(screen.queryByText(/docker/i)).not.toBeInTheDocument();
   });
 
   it('offers a forgot-your-password link on the sign-in form only', () => {
-    const { unmount } = renderForm({ setupRequired: false });
+    const { unmount } = renderForm({ mode: 'login' });
     expect(screen.getByRole('link', { name: /how to reset it/i })).toHaveAttribute('href', expect.stringContaining('SELF-HOSTING.md#forgot-your-password'));
     unmount();
-    renderForm({ setupRequired: true });
+    renderForm({ mode: 'setup' });
     expect(screen.queryByRole('link', { name: /how to reset it/i })).not.toBeInTheDocument();
   });
 
-  it('shows only the code and a new password while recovery is open, and submits them', async () => {
-    const onRecover = vi.fn().mockResolvedValue(undefined);
-    renderForm({ setupRequired: false, recoveryOpen: true, onRecover });
-    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Recovery code'), { target: { value: ' abc123 ' } });
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a long enough password' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Set new password' }));
-    await waitFor(() => expect(onRecover).toHaveBeenCalledWith({ code: 'abc123', password: 'a long enough password' }));
-  });
-
-  it('does not submit a too-short new password during recovery', () => {
-    const onRecover = vi.fn();
-    renderForm({ setupRequired: false, recoveryOpen: true, onRecover });
-    fireEvent.change(screen.getByLabelText('Recovery code'), { target: { value: 'abc123' } });
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'short' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Set new password' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Password must be at least 12 characters');
-    expect(onRecover).not.toHaveBeenCalled();
+  it('has no recovery form', () => {
+    renderForm({ mode: 'login' });
+    expect(screen.queryByLabelText('Recovery code')).not.toBeInTheDocument();
+    expect(screen.queryByText(/recovery/i)).not.toBeInTheDocument();
   });
 });

@@ -174,6 +174,35 @@ describe('DefaultLayout signed out', () => {
   });
 });
 
+describe('DefaultLayout after a failed Auth0 sign-in', () => {
+  const FAILED = '/?error=invalid_request&error_description=Client%20%22x%22%20is%20not%20authorized%20to%20access%20resource%20server%20%22https%3A%2F%2Fhearthwise-api%22.&state=abc&keep=1';
+
+  beforeEach(() => {
+    auth.isAuthenticated = false;
+    window.history.replaceState(null, '', FAILED);
+  });
+
+  it('shows the reason and the docs hint, then takes the error out of the address', async () => {
+    renderLayout();
+    expect(screen.getByRole('alert')).toHaveTextContent('is not authorized to access resource server');
+    expect(screen.getByRole('alert')).toHaveTextContent('See docs/AUTH0.md');
+    await vi.waitFor(() => expect(window.location.search).toBe('?keep=1'));
+  });
+
+  it('leaves the panel unchanged when the address has no error', () => {
+    window.history.replaceState(null, '', '/');
+    renderLayout();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You're signed out" })).toBeInTheDocument();
+  });
+
+  it('still starts sign-in from the button', async () => {
+    renderLayout();
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(auth.loginWithRedirect).toHaveBeenCalled();
+  });
+});
+
 describe('public pages', () => {
   it('start with none: step 2 adds /join', () => {
     expect(isPublicPath('/')).toBe(false);

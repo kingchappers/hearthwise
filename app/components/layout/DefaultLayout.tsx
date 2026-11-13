@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppShell, Flex, Text, NavLink, Group, Loader, Paper } from '@mantine/core';
 import { useAuth } from '~/lib/auth';
 import Authentication from "../authentication/Authentication";
@@ -9,6 +9,8 @@ import { IconHome, IconSettings, IconShoppingCart } from '@tabler/icons-react';
 import { NavLink as RouterNavLink, useLocation } from 'react-router';
 import { SignedOutPanel } from './SignedOutPanel';
 import { isSessionEndedError, useSessionEnded } from '~/lib/session';
+import { clearSignInErrorFromAddress, readSignInError } from '~/lib/signInError';
+import type { SignInError } from '~/lib/signInError';
 
 // The same three places on every device.
 export const NAV_ITEMS = [
@@ -109,7 +111,17 @@ function useSessionState(): SessionState {
   return 'signedOut';
 }
 
-function MainContent({ session, children }: { session: SessionState; children: React.ReactNode }) {
+// A failed Auth0 sign-in lands on the page with the reason in the address. Read it once, then take it out of the address,
+// so a reload does not show it again and it is not left in history.
+function useSignInError(): SignInError | undefined {
+  const [signInError] = useState(() => (typeof window === 'undefined' ? undefined : readSignInError(window.location.search)));
+  useEffect(() => {
+    if (signInError) clearSignInErrorFromAddress();
+  }, [signInError]);
+  return signInError;
+}
+
+function MainContent({ session, signInError, children }: { session: SessionState; signInError?: SignInError; children: React.ReactNode }) {
   const { pathname } = useLocation();
   if (isPublicPath(pathname)) return <>{children}</>;
   if (session === 'loading') {
@@ -120,11 +132,12 @@ function MainContent({ session, children }: { session: SessionState; children: R
     );
   }
   if (session === 'signedIn') return <>{children}</>;
-  return <SignedOutPanel sessionEnded={session === 'sessionEnded'} />;
+  return <SignedOutPanel sessionEnded={session === 'sessionEnded'} signInError={signInError} />;
 }
 
 function LayoutShell({ children }: { children: React.ReactNode }) {
   const session = useSessionState();
+  const signInError = useSignInError();
 
   return (
     <>
@@ -150,7 +163,7 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 
       {/* Clears the phone tab bar, which is fixed to the bottom of the screen. */}
       <AppShell.Main id="main" tabIndex={-1} style={{ outline: 'none', paddingBottom: 'calc(var(--tab-bar-height) + var(--mantine-spacing-xl))' }}>
-        <MainContent session={session}>{children}</MainContent>
+        <MainContent session={session} signInError={signInError}>{children}</MainContent>
       </AppShell.Main>
       <BottomTabs />
     </AppShell>

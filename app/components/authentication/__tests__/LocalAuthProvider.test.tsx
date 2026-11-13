@@ -69,38 +69,24 @@ describe('LocalAuthProvider', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows the recovery form when recovery opened after the page loaded', async () => {
-    fetchMock
-      .mockResolvedValueOnce(reply(401, {}))
-      .mockResolvedValueOnce(reply(200, { setupRequired: false, recoveryOpen: false }))
-      .mockResolvedValueOnce(reply(401, {}))
-      .mockResolvedValueOnce(reply(200, { setupRequired: false, recoveryOpen: true }));
-    renderProvider();
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    fireEvent.click(await screen.findByText('open'));
-    expect(await screen.findByLabelText('Recovery code')).toBeInTheDocument();
-    expect(screen.getByLabelText('New password')).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Set a new password' })).toBeInTheDocument();
-  });
-
   it('titles the dialog for first-run setup and for plain sign in', async () => {
     fetchMock
       .mockResolvedValueOnce(reply(401, {}))
-      .mockResolvedValueOnce(reply(200, { setupRequired: true, recoveryOpen: false }))
+      .mockResolvedValueOnce(reply(200, { setupRequired: true }))
       .mockResolvedValueOnce(reply(401, {}))
-      .mockResolvedValueOnce(reply(200, { setupRequired: true, recoveryOpen: false }));
+      .mockResolvedValueOnce(reply(200, { setupRequired: true }));
     renderProvider();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     fireEvent.click(await screen.findByText('open'));
     expect(await screen.findByRole('dialog', { name: 'Create your account' })).toBeInTheDocument();
   });
 
-  it('titles the dialog Sign in when an account exists and recovery is closed', async () => {
+  it('titles the dialog Sign in when an account exists', async () => {
     fetchMock
       .mockResolvedValueOnce(reply(401, {}))
-      .mockResolvedValueOnce(reply(200, { setupRequired: false, recoveryOpen: false }))
+      .mockResolvedValueOnce(reply(200, { setupRequired: false }))
       .mockResolvedValueOnce(reply(401, {}))
-      .mockResolvedValueOnce(reply(200, { setupRequired: false, recoveryOpen: false }));
+      .mockResolvedValueOnce(reply(200, { setupRequired: false }));
     renderProvider();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     fireEvent.click(await screen.findByText('open'));
