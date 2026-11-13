@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryStore } from '../../store/memory';
 import { loadContext } from '../guard';
 import { createHousehold } from '../households';
-import { acceptInvite, createInvite, inviteHash, listInvites, revokeInvite } from '../invites';
+import { ConditionFailedError } from '../../store';
+import { acceptInvite, createInvite, inviteHash, joinOps, listInvites, revokeInvite } from '../invites';
+import { removeMember } from '../members';
 import { hhPk, inviteKey, invitePointerSk, membershipKey, memberSk, metaKey } from '../keys';
 import type { HouseholdContext } from '../types';
 
@@ -230,5 +232,34 @@ describe('acceptInvite', () => {
       await expect(accept(token, B, { confirmMove: true })).rejects.toMatchObject({ extra: { canMove: false } });
       expect(await store.get(metaKey(oldId))).toBeDefined();
     });
+
+    it('leaves a household alone that gained a member after the emptiness check, so nobody is stranded', async () => {
+      const { hash } = await createInvite(store, ctx, NOW);
+      // Someone accepts one of the old household's invites between the check and the move.
+      await store.patch(metaKey(oldId), { memberCount: 2 });
+
+      await expect(store.transact(joinOps({ hash, householdId }, B, 'Bea', NOW, { moveFrom: { householdId: oldId, inviteHashes: [] } })))
+        .rejects.toBeInstanceOf(ConditionFailedError);
+      expect(await store.get(metaKey(oldId))).toMatchObject({ memberCount: 2 });
+      expect(await store.get(membershipKey(B))).toMatchObject({ householdId: oldId });
+    });
+  });
+});
+
+describe('a removed member replaying their invite link', () => {
+  it('is not told they are in, because they have no membership', async () => {
+    const { token } = await createInvite(store, ctx, NOW);
+    await accept(token, B);
+    await removeMember(store, await fresh(), B);
+    expect(await store.get(membershipKey(B))).toBeUndefined();
+
+    await expect(accept(token, B)).rejects.toMatchObject({ code: 'invite_expired', status: 410 });
+    expect(await store.get(membershipKey(B))).toBeUndefined();
+  });
+
+  it('still treats a retry by someone who is in as success', async () => {
+    const { token } = await createInvite(store, ctx, NOW);
+    await accept(token, B);
+    await expect(accept(token, B)).resolves.toEqual({ householdId });
   });
 });

@@ -88,12 +88,28 @@ export function joinOps(invite: { hash: string; householdId: string }, userId: s
     },
   ];
   if (moveFrom) {
-    ops.push({ delete: metaKey(moveFrom.householdId) }, { delete: { PK: hhPk(moveFrom.householdId), SK: memberSk(userId) } });
+    // Not a plain delete: a delete cannot carry a condition, and someone may have joined the old household since it was checked
+    // as empty. Setting memberCount to 0 only if it is still 1 makes the whole move fail instead of stranding them; the empty
+    // record is deleted right after (see removeEmptiedHousehold).
+    ops.push(
+      { update: metaKey(moveFrom.householdId), set: { memberCount: 0 }, ifEquals: { memberCount: 1 } },
+      { delete: { PK: hhPk(moveFrom.householdId), SK: memberSk(userId) } },
+    );
     for (const old of moveFrom.inviteHashes) {
       ops.push({ delete: { PK: hhPk(moveFrom.householdId), SK: invitePointerSk(old) } }, { delete: inviteKey(old) });
     }
   }
   return ops;
+}
+
+// The old household's META is left with memberCount 0 by a move. Nothing can join it (no room) and nobody's membership names it,
+// so it is harmless if this fails; it is only tidied away.
+async function removeEmptiedHousehold(store: Store, householdId: string): Promise<void> {
+  try {
+    await store.delete(metaKey(householdId));
+  } catch (error) {
+    console.warn('Could not remove the emptied household record:', error);
+  }
 }
 
 // Turns a failed join transaction into the answer. `offset` is how many writes the caller put before joinOps.
@@ -133,12 +149,13 @@ export async function acceptInvite(store: Store, input: AcceptInput, emit: typeo
   const invite = await store.get(inviteKey(hash), { consistent: true });
   if (!invite || !(Number(invite.expiresAt) > Math.floor(nowMs / 1000))) throw expired();
   const householdId = String(invite.householdId);
-  // The same person asking again (a retry, or a second tab) is told it worked, and nothing else happens.
-  if (invite.usedBy === input.userId) return { householdId };
+  const membership = await store.get(membershipKey(input.userId), { consistent: true });
+  // The same person asking again (a retry, or a second tab) is told it worked, and nothing else happens. Only if they really are
+  // in: someone who was removed after joining has no membership, and a replayed link must not tell them they are.
+  if (invite.usedBy === input.userId && membership?.householdId === householdId) return { householdId };
   if (invite.usedBy !== undefined) throw expired();
 
   let moveFrom: MoveFrom | undefined;
-  const membership = await store.get(membershipKey(input.userId), { consistent: true });
   if (membership) {
     const oldId = String(membership.householdId);
     if (oldId === householdId) throw new HouseholdError('already_member', 409, { canMove: false });
@@ -153,10 +170,11 @@ export async function acceptInvite(store: Store, input: AcceptInput, emit: typeo
   } catch (error) {
     if (!(error instanceof ConditionFailedError)) throw error;
     // A simultaneous copy of this same request may have won; that is success, not a failure.
-    const after = await store.get(inviteKey(hash), { consistent: true });
-    if (after?.usedBy === input.userId) return { householdId };
+    const [after, now] = await Promise.all([store.get(inviteKey(hash), { consistent: true }), store.get(membershipKey(input.userId), { consistent: true })]);
+    if (after?.usedBy === input.userId && now?.householdId === householdId) return { householdId };
     throw joinFailure(error.failedIndex);
   }
+  if (moveFrom) await removeEmptiedHousehold(store, moveFrom.householdId);
 
   await emit({ event: 'invite_accepted', userId: input.userId, householdId, at: new Date(nowMs).toISOString() });
   return { householdId };
