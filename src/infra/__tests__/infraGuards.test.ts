@@ -66,6 +66,74 @@ describe('the deploy role (infra/initialSetup)', () => {
   });
 });
 
+describe('sign-up alerts (infra/initialSetup)', () => {
+  const setup = read('initialSetup', 'main.tf');
+  const deployPolicy = setup.slice(
+    setup.indexOf('data "aws_iam_policy_document" "github_iam_policy_document"'),
+    setup.indexOf('resource "aws_iam_policy" "github_actions_iam_policy"'),
+  );
+  const alertUserPolicy = setup.slice(
+    setup.indexOf('data "aws_iam_policy_document" "auth0_alerts"'),
+    setup.indexOf('resource "aws_iam_user_policy" "auth0_alerts"'),
+  );
+
+  it('gives the Auth0 alert user permission to publish to the alerts topic and nothing else', () => {
+    expect(alertUserPolicy).toContain('actions   = ["sns:Publish"]');
+    expect(alertUserPolicy).toContain('${var.aws_region}:${local.account_id}:${var.app_name}-alerts');
+    expect(alertUserPolicy.match(/statement \{/g)).toHaveLength(1);
+  });
+
+  it('names the alert user after the app', () => {
+    expect(setup).toMatch(/resource "aws_iam_user" "auth0_alerts" \{\s+name\s+= "\$\{var\.app_name\}-auth0-alerts"/);
+  });
+
+  it('never creates an access key, so no secret reaches state', () => {
+    expect(setup).not.toContain('aws_iam_access_key');
+  });
+
+  it('lets the deploy role manage topics named after the app, and nothing wider', () => {
+    const sns = statement(setup, 'SnsTopicManagement');
+    expect(sns).toContain('arn:aws:sns:${var.aws_region}:${local.account_id}:${var.app_name}-*');
+    expect(sns).not.toMatch(/resources\s*=\s*\["\*"\]/);
+    expect(sns).not.toMatch(/sns:\*/);
+  });
+
+  it('does not let the deploy role create users or write user policies', () => {
+    expect(deployPolicy).not.toMatch(/"iam:(CreateUser|PutUserPolicy|AttachUserPolicy|CreateAccessKey)"/);
+  });
+
+  it('still lets a Lambda role publish to this app\'s topics, and no others', () => {
+    const alerts = statement(setup, 'Alerts');
+    expect(alerts).toContain('sns:Publish');
+    expect(alerts).toContain('${var.app_name}-*');
+  });
+});
+
+describe('sign-up alerts (infra)', () => {
+  const alerts = read('alerts.tf');
+  const variables = read('variables.tf');
+
+  it('names the topic from app_name', () => {
+    expect(alerts).toContain('name = "${var.app_name}-alerts"');
+  });
+
+  it('subscribes the alert email only when one is set', () => {
+    expect(alerts).toMatch(/resource "aws_sns_topic_subscription" "email" \{\s+count\s+= var\.alert_email != "" \? 1 : 0/);
+  });
+
+  it('leaves alert_email empty by default', () => {
+    const block = variables.slice(variables.indexOf('variable "alert_email"'));
+    expect(block.slice(0, block.indexOf('\n}'))).toContain('default     = ""');
+  });
+
+  it('hands the API Lambda the topic and lets only its role publish to it', () => {
+    const api = read('api-lambda.tf');
+    expect(api).toContain('ALERT_TOPIC_ARN = aws_sns_topic.alerts.arn');
+    expect(alerts).toMatch(/"sns:Publish"/);
+    expect(alerts).toContain('aws_iam_role.api_role.id');
+  });
+});
+
 describe('the app stack (infra)', () => {
   const all = rootFiles.map(name => read(name)).join('\n');
 

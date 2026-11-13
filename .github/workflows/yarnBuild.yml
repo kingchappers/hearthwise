@@ -102,6 +102,8 @@ jobs:
       TF_VAR_state_bucket: kingchappers-terraform-state-bucket
       TF_VAR_app_name: hearthwise
       TF_VAR_environment: production
+      # Where sign-up and security alerts are emailed, from the repository variable ALERT_EMAIL. Empty: the topic has no subscriber.
+      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
       # The public half of the push key pair (step 6). Empty until the secret is created, and push stays off.
       TF_VAR_vapid_public_key: ${{ secrets.VAPID_PUBLIC_KEY }}
       # The app's custom hostname, from the repository variable APP_DOMAIN. Empty until set: the app is then reached at the API Gateway URL.

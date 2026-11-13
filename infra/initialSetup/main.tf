@@ -386,6 +386,26 @@ data "aws_iam_policy_document" "github_iam_policy_document" {
     resources = ["arn:aws:dynamodb:${var.aws_region}:${local.account_id}:table/${var.app_name}-*"]
   }
 
+  # SNS topic for sign-up and security alerts. Scoped to topics named after the app. sns:TagResource is needed because the topic is tagged.
+  statement {
+    sid    = "SnsTopicManagement"
+    effect = "Allow"
+    actions = [
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:GetTopicAttributes",
+      "sns:SetTopicAttributes",
+      "sns:ListTagsForResource",
+      "sns:TagResource",
+      "sns:UntagResource",
+      "sns:Subscribe",
+      "sns:Unsubscribe",
+      "sns:GetSubscriptionAttributes",
+      "sns:SetSubscriptionAttributes",
+    ]
+    resources = ["arn:aws:sns:${var.aws_region}:${local.account_id}:${var.app_name}-*"]
+  }
+
   # EventBridge rule that runs the reminder scheduler (INFRA-01)
   # Scoped to rules named after the app. events:TagResource is needed because the rule is tagged.
   statement {
@@ -504,6 +524,40 @@ resource "aws_iam_policy" "github_actions_iam_policy" {
 resource "aws_iam_role_policy_attachment" "github_actions_role_policy_attach" {
   role       = aws_iam_role.github_actions_role.name
   policy_arn = aws_iam_policy.github_actions_iam_policy.arn
+}
+
+# ============================================================================
+# IAM user for the Auth0 first-login Action
+#
+# Auth0 cannot assume an AWS role, so its Action publishes with an access key. The user can only publish to the alerts topic.
+# OpenTofu creates the user and its policy and never the key: a key created here would sit in state. Create it by hand in the
+# AWS console (IAM > Users > this user > Security credentials), paste it into the Action's secrets (infra/auth0/first-login.js),
+# and rotate it there.
+# ============================================================================
+
+resource "aws_iam_user" "auth0_alerts" {
+  name = "${var.app_name}-auth0-alerts"
+
+  tags = {
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Application = var.app_name
+  }
+}
+
+data "aws_iam_policy_document" "auth0_alerts" {
+  statement {
+    sid       = "PublishAlerts"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = ["arn:aws:sns:${var.aws_region}:${local.account_id}:${var.app_name}-alerts"]
+  }
+}
+
+resource "aws_iam_user_policy" "auth0_alerts" {
+  name   = "${var.app_name}-auth0-alerts-publish"
+  user   = aws_iam_user.auth0_alerts.name
+  policy = data.aws_iam_policy_document.auth0_alerts.json
 }
 
 # ============================================================================

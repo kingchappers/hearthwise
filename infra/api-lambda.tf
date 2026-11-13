@@ -50,10 +50,11 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      NODE_ENV       = "production"
-      AUTH0_DOMAIN   = var.auth0_domain
-      AUTH0_AUDIENCE = var.auth0_audience
-      DYNAMODB_TABLE = aws_dynamodb_table.hearthwise_data.name
+      NODE_ENV        = "production"
+      AUTH0_DOMAIN    = var.auth0_domain
+      AUTH0_AUDIENCE  = var.auth0_audience
+      DYNAMODB_TABLE  = aws_dynamodb_table.hearthwise_data.name
+      ALERT_TOPIC_ARN = aws_sns_topic.alerts.arn
     }
   }
 
