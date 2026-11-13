@@ -3,13 +3,25 @@ import { render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { MemoryRouter } from 'react-router';
 
-vi.mock('~/lib/auth', () => ({ useAuth: () => ({ login: vi.fn(), logout: vi.fn() }) }));
+vi.mock('~/lib/auth', () => ({ useAuth: () => ({ mode: 'auth0', isAuthenticated: false, isLoading: true, user: undefined, login: vi.fn(), logout: vi.fn() }) }));
+vi.mock('~/lib/household', () => ({
+  useCreateHousehold: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAcceptInvite: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useHousehold: () => ({ status: 'ready', refetch: vi.fn(), data: { household: { name: 'Home', timezone: 'UTC', createdBy: 'a', createdAt: '', memberCount: 1 }, members: [{ userId: 'a', displayName: 'Ann', joinedAt: '' }], me: { userId: 'a', displayName: 'Ann', joinedAt: '', settings: {} } } }),
+  useCreateInvite: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRevokeInvite: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useInvites: () => ({ data: [] }),
+  useRemoveMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateMe: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import { SignedOutPanel } from '~/components/layout/SignedOutPanel';
 import Today from '~/routes/_index';
 import Shopping from '~/routes/shopping';
 import Settings from '~/routes/settings';
+import Welcome from '~/routes/welcome';
+import Join from '~/routes/join';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 import { expectReadable } from '~/test-utils/readableText';
 
@@ -43,5 +55,29 @@ describe('settings', () => {
   it('says where display settings are saved at a readable size', () => {
     renderIn(<Settings />);
     expectReadable(screen.getByText('Display settings are saved on this device.'));
+  });
+});
+
+describe('welcome', () => {
+  it('shows the invite prompt and the household hints at a readable size', () => {
+    renderIn(<Welcome />);
+    expectReadable(screen.getByText('Waiting for an invite? Open the link your partner sent you.'));
+    expectReadable(screen.getByText('How you will appear to your partner.'));
+    expectReadable(screen.getByText('Used for dates and reminders. It is set from this device.'));
+  });
+});
+
+describe('join', () => {
+  it('says what is happening at a readable size', () => {
+    renderIn(<Join />);
+    expectReadable(screen.getByText("This invite link doesn't look right. Ask your partner for a new link."));
+  });
+});
+
+describe('members in settings', () => {
+  it('shows the invite and member text at a readable size', () => {
+    renderIn(<Settings />);
+    expectReadable(screen.getByText('Share the link with your partner. It works once and expires in 7 days.'));
+    expectReadable(screen.getByText('How you will appear to your partner.'));
   });
 });

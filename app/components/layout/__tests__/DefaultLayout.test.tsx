@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { clearSessionEnded, markSessionEnded } from '~/lib/session';
 import { markSignInStarted } from '~/lib/signInError';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
@@ -17,6 +17,8 @@ vi.mock('@auth0/auth0-react', () => ({
   Auth0Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useAuth0: () => auth,
 }));
+const household = vi.hoisted(() => ({ current: { status: 'ready', refetch: () => {} } as { status: string; refetch: () => void } }));
+vi.mock('~/lib/household', () => ({ useHousehold: () => household.current }));
 vi.mock('../../authentication/Authentication', () => ({ default: () => null }));
 vi.mock('../../authentication/AuthProvider', () => ({ AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
@@ -37,6 +39,7 @@ function authError(code: string): Error & { error: string } {
 }
 
 beforeEach(() => {
+  household.current = { status: 'ready', refetch: vi.fn() };
   clearSessionEnded();
   auth.isAuthenticated = true;
   auth.isLoading = false;
@@ -212,10 +215,91 @@ describe('DefaultLayout after a failed Auth0 sign-in', () => {
   });
 });
 
+function Where() {
+  const location = useLocation();
+  return <p data-testid="where">{location.pathname}</p>;
+}
+
+function renderAt(url: string) {
+  return render(
+    <MantineProvider>
+      <MemoryRouter initialEntries={[url]}>
+        <DefaultLayout><p>page</p></DefaultLayout>
+        <Where />
+      </MemoryRouter>
+    </MantineProvider>,
+  );
+}
+
+describe('the household gate', () => {
+  it('sends a signed-in person with no household and no invite to /welcome', () => {
+    household.current = { status: 'none', refetch: vi.fn() };
+    renderAt('/');
+    expect(screen.getByTestId('where')).toHaveTextContent('/welcome');
+  });
+
+  it('sends them to /join instead when an invite is waiting', () => {
+    window.localStorage.setItem('hearthwise-invite', JSON.stringify({ token: 'A'.repeat(43), expiresAt: Date.now() + 60_000 }));
+    household.current = { status: 'none', refetch: vi.fn() };
+    renderAt('/settings');
+    expect(screen.getByTestId('where')).toHaveTextContent('/join');
+  });
+
+  it('lets someone with no household stay on /welcome', () => {
+    household.current = { status: 'none', refetch: vi.fn() };
+    renderAt('/welcome');
+    expect(screen.getByTestId('where')).toHaveTextContent('/welcome');
+    expect(screen.getByText('page')).toBeInTheDocument();
+  });
+
+  it('sends someone with a household away from /welcome to /', () => {
+    renderAt('/welcome');
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/);
+  });
+
+  it('shows the page to someone with a household', () => {
+    renderAt('/settings');
+    expect(screen.getByText('page')).toBeInTheDocument();
+  });
+
+  it('shows a retry, never the welcome page, when the household cannot be loaded', async () => {
+    const refetch = vi.fn();
+    household.current = { status: 'error', refetch };
+    renderAt('/');
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/);
+    expect(screen.queryByText('page')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a loading indicator while the household loads', () => {
+    household.current = { status: 'loading', refetch: vi.fn() };
+    renderAt('/');
+    expect(screen.getByRole('status', { name: 'Checking your household' })).toBeInTheDocument();
+  });
+
+  it('shows /join to a signed-out person, with no sign-in panel', () => {
+    auth.isAuthenticated = false;
+    renderAt('/join');
+    expect(screen.getByText('page')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: "You're signed out" })).not.toBeInTheDocument();
+  });
+
+  it('does not check for a household while signed out', () => {
+    auth.isAuthenticated = false;
+    household.current = { status: 'none', refetch: vi.fn() };
+    renderAt('/');
+    expect(screen.getByRole('heading', { name: "You're signed out" })).toBeInTheDocument();
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/);
+  });
+});
+
 describe('public pages', () => {
-  it('start with none: step 2 adds /join', () => {
+  it('are only /join', () => {
     expect(isPublicPath('/')).toBe(false);
     expect(isPublicPath('/about')).toBe(false);
-    expect(isPublicPath('/join')).toBe(false);
+    expect(isPublicPath('/welcome')).toBe(false);
+    expect(isPublicPath('/join')).toBe(true);
+    expect(isPublicPath('/join/')).toBe(true);
   });
 });

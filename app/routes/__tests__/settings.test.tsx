@@ -8,6 +8,7 @@ import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 
 const logout = vi.hoisted(() => vi.fn());
 vi.mock('~/lib/auth', () => ({ useAuth: () => ({ logout }) }));
+vi.mock('~/lib/household', () => ({ useHousehold: () => ({ status: 'loading', refetch: vi.fn() }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import Settings, { meta } from '../settings';

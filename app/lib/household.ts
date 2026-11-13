@@ -31,9 +31,10 @@ const INVITES_KEY = ['household', 'invites'] as const;
 const json = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) });
 const isNoHousehold = (error: unknown): boolean => error instanceof ApiError && error.status === 403 && error.code === 'no_household';
 
-export type HouseholdState =
+export type HouseholdState = (
   | { status: 'loading' | 'none' | 'error'; data?: undefined }
-  | { status: 'ready'; data: HouseholdData };
+  | { status: 'ready'; data: HouseholdData }
+) & { refetch: () => void };
 
 // "No household" is an answer, not a failure. Any other failure stays an error, so a network problem never sends someone
 // to create a second household.
@@ -44,9 +45,10 @@ export function useHousehold(): HouseholdState {
     queryFn: async () => await request('/api/hh') as HouseholdData,
     retry: (count, error) => !isNoHousehold(error) && count < 1,
   });
-  if (query.data) return { status: 'ready', data: query.data };
-  if (query.isError) return { status: isNoHousehold(query.error) ? 'none' : 'error' };
-  return { status: 'loading' };
+  const refetch = () => { void query.refetch(); };
+  if (query.data) return { status: 'ready', data: query.data, refetch };
+  if (query.isError) return { status: isNoHousehold(query.error) ? 'none' : 'error', refetch };
+  return { status: 'loading', refetch };
 }
 
 function useRefreshHousehold(): () => Promise<void> {
