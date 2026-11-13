@@ -2,7 +2,7 @@
 // Runs the image with throwaway volumes and checks the whole path over HTTP(S). Needs a running Docker daemon.
 // Prints one PASS/FAIL line per step and exits non-zero on the first failure. Node built-ins only.
 import { spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
 import { createServer } from 'node:net';
@@ -231,9 +231,9 @@ async function main() {
   const ONE = { Cookie: cookie };
   const noHousehold = await get('/api/hh', ONE);
   step('a signed-in person with no household gets 403 no_household', noHousehold.status === 403 && JSON.parse(noHousehold.body).error === 'no_household', `${noHousehold.status} ${noHousehold.body}`);
-  const created = await post('/api/households', { name: 'Smoke Home', displayName: 'Smoke One', timezone: 'Europe/London' }, ONE);
+  const created = await post('/api/households', { name: 'Smoke Home', displayName: 'Smoke One', timezone: 'Europe/London', mutationId: randomUUID() }, ONE);
   step('creating a household answers 201', created.status === 201, `${created.status} ${created.body}`);
-  const invite = await post('/api/hh/invites', {}, ONE);
+  const invite = await post('/api/hh/invites', { mutationId: randomUUID() }, ONE);
   const link = invite.status === 201 ? JSON.parse(invite.body).link : '';
   step('creating an invite answers 201 with a link on the public origin, token in the fragment', invite.status === 201 && link.startsWith(`${publicOrigin}/join#`) && link.split('#')[1].length === 43, `${invite.status} ${invite.body}`);
   const token = link.split('#')[1];
@@ -251,6 +251,22 @@ async function main() {
   step('using the invite link a second time answers 410', reused.status === 410, `${reused.status} ${reused.body}`);
   const noOpenSignup = await post('/api/auth/setup', { code: 'x', email: 'fourth@example.com', password: 'a fourth fine password', displayName: 'Four' });
   step('there is no open sign-up after setup', noOpenSignup.status === 409, `${noOpenSignup.status} ${noOpenSignup.body}`);
+
+  // Tasks: one person makes a chore, both complete the same cycle, and it moves once.
+  const taskId = randomUUID();
+  const madeTask = await post('/api/hh/tasks', { id: taskId, title: 'Hoover', assignee: 'either', repeat: { type: 'after', days: 1 }, dueOn: '2026-01-02', mutationId: randomUUID() }, ONE);
+  step('creating a chore answers 201', madeTask.status === 201, `${madeTask.status} ${madeTask.body}`);
+  const doneOne = await post(`/api/hh/tasks/${taskId}/complete`, { cycleSeq: 1, completedAt: Date.now(), mutationId: randomUUID() }, ONE);
+  const doneTwo = await post(`/api/hh/tasks/${taskId}/complete`, { cycleSeq: 1, completedAt: Date.now(), mutationId: randomUUID() }, TWO);
+  const [movedOne, movedTwo] = [doneOne, doneTwo].map(response => { try { return JSON.parse(response.body).task; } catch { return {}; } });
+  step('both people can complete the same cycle', doneOne.status === 200 && doneTwo.status === 200, `${doneOne.body} | ${doneTwo.body}`);
+  step('the chore moved once: the same new date and cycle for both', movedOne.cycleSeq === 2 && movedTwo.cycleSeq === 2 && movedOne.dueOn === movedTwo.dueOn && movedOne.dueOn > '2026-01-03', `${movedOne.dueOn} ${movedTwo.dueOn}`);
+  const taskList = JSON.parse((await get('/api/hh/tasks', ONE)).body);
+  step('the task list shows it at cycle 2', taskList.tasks.length === 1 && taskList.tasks[0].cycleSeq === 2, JSON.stringify(taskList.tasks));
+  const taskHistory = JSON.parse((await get(`/api/hh/tasks/${taskId}/history`, TWO)).body);
+  step('the history lists both people on the cycle', taskHistory.completions?.[0]?.by?.length === 2, JSON.stringify(taskHistory));
+  const replay = await post(`/api/hh/tasks/${taskId}/complete`, { cycleSeq: 1, completedAt: Date.now(), mutationId: randomUUID() }, ONE);
+  step('a second tap by the same person changes nothing', replay.status === 200 && JSON.parse(replay.body).task.cycleSeq === 2, replay.body);
 
   // Sends a request with a forged X-Forwarded-For to an API route that answers 401, waits for the app to log exactly one
   // new "Request:" line for it, and returns that line's sourceIp.

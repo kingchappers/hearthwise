@@ -5,7 +5,7 @@ import { acceptInvite, createInvite, listInvites, revokeInvite } from '../househ
 import { removeMember, updateOwnMember } from '../household/members';
 import { HouseholdError } from '../household/types';
 import type { HouseholdContext } from '../household/types';
-import { parseDisplayName, parseHouseholdName, parseInviteToken, parseMemberPatch, parseMutationId, parseTimeZoneField } from '../shared/validation';
+import { parseDisplayName, parseHouseholdName, parseInviteToken, parseMemberPatch, parseRequiredMutationId, parseTimeZoneField } from '../shared/validation';
 import { getStore } from '../store';
 import { SECURITY_HEADERS } from './constants';
 import { err, invalid, noStore, ok, parseJsonObject } from './http';
@@ -16,6 +16,14 @@ import type { ApiResponse } from './types';
 export function householdErrorResponse(error: unknown): ApiResponse {
   if (error instanceof HouseholdError) return err(error.status, error.code, error.extra);
   throw error;
+}
+
+// A write with no fields of its own (an invite, a revoke, a removal) still carries its mutation id, in a JSON body.
+function mutationIdProblem(event: APIGatewayProxyEventV2): ApiResponse | undefined {
+  const body = parseJsonObject(event);
+  if (!body) return invalid('body');
+  const id = parseRequiredMutationId(body.mutationId);
+  return id.ok ? undefined : invalid(id.field);
 }
 
 // A household is made by someone who has none, so this route is authenticated but sits outside the household guard.
@@ -29,7 +37,7 @@ async function createHouseholdRoute(event: APIGatewayProxyEventV2, userId: strin
   if (!displayName.ok) return invalid(displayName.field);
   const timezone = parseTimeZoneField(body.timezone);
   if (!timezone.ok) return invalid(timezone.field);
-  const mutationId = parseMutationId(body.mutationId);
+  const mutationId = parseRequiredMutationId(body.mutationId);
   if (!mutationId.ok) return invalid(mutationId.field);
 
   try {
@@ -54,7 +62,7 @@ async function patchMe(event: APIGatewayProxyEventV2, ctx: HouseholdContext): Pr
   if (!body) return invalid('body');
   const patch = parseMemberPatch(body);
   if (!patch.ok) return invalid(patch.field);
-  const mutationId = parseMutationId(body.mutationId);
+  const mutationId = parseRequiredMutationId(body.mutationId);
   if (!mutationId.ok) return invalid(mutationId.field);
 
   const me = await updateOwnMember(getStore(), ctx, patch.value);
@@ -74,6 +82,8 @@ function linkOrigin(event: APIGatewayProxyEventV2): string {
 }
 
 async function createInviteRoute(event: APIGatewayProxyEventV2, ctx: HouseholdContext): Promise<ApiResponse> {
+  const problem = mutationIdProblem(event);
+  if (problem) return problem;
   try {
     const { token, hash, expiresAt } = await createInvite(getStore(), ctx);
     // The token is in the fragment: a fragment is never sent to a server, so it cannot end up in a request log.
@@ -87,7 +97,9 @@ async function listInvitesRoute(_event: APIGatewayProxyEventV2, ctx: HouseholdCo
   return noStore(ok({ invites: await listInvites(getStore(), ctx.householdId, Math.floor(Date.now() / 1000)) }));
 }
 
-async function revokeInviteRoute(_event: APIGatewayProxyEventV2, ctx: HouseholdContext, params: Record<string, string>): Promise<ApiResponse> {
+async function revokeInviteRoute(event: APIGatewayProxyEventV2, ctx: HouseholdContext, params: Record<string, string>): Promise<ApiResponse> {
+  const problem = mutationIdProblem(event);
+  if (problem) return problem;
   // Anything that is not a hash cannot be an invite, so it is simply not found.
   if (!HASH.test(params.hash)) return err(404, 'not_found');
   try {
@@ -98,7 +110,9 @@ async function revokeInviteRoute(_event: APIGatewayProxyEventV2, ctx: HouseholdC
   }
 }
 
-async function removeMemberRoute(_event: APIGatewayProxyEventV2, ctx: HouseholdContext, params: Record<string, string>): Promise<ApiResponse> {
+async function removeMemberRoute(event: APIGatewayProxyEventV2, ctx: HouseholdContext, params: Record<string, string>): Promise<ApiResponse> {
+  const problem = mutationIdProblem(event);
+  if (problem) return problem;
   try {
     await removeMember(getStore(), ctx, params.userId);
     return NO_CONTENT;
@@ -118,7 +132,7 @@ async function acceptInviteRoute(event: APIGatewayProxyEventV2, userId: string):
   const displayName = parseDisplayName(body.displayName);
   if (!displayName.ok) return invalid(displayName.field);
   if ('confirmMove' in body && typeof body.confirmMove !== 'boolean') return invalid('confirmMove');
-  const mutationId = parseMutationId(body.mutationId);
+  const mutationId = parseRequiredMutationId(body.mutationId);
   if (!mutationId.ok) return invalid(mutationId.field);
 
   try {

@@ -44,7 +44,7 @@ beforeEach(async () => {
   registerHouseholdRoutes(router);
   registerTaskRoutes(router);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
-  const made = await call(U1, 'POST', '/api/households', { name: 'Home', displayName: 'Sam', timezone: 'Europe/London' });
+  const made = await call(U1, 'POST', '/api/households', mut({ name: 'Home', displayName: 'Sam', timezone: 'Europe/London' }));
   householdId = made.json.householdId;
   const store = getStore();
   await store.put({ PK: hhPk(householdId), SK: memberSk(U2), displayName: 'Alex', settings: DEFAULT_SETTINGS, joinedAt: '2026-11-13T11:00:00.000Z' });
@@ -77,7 +77,7 @@ describe('who may call', () => {
   });
 
   it('answers 404 for another household\'s task, whatever the verb', async () => {
-    await call('auth0|u3', 'POST', '/api/households', { name: 'Other', displayName: 'Z', timezone: 'UTC' });
+    await call('auth0|u3', 'POST', '/api/households', mut({ name: 'Other', displayName: 'Z', timezone: 'UTC' }));
     const theirs = newTask();
     expect((await call('auth0|u3', 'POST', '/api/hh/tasks', theirs)).status).toBe(201);
     const id = theirs.id as string;
@@ -89,7 +89,7 @@ describe('who may call', () => {
 
   it('ignores a household id in the query: the tasks are the caller\'s own', async () => {
     await call(U1, 'POST', '/api/hh/tasks', newTask({ title: 'Mine' }));
-    await call('auth0|u3', 'POST', '/api/households', { name: 'Other', displayName: 'Z', timezone: 'UTC' });
+    await call('auth0|u3', 'POST', '/api/households', mut({ name: 'Other', displayName: 'Z', timezone: 'UTC' }));
     await call('auth0|u3', 'POST', '/api/hh/tasks', newTask({ title: 'Theirs' }));
     const res = await call(U1, 'GET', '/api/hh/tasks', undefined, { householdId: 'other' });
     expect(res.json.tasks.map((t: { title: string }) => t.title)).toEqual(['Mine']);

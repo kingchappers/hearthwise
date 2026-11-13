@@ -32,6 +32,11 @@ export function parseInviteToken(value: unknown): Parsed<string> {
   return typeof value === 'string' && INVITE_TOKEN.test(value) ? good(value) : bad('token');
 }
 
+// Every household write must carry one, so a replay can be told from a new write.
+export function parseRequiredMutationId(value: unknown): Parsed<string> {
+  return typeof value === 'string' && UUID.test(value) ? good(value) : bad('mutationId');
+}
+
 export function parseMutationId(value: unknown): Parsed<string | undefined> {
   if (value === undefined) return good(undefined);
   return typeof value === 'string' && UUID.test(value) ? good(value) : bad('mutationId');
