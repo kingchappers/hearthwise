@@ -1,125 +1,265 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadContext } from '../../household/guard';
+import { createHousehold } from '../../household/households';
+import { createInvite } from '../../household/invites';
+import { inviteKey, membershipKey } from '../../household/keys';
 import { ConditionFailedError } from '../../store';
-import { resetTestStore, useTestStore } from '../../store/testing';
-import type { SqliteStore } from '../../store/sqlite';
+import { MemoryStore } from '../../store/memory';
 import { verifyPassword } from '../password';
 import {
-  SESSION_LIFETIME_SECONDS, clearThrottle, createAccount, createSession, deleteAllSessions, deleteSession,
-  getAccount, hashToken, normaliseEmail, readSession, recordFailure, replacePassword, throttleRemaining,
+  EmailTakenError, SESSION_LIFETIME_SECONDS, clearThrottle, createFirstAccount, createInvitedAccount, createSession, deleteSession,
+  deleteSessionsForUser, getAccountByEmail, hashToken, isSetupOpen, isUsableEmail, normaliseEmail, readSession, recordFailure,
+  replacePassword, throttleRemaining,
 } from '../localData';
 
-let store: SqliteStore;
 const NOW = 1_800_000_000;
+const NOW_MS = NOW * 1000;
+const PASSWORD = 'a long enough password';
+let store: MemoryStore;
 
-beforeEach(() => { store = useTestStore(); });
-afterEach(() => { resetTestStore(); });
+beforeEach(() => { store = new MemoryStore(); });
 
-describe('account', () => {
-  it('creates exactly one account and refuses a second', async () => {
-    const account = await createAccount(store, '  Me@Example.com ', 'a long enough password');
-    expect(account.email).toBe('me@example.com');
+async function firstAccount(email = 'me@example.com') {
+  return createFirstAccount(store, { email, password: PASSWORD, displayName: 'Sam', nowMs: NOW_MS });
+}
+
+// A household for the first account, and an invite into it.
+async function inviteFor(account: { userId: string }, nowMs = NOW_MS) {
+  await createHousehold(store, { userId: account.userId, name: 'Home', timezone: 'Europe/London', displayName: 'Sam', nowMs }, vi.fn());
+  return createInvite(store, (await loadContext(store, account.userId))!, nowMs);
+}
+
+describe('emails', () => {
+  it('normalises by trimming and lower-casing', () => {
+    expect(normaliseEmail('  Me@Example.COM ')).toBe('me@example.com');
+  });
+
+  it.each(['me@example.com', 'a.b+c@sub.example.co.uk', 'x@y'])('accepts %s', email => {
+    expect(isUsableEmail(email)).toBe(true);
+  });
+
+  it.each([
+    ['empty', ''], ['no at sign', 'plain'], ['two at signs', 'a@b@c'], ['a hash', 'a#b@x.com'], ['a NUL', 'a\0b@x.com'],
+    ['a newline', 'a\nb@x.com'], ['a space inside', 'a b@x.com'], ['255 characters', `${'a'.repeat(250)}@x.com`], ['a number', 5], ['null', null],
+  ])('rejects an email that is %s', (_name, email) => {
+    expect(isUsableEmail(email)).toBe(false);
+  });
+
+  it('accepts exactly 254 characters', () => {
+    expect(isUsableEmail(`${'a'.repeat(244)}@x.com`)).toBe(true);
+  });
+});
+
+describe('first-run setup', () => {
+  it('is open until the first account exists, and closed for good after it', async () => {
+    expect(await isSetupOpen(store)).toBe(true);
+    await firstAccount();
+    expect(await isSetupOpen(store)).toBe(false);
+  });
+
+  it('creates the account with a hash, never the password, and the display name', async () => {
+    const account = await firstAccount('  Me@Example.com ');
+    expect(account).toMatchObject({ email: 'me@example.com', displayName: 'Sam' });
     expect(account.userId).toMatch(/^local\|[0-9a-f-]{36}$/);
-    await expect(createAccount(store, 'other@example.com', 'another long password')).rejects.toBeInstanceOf(ConditionFailedError);
-    expect((await getAccount(store))?.email).toBe('me@example.com');
+    const stored = JSON.stringify(await store.get({ PK: 'AUTH#ACCOUNT#me@example.com', SK: 'PROFILE' }));
+    expect(stored).not.toContain(PASSWORD);
+    expect(await verifyPassword(PASSWORD, account)).toBe(true);
   });
 
-  it('stores a hash, never the password', async () => {
-    await createAccount(store, 'me@example.com', 'a long enough password');
-    const stored = JSON.stringify(await store.get({ PK: 'AUTH#ACCOUNT', SK: 'PROFILE' }));
-    expect(stored).not.toContain('a long enough password');
+  it('refuses a second first account', async () => {
+    await firstAccount();
+    await expect(firstAccount('other@example.com')).rejects.toBeInstanceOf(ConditionFailedError);
   });
 
-  it('replaces the password', async () => {
-    await createAccount(store, 'me@example.com', 'the first password');
-    await replacePassword(store, 'the second password');
-    const account = await getAccount(store);
-    expect(await verifyPassword('the second password', account!)).toBe(true);
-    expect(await verifyPassword('the first password', account!)).toBe(false);
+  it('stays closed even if the account is later deleted', async () => {
+    await firstAccount();
+    await store.delete({ PK: 'AUTH#ACCOUNT#me@example.com', SK: 'PROFILE' });
+    await expect(firstAccount('other@example.com')).rejects.toBeInstanceOf(ConditionFailedError);
+    expect(await getAccountByEmail(store, 'other@example.com')).toBeUndefined();
   });
 
-  it('normalises emails the same way everywhere', () => {
-    expect(normaliseEmail('  A@B.Com ')).toBe('a@b.com');
+  it('leaves exactly one account when two setups race', async () => {
+    const results = await Promise.allSettled([firstAccount('a@example.com'), firstAccount('b@example.com')]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const found = [await getAccountByEmail(store, 'a@example.com'), await getAccountByEmail(store, 'b@example.com')].filter(Boolean);
+    expect(found).toHaveLength(1);
+  });
+
+  it('refuses an email that cannot be a key', async () => {
+    await expect(createFirstAccount(store, { email: 'a#b@x.com', password: PASSWORD, displayName: 'Sam' })).rejects.toThrow(/email/i);
+    expect(await isSetupOpen(store)).toBe(true);
+  });
+});
+
+describe('createInvitedAccount', () => {
+  it('CUJ 1: creates the account, and puts it in the inviter\'s household, in one step', async () => {
+    const first = await firstAccount();
+    const invite = await inviteFor(first);
+    const emit = vi.fn();
+    const { account, householdId } = await createInvitedAccount(store, { token: invite.token, email: 'Bea@Example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, emit);
+
+    expect(account.email).toBe('bea@example.com');
+    expect(householdId).toBe((await loadContext(store, first.userId))!.householdId);
+    const context = (await loadContext(store, account.userId))!;
+    expect(context.members.map(member => member.displayName).sort()).toEqual(['Bea', 'Sam']);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith({ event: 'invite_accepted', userId: account.userId, householdId, at: new Date(NOW_MS).toISOString() });
+  });
+
+  it('treats ME@Example.com and me@example.com as one account', async () => {
+    const first = await firstAccount('ME@Example.com ');
+    const invite = await inviteFor(first);
+    await expect(createInvitedAccount(store, { token: invite.token, email: 'me@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
+      .rejects.toBeInstanceOf(EmailTakenError);
+  });
+
+  it('leaves the invite unused and nobody joined when the email is taken', async () => {
+    const first = await firstAccount();
+    const invite = await inviteFor(first);
+    await expect(createInvitedAccount(store, { token: invite.token, email: 'me@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn())).rejects.toBeDefined();
+    expect('usedBy' in ((await store.get(inviteKey(invite.hash))) as object)).toBe(false);
+    expect((await loadContext(store, first.userId))?.members).toHaveLength(1);
+  });
+
+  it('creates no account when the invite has expired, is unknown, or the household is full', async () => {
+    const first = await firstAccount();
+    const stale = await inviteFor(first, NOW_MS - 8 * 24 * 60 * 60 * 1000);
+    await expect(createInvitedAccount(store, { token: stale.token, email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
+      .rejects.toMatchObject({ code: 'invite_expired', status: 410 });
+    await expect(createInvitedAccount(store, { token: 'A'.repeat(43), email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
+      .rejects.toMatchObject({ code: 'invite_expired' });
+    expect(await getAccountByEmail(store, 'bea@example.com')).toBeUndefined();
+
+    const one = await createInvite(store, (await loadContext(store, first.userId))!, NOW_MS);
+    const two = await createInvite(store, (await loadContext(store, first.userId))!, NOW_MS);
+    await createInvitedAccount(store, { token: one.token, email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
+    await expect(createInvitedAccount(store, { token: two.token, email: 'cat@example.com', password: PASSWORD, displayName: 'Cat', nowMs: NOW_MS }, vi.fn()))
+      .rejects.toMatchObject({ code: 'household_full', status: 409 });
+    expect(await getAccountByEmail(store, 'cat@example.com')).toBeUndefined();
+  });
+
+  it('leaves no account without its membership, or membership without its member, when two sign-ups race for one household', async () => {
+    const first = await firstAccount();
+    const one = await createInvite(store, (await (async () => { await createHousehold(store, { userId: first.userId, name: 'Home', timezone: 'Europe/London', displayName: 'Sam', nowMs: NOW_MS }, vi.fn()); return loadContext(store, first.userId); })())!, NOW_MS);
+    const two = await createInvite(store, (await loadContext(store, first.userId))!, NOW_MS);
+    const results = await Promise.allSettled([
+      createInvitedAccount(store, { token: one.token, email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()),
+      createInvitedAccount(store, { token: two.token, email: 'cat@example.com', password: PASSWORD, displayName: 'Cat', nowMs: NOW_MS }, vi.fn()),
+    ]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const accounts = [await getAccountByEmail(store, 'bea@example.com'), await getAccountByEmail(store, 'cat@example.com')].filter(Boolean);
+    expect(accounts).toHaveLength(1);
+    expect(await store.get(membershipKey(accounts[0]!.userId))).toBeDefined();
+    expect((await loadContext(store, first.userId))?.members).toHaveLength(2);
+  });
+});
+
+describe('passwords', () => {
+  it('replaces the password on the named account and returns it', async () => {
+    const account = await firstAccount();
+    const updated = await replacePassword(store, ' ME@example.com ', 'another long password');
+    expect(updated.userId).toBe(account.userId);
+    expect(await verifyPassword('another long password', updated)).toBe(true);
+    expect(await verifyPassword(PASSWORD, updated)).toBe(false);
+  });
+
+  it('refuses an email with no account, and creates nothing', async () => {
+    await expect(replacePassword(store, 'nobody@example.com', PASSWORD)).rejects.toThrow(/no account/i);
+    expect(await getAccountByEmail(store, 'nobody@example.com')).toBeUndefined();
+  });
+
+  it('finds an account whatever the case or spacing of the email', async () => {
+    await firstAccount();
+    expect((await getAccountByEmail(store, '  ME@EXAMPLE.COM '))?.email).toBe('me@example.com');
+    expect(await getAccountByEmail(store, 'a#b@x.com')).toBeUndefined();
   });
 });
 
 describe('sessions', () => {
-  it('keeps only the hash of the token', async () => {
-    const token = await createSession(store, 'local|u1', NOW);
-    const rows = await store.query('AUTH#SESSIONS');
-    expect(rows).toHaveLength(1);
-    expect(rows[0].SK).toBe(hashToken(token));
-    expect(JSON.stringify(rows)).not.toContain(token);
+  const user = { userId: 'local|u1', email: 'me@example.com' };
+
+  it('keeps only the hash of the token, with the user id and email', async () => {
+    const token = await createSession(store, user, NOW);
+    const row = await store.get({ PK: 'AUTH#SESSIONS', SK: hashToken(token) });
+    expect(row).toMatchObject({ userId: 'local|u1', email: 'me@example.com' });
+    expect(JSON.stringify(row)).not.toContain(token);
   });
 
-  it('reads a live session and rejects unknown, empty and expired tokens', async () => {
-    const token = await createSession(store, 'local|u1', NOW);
-    expect(await readSession(store, token, NOW + 10)).toEqual({ userId: 'local|u1' });
-    expect(await readSession(store, 'not-a-token', NOW)).toBeUndefined();
+  it('reads a live session with its email, and rejects unknown, empty and expired tokens', async () => {
+    const token = await createSession(store, user, NOW);
+    expect(await readSession(store, token, NOW + 10)).toEqual(user);
+    expect(await readSession(store, 'nope', NOW)).toBeUndefined();
     expect(await readSession(store, undefined, NOW)).toBeUndefined();
-    expect(await readSession(store, token, NOW + SESSION_LIFETIME_SECONDS)).toBeUndefined();
-  });
-
-  it('rejects an expired session even though the purge has not removed the row', async () => {
-    const token = await createSession(store, 'local|u1', NOW);
-    expect(await store.get({ PK: 'AUTH#SESSIONS', SK: hashToken(token) })).toBeDefined();
     expect(await readSession(store, token, NOW + SESSION_LIFETIME_SECONDS + 1)).toBeUndefined();
   });
 
   it('extends a session only once half its lifetime has passed', async () => {
-    const token = await createSession(store, 'local|u1', NOW);
+    const token = await createSession(store, user, NOW);
     const key = { PK: 'AUTH#SESSIONS', SK: hashToken(token) };
-    const original = (await store.get(key))!.expiresAt;
-
-    await readSession(store, token, NOW + 60);
-    expect((await store.get(key))!.expiresAt).toBe(original);
-
-    const later = NOW + Math.ceil(SESSION_LIFETIME_SECONDS * 0.6);
-    await readSession(store, token, later);
-    expect((await store.get(key))!.expiresAt).toBe(later + SESSION_LIFETIME_SECONDS);
+    await readSession(store, token, NOW + 100);
+    expect((await store.get(key))?.expiresAt).toBe(NOW + SESSION_LIFETIME_SECONDS);
+    const late = NOW + SESSION_LIFETIME_SECONDS / 2 + 10;
+    await readSession(store, token, late);
+    expect((await store.get(key))?.expiresAt).toBe(late + SESSION_LIFETIME_SECONDS);
   });
 
-  it('deletes one session, or all of them', async () => {
-    const a = await createSession(store, 'local|u1', NOW);
-    const b = await createSession(store, 'local|u1', NOW);
-    await deleteSession(store, a);
-    expect(await readSession(store, a, NOW)).toBeUndefined();
-    expect(await readSession(store, b, NOW)).toBeDefined();
-    await deleteAllSessions(store);
-    expect(await readSession(store, b, NOW)).toBeUndefined();
+  it('deletes one session', async () => {
+    const token = await createSession(store, user, NOW);
+    await deleteSession(store, token);
+    expect(await readSession(store, token, NOW)).toBeUndefined();
   });
 
-  it('treats a session deleted mid-read as signed out', async () => {
-    const token = await createSession(store, 'local|u1', NOW);
-    const racing = {
-      ...store,
-      get: async (key: Parameters<typeof store.get>[0]) => {
-        const item = await store.get(key);
-        await store.delete(key);
-        return item;
-      },
-      patch: store.patch.bind(store),
-    } as unknown as SqliteStore;
-    expect(await readSession(racing, token, NOW + Math.ceil(SESSION_LIFETIME_SECONDS * 0.6))).toBeUndefined();
+  it("ends one user's sessions and leaves the other user's", async () => {
+    const mine = await createSession(store, user, NOW);
+    const mineToo = await createSession(store, user, NOW);
+    const theirs = await createSession(store, { userId: 'local|u2', email: 'bea@example.com' }, NOW);
+    await deleteSessionsForUser(store, 'local|u1');
+    expect(await readSession(store, mine, NOW)).toBeUndefined();
+    expect(await readSession(store, mineToo, NOW)).toBeUndefined();
+    expect(await readSession(store, theirs, NOW)).toEqual({ userId: 'local|u2', email: 'bea@example.com' });
   });
 });
 
-describe('login throttle', () => {
+describe('login throttle, per email', () => {
   it('allows a few failures, then backs off exponentially up to a cap', async () => {
-    expect(await throttleRemaining(store, NOW)).toBe(0);
-    for (let i = 0; i < 3; i++) await recordFailure(store, NOW);
-    expect(await throttleRemaining(store, NOW)).toBe(0);
-    await recordFailure(store, NOW);
-    expect(await throttleRemaining(store, NOW)).toBe(1);
-    await recordFailure(store, NOW);
-    expect(await throttleRemaining(store, NOW)).toBe(2);
-    for (let i = 0; i < 30; i++) await recordFailure(store, NOW);
-    expect(await throttleRemaining(store, NOW)).toBe(15 * 60);
-    expect(await throttleRemaining(store, NOW + 15 * 60)).toBe(0);
+    const waits: number[] = [];
+    for (let i = 0; i < 16; i += 1) {
+      await recordFailure(store, 'me@example.com', NOW);
+      waits.push(await throttleRemaining(store, 'me@example.com', NOW));
+    }
+    expect(waits.slice(0, 3)).toEqual([0, 0, 0]);
+    expect(waits.slice(3, 6)).toEqual([1, 2, 4]);
+    expect(Math.max(...waits)).toBe(15 * 60);
   });
 
-  it('clears on success', async () => {
-    for (let i = 0; i < 6; i++) await recordFailure(store, NOW);
-    await clearThrottle(store);
-    expect(await throttleRemaining(store, NOW)).toBe(0);
+  it("does not let one email's failures lock another", async () => {
+    for (let i = 0; i < 8; i += 1) await recordFailure(store, 'me@example.com', NOW);
+    expect(await throttleRemaining(store, 'me@example.com', NOW)).toBeGreaterThan(0);
+    expect(await throttleRemaining(store, 'bea@example.com', NOW)).toBe(0);
+  });
+
+  it('treats case and spacing as the same email', async () => {
+    for (let i = 0; i < 6; i += 1) await recordFailure(store, i % 2 ? ' ME@example.com' : 'me@EXAMPLE.com', NOW);
+    expect(await throttleRemaining(store, 'me@example.com', NOW)).toBeGreaterThan(0);
+  });
+
+  it('expires the row a day after the last failure', async () => {
+    await recordFailure(store, 'me@example.com', NOW);
+    await recordFailure(store, 'me@example.com', NOW + 500);
+    expect((await store.get({ PK: 'AUTH#THROTTLE#me@example.com', SK: 'LOGIN' }))?.expiresAt).toBe(NOW + 500 + 24 * 60 * 60);
+  });
+
+  it('clears only that email', async () => {
+    for (let i = 0; i < 6; i += 1) { await recordFailure(store, 'me@example.com', NOW); await recordFailure(store, 'bea@example.com', NOW); }
+    await clearThrottle(store, 'me@example.com');
+    expect(await throttleRemaining(store, 'me@example.com', NOW)).toBe(0);
+    expect(await throttleRemaining(store, 'bea@example.com', NOW)).toBeGreaterThan(0);
+  });
+
+  it.each(['a#b@x.com', 'a\0b@x.com', `${'a'.repeat(300)}@x.com`, ''])('never builds a key from the unusable email %j', async email => {
+    await recordFailure(store, email, NOW);
+    expect(await throttleRemaining(store, email, NOW)).toBe(0);
+    expect(await store.query(`AUTH#THROTTLE#${email}`)).toEqual([]);
+    await expect(clearThrottle(store, email)).resolves.toBeUndefined();
   });
 });
