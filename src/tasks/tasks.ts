@@ -6,7 +6,7 @@ import { ConditionFailedError } from '../store';
 import type { Item, Store, TxOp } from '../store';
 import { hhPk } from '../household/keys';
 import { editKey, taskKey, TASK_PREFIX } from './keys';
-import { assertDirect, isOtherMembersTask } from './ownership';
+import { assertDirect, assertKnownAssignee, isOtherMembersTask } from './ownership';
 import { applyChange, clampTime, DAY_MS, toTask, tombstoneChange } from './record';
 import { TaskError } from './types';
 import type { CreateTaskInput, PatchTaskInput, Task } from './types';
@@ -41,6 +41,7 @@ export async function createTask(store: Store, ctx: HouseholdContext, input: Cre
   const existing = await store.get(taskKey(householdId, input.id), { consistent: true });
   if (existing) return { fresh: false, result: { task: toTask(existing) } };
 
+  assertKnownAssignee(input.assignee, ctx);
   // The task starts as either; a task for the other member or for both is made by a proposal.
   assertDirect('create', { assignee: 'either' }, ctx, { assignee: input.assignee });
 
@@ -164,6 +165,7 @@ export async function patchTask(store: Store, ctx: HouseholdContext, taskId: str
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const item = await loadLiveItem(store, householdId, taskId);
     const task = toTask(item);
+    if (input.assignee) assertKnownAssignee(input.assignee.value, ctx);
     if (input.assignee && input.assignee.value !== task.assignee) assertDirect('assignee', task, ctx, { assignee: input.assignee.value });
     if (input.repeat || input.dueOn) assertDirect('schedule', task, ctx);
     const change = planPatch(task, input, nowMs, today);

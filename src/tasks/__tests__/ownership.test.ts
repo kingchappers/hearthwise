@@ -8,6 +8,7 @@ import { MemoryStore } from '../../store/memory';
 import { completeCycle } from '../completions';
 import { EDIT_PREFIX, taskKey } from '../keys';
 import { assertDirect, effectiveAssignee, needsProposal } from '../ownership';
+import { createProposal } from '../proposals';
 import { createTask, deleteTask, patchTask } from '../tasks';
 import type { CreateTaskInput, PatchTaskInput, Task } from '../types';
 
@@ -169,5 +170,24 @@ describe('writes that need a proposal', () => {
   it('applies everything directly in a one-member household', async () => {
     const both = await createBoth({ dueOn: '2026-11-14' }, solo);
     await expect(patchTask(store, solo, both.id, { dueOn: { value: '2026-11-20', baseRuleVersion: 1, baseCycleSeq: 1 }, mutationId: uuid() }, NOW)).resolves.toBeDefined();
+  });
+});
+
+describe('an assignee who is not in the household', () => {
+  it('is refused on create, patch and proposal, so a task cannot be given to someone before they join', async () => {
+    await expect(createTask(store, ctx1, { id: uuid(), title: 'Bins', assignee: 'auth0|stranger', repeat: { type: 'none' }, mutationId: uuid() }, NOW))
+      .rejects.toMatchObject({ code: 'invalid', status: 400, extra: { field: 'assignee' } });
+
+    const mine = await create({ assignee: U1 });
+    await expect(patch(mine.id, { assignee: { value: 'auth0|stranger', baseRuleVersion: 1 } })).rejects.toMatchObject({ code: 'invalid', extra: { field: 'assignee' } });
+
+    const theirs = await create({ dueOn: '2026-11-14' });
+    await expect(createProposal(store, ctx1, { id: uuid(), taskId: theirs.id, change: { kind: 'edit', set: { assignee: 'auth0|stranger' } }, baseRuleVersion: 1, mutationId: uuid() }, NOW))
+      .rejects.toMatchObject({ code: 'invalid', extra: { field: 'change.set.assignee' } });
+    expect((await store.get(taskKey(householdId, mine.id)))!.assignee).toBe(U1);
+  });
+
+  it('is still fine to name either, both, yourself and the other member', async () => {
+    for (const assignee of ['either', U1]) await expect(create({ assignee })).resolves.toBeDefined();
   });
 });

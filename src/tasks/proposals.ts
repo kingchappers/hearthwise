@@ -6,7 +6,7 @@ import { dayInZone } from '../shared/schedule';
 import { ConditionFailedError } from '../store';
 import type { Item, Store, TxOp } from '../store';
 import { proposalKey, PROPOSAL_PREFIX, taskKey } from './keys';
-import { normalizedAssignee, otherMemberId } from './ownership';
+import { assertKnownAssignee, normalizedAssignee, otherMemberId } from './ownership';
 import { applyChange, DAY_MS, restoreChange, THIRTY_DAYS_SECONDS, toTask, tombstoneChange } from './record';
 import { loadItem, planPatch } from './tasks';
 import { TaskError } from './types';
@@ -49,6 +49,7 @@ export async function createProposal(store: Store, ctx: HouseholdContext, input:
   const toUserId = otherMemberId(ctx);
   if (toUserId === undefined) throw new TaskError('invalid', 400, { field: 'taskId' });
 
+  if (input.change.kind === 'edit' && input.change.set.assignee !== undefined) assertKnownAssignee(input.change.set.assignee, ctx, 'change.set.assignee');
   const item = await loadItem(store, householdId, input.taskId);
   const task = toTask(item);
   if (input.change.kind === 'restore') {

@@ -48,3 +48,10 @@ export function needsProposal(action: OwnedAction, task: Pick<Task, 'assignee'>,
 export function assertDirect(action: OwnedAction, task: Pick<Task, 'assignee'>, ctx: HouseholdContext, target?: { assignee?: string }): void {
   if (needsProposal(action, task, ctx, target)) throw new TaskError('proposal_required', 403, { toUserId: otherMemberId(ctx) });
 }
+
+// An assignee must be either, both, or someone in the household now. A user id that is not a member (yet) is refused rather than
+// read as either, or a task could be given to a person before they join, and be theirs without their say.
+export function assertKnownAssignee(assignee: string, ctx: HouseholdContext, field = 'assignee'): void {
+  if (assignee === 'either' || assignee === 'both' || isMember(ctx, assignee)) return;
+  throw new TaskError('invalid', 400, { field });
+}
