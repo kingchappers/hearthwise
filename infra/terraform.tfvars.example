@@ -1,0 +1,23 @@
+aws_region   = "eu-west-2"
+# The shared state bucket. Hearthwise keeps its state under the key in backend.hcl.
+state_bucket = "your-terraform-state-bucket"
+# Every resource name starts with this, and the deploy role's permissions are scoped to it. Do not change it on an
+# existing deployment: the DynamoDB table name is derived from it, and a new name makes OpenTofu replace the table
+# with an empty one.
+app_name    = "hearthwise"
+environment = "production"
+# Must match the Auth0 API Identifier the SPA requests (VITE_AUTH0_AUDIENCE).
+auth0_audience = "https://your-api-identifier"
+
+# Not read from this file in CI (see .github/workflows/yarnBuild.yml),
+# only needed for local `tofu plan`/`apply`:
+# auth0_domain    = "your-tenant.eu.auth0.com"
+# auth0_client_id = "your-auth0-client-id"
+
+# Optional custom hostname. Empty or unset serves the app from the API Gateway URL (the api_endpoint output).
+# app_domain = "hearth.example.com"
+
+# Push (optional, set up in step 6). Not read from this file in CI, where the public key comes from the
+# VAPID_PUBLIC_KEY secret; only needed for a local `tofu plan`/`apply`.
+# vapid_public_key = "the public half of your VAPID key pair"
+# vapid_subject    = "mailto:you@example.com"
