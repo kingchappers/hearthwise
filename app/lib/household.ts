@@ -53,7 +53,9 @@ export function useHousehold(): HouseholdState {
 
 function useRefreshHousehold(): () => Promise<void> {
   const client = useQueryClient();
-  return () => client.invalidateQueries({ queryKey: HOUSEHOLD_KEY });
+  // 'all', not the default 'active': the join page is outside the gate, so nothing is watching this query, and a stale "no household"
+  // would send the person to the welcome page. The mutation resolves only once the fresh answer is in.
+  return () => client.invalidateQueries({ queryKey: HOUSEHOLD_KEY, refetchType: 'all' });
 }
 
 export function useCreateHousehold() {

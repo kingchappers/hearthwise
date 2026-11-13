@@ -86,6 +86,7 @@ function AcceptInvite({ token, defaultName }: { token: string; defaultName: stri
 
 function LocalSignup({ token }: { token: string }) {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   async function signup(input: { email: string; password: string; displayName: string }): Promise<void> {
     try {
@@ -97,7 +98,15 @@ function LocalSignup({ token }: { token: string }) {
     }
   }
 
-  return <LocalAuthForm mode="invite" onLogin={loginLocal} onSetup={setupLocal} onSignup={signup} />;
+  return (
+    <Stack>
+      <LocalAuthForm mode="invite" onLogin={loginLocal} onSetup={setupLocal} onSignup={signup} />
+      {/* Someone who already has an account signs in, then joins from this page with the token the page is holding. */}
+      <Button variant="subtle" onClick={() => void Promise.resolve(login()).catch((error: unknown) => console.error('Join: could not open sign-in', error))}>
+        Already have an account? Sign in
+      </Button>
+    </Stack>
+  );
 }
 
 function StartSignIn() {

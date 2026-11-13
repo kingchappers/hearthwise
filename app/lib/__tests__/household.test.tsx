@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { ApiError } from '../apiError';
 
 const request = vi.hoisted(() => vi.fn());
@@ -109,5 +110,28 @@ describe('the household mutations', () => {
     expect(path).toBe('/api/hh/members/me');
     expect(init.method).toBe('PATCH');
     expect(JSON.parse(init.body)).toEqual({ displayName: 'Ann B' });
+  });
+});
+
+describe('after joining', () => {
+  it('has the household loaded by the time accept returns, even though nothing was watching it', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    // The person had no household, and left the page that watched this query (the join page is outside the gate).
+    let calls = 0;
+    const queryFn = async () => {
+      calls += 1;
+      if (calls === 1) throw new ApiError(403, 'Forbidden', 'no_household');
+      return HOUSEHOLD;
+    };
+    await client.prefetchQuery({ queryKey: ['household'], queryFn });
+    expect(client.getQueryState(['household'])?.status).toBe('error');
+    request.mockImplementation(async (path: string) => (path === '/api/hh' ? HOUSEHOLD : { householdId: 'h' }));
+
+    const { result } = renderHook(() => useAcceptInvite(), {
+      wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    });
+    await result.current.mutateAsync({ token: 'T'.repeat(43), displayName: 'Bea' });
+
+    expect(client.getQueryState(['household'])?.status).toBe('success');
   });
 });

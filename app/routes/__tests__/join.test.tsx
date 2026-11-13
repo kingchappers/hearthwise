@@ -131,6 +131,13 @@ describe('Join in local mode', () => {
     expect(auth.login).not.toHaveBeenCalled();
   });
 
+  it('lets someone who already has an account sign in instead', async () => {
+    const user = userEvent.setup();
+    renderJoin();
+    await user.click(screen.getByRole('button', { name: 'Already have an account? Sign in' }));
+    expect(auth.login).toHaveBeenCalledTimes(1);
+  });
+
   it('signs up with the token, clears it and goes to Today', async () => {
     const user = userEvent.setup();
     renderJoin();
