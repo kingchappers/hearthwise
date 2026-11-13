@@ -39,6 +39,12 @@ beforeEach(async () => { n = 0; await setup(); });
 
 const create = async (over: Partial<CreateTaskInput> = {}) =>
   (await createTask(store, ctx1, { id: uuid(), title: 'Hoover', assignee: 'either', repeat: AFTER_1, mutationId: uuid(), ...over }, NOW)).result.task;
+// A both task is made as either and then changed hands, as the product does it (a direct create for both needs a proposal).
+const createBoth = async () => {
+  const made = await create();
+  await store.patch(taskKey(householdId, made.id), { assignee: 'both' });
+  return made;
+};
 const complete = (taskId: string, over: { cycleSeq?: number; completedAt?: number; mutationId?: string } = {}, who = ctx1, now = NOW) =>
   completeCycle(store, who, taskId, { cycleSeq: 1, completedAt: now, mutationId: uuid(), ...over }, now);
 const undo = (taskId: string, cycleSeq: number, who = ctx1, mutationId = uuid(), now = NOW) =>
@@ -127,14 +133,14 @@ describe('completeCycle: the record', () => {
   });
 
   it('records a together completion for a both task', async () => {
-    const task = await create({ assignee: 'both' });
+    const task = await createBoth();
     await complete(task.id);
     expect(await rawDone(task.id, 1)).toMatchObject({ together: true });
   });
 
   it('does not record together for a both task in a one-member household', async () => {
     const solo = { ...ctx1, members: [ctx1.member], household: { ...ctx1.household, memberCount: 1 } };
-    const task = await create({ assignee: 'both' });
+    const task = await createBoth();
     await completeCycle(store, solo, task.id, { cycleSeq: 1, completedAt: NOW, mutationId: uuid() }, NOW);
     expect((await rawDone(task.id, 1))!.together).toBeUndefined();
   });

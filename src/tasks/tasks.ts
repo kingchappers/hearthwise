@@ -5,8 +5,9 @@ import { dayInZone, firstOnOrAfter } from '../shared/schedule';
 import { ConditionFailedError } from '../store';
 import type { Item, Store, TxOp } from '../store';
 import { hhPk } from '../household/keys';
-import { taskKey, TASK_PREFIX } from './keys';
-import { applyChange, clampTime, DAY_MS, THIRTY_DAYS_SECONDS, toTask } from './record';
+import { editKey, taskKey, TASK_PREFIX } from './keys';
+import { assertDirect, isOtherMembersTask } from './ownership';
+import { applyChange, clampTime, DAY_MS, toTask, tombstoneChange } from './record';
 import { TaskError } from './types';
 import type { CreateTaskInput, PatchTaskInput, Task } from './types';
 
@@ -16,8 +17,9 @@ export { TaskError } from './types';
 const MAX_ATTEMPTS = 3;
 const SEVEN_DAYS_MS = 7 * DAY_MS;
 const THIRTY_DAYS_MS = 30 * DAY_MS;
+const FOUR_HUNDRED_DAYS_SECONDS = 400 * 24 * 60 * 60;
 
-async function loadItem(store: Store, householdId: string, taskId: string): Promise<Item> {
+export async function loadItem(store: Store, householdId: string, taskId: string): Promise<Item> {
   const item = await store.get(taskKey(householdId, taskId), { consistent: true });
   if (!item) throw new TaskError('not_found', 404);
   return item;
@@ -38,6 +40,9 @@ export async function createTask(store: Store, ctx: HouseholdContext, input: Cre
   // The same task id again is a replay of this create, by another route: the task is already there, unchanged.
   const existing = await store.get(taskKey(householdId, input.id), { consistent: true });
   if (existing) return { fresh: false, result: { task: toTask(existing) } };
+
+  // The task starts as either; a task for the other member or for both is made by a proposal.
+  assertDirect('create', { assignee: 'either' }, ctx, { assignee: input.assignee });
 
   const at = clampTime(input.clientAt ?? nowMs, nowMs);
   const today = dayInZone(nowMs, ctx.household.timezone);
@@ -75,6 +80,8 @@ export async function createTask(store: Store, ctx: HouseholdContext, input: Cre
 interface Change {
   set: Record<string, unknown>;
   remove: string[];
+  // Which of title, notes and checklist this patch really changed.
+  edited: ('title' | 'notes' | 'checklist')[];
 }
 
 function conflict(): TaskError {
@@ -82,11 +89,12 @@ function conflict(): TaskError {
 }
 
 // What a patch changes, as an update. Undefined when there is nothing to change (a replayed old edit, a tick from an earlier cycle).
-function planPatch(task: Task, input: PatchTaskInput, nowMs: number, today: string): Change | undefined {
+export function planPatch(task: Task, input: PatchTaskInput, nowMs: number, today: string): Change | undefined {
   const set: Record<string, unknown> = {};
   const remove: string[] = [];
 
   const fieldTimes = { ...task.fieldTimes };
+  const edited: Change['edited'] = [];
   let timesChanged = false;
   for (const field of ['title', 'notes', 'checklist'] as const) {
     const edit = input[field];
@@ -95,6 +103,7 @@ function planPatch(task: Task, input: PatchTaskInput, nowMs: number, today: stri
     if (at <= (task.fieldTimes[field] ?? 0)) continue;
     set[field] = edit.value;
     fieldTimes[field] = at;
+    edited.push(field);
     timesChanged = true;
   }
   if (timesChanged) set.fieldTimes = fieldTimes;
@@ -143,7 +152,7 @@ function planPatch(task: Task, input: PatchTaskInput, nowMs: number, today: stri
   }
   if (ruleChanged) set.ruleVersion = task.ruleVersion + 1;
 
-  return Object.keys(set).length === 0 && remove.length === 0 ? undefined : { set, remove };
+  return Object.keys(set).length === 0 && remove.length === 0 ? undefined : { set, remove, edited };
 }
 
 export async function patchTask(store: Store, ctx: HouseholdContext, taskId: string, input: PatchTaskInput, nowMs: number = Date.now()): Promise<WriteOutcome<{ task: Task }>> {
@@ -154,7 +163,10 @@ export async function patchTask(store: Store, ctx: HouseholdContext, taskId: str
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const item = await loadLiveItem(store, householdId, taskId);
-    const change = planPatch(toTask(item), input, nowMs, today);
+    const task = toTask(item);
+    if (input.assignee && input.assignee.value !== task.assignee) assertDirect('assignee', task, ctx, { assignee: input.assignee.value });
+    if (input.repeat || input.dueOn) assertDirect('schedule', task, ctx);
+    const change = planPatch(task, input, nowMs, today);
 
     const ops: TxOp[] = [];
     let next = item;
@@ -163,6 +175,10 @@ export async function patchTask(store: Store, ctx: HouseholdContext, taskId: str
       const set = { ...change.set, updatedAt: Math.max(nowMs, Number(item.updatedAt) + 1) };
       ops.push({ update: taskKey(householdId, taskId), set, remove: change.remove, ifEquals: { updatedAt: item.updatedAt }, ifMissing: ['deletedAt'] });
       next = applyChange(item, set, change.remove);
+      // An edit to the other member's words is theirs to see: note who made it.
+      if (change.edited.length > 0 && isOtherMembersTask(task, ctx)) {
+        ops.push({ put: { ...editKey(householdId, taskId, nowMs), byUserId: ctx.userId, fields: change.edited, expiresAt: Math.floor(nowMs / 1000) + FOUR_HUNDRED_DAYS_SECONDS } });
+      }
     }
     try {
       return await withWriteRecord(store, householdId, input.mutationId, ops, { task: toTask(next) }, Math.floor(nowMs / 1000));
@@ -187,16 +203,11 @@ export async function deleteTask(
     if (item.deletedAt !== undefined) {
       return withWriteRecord(store, householdId, input.mutationId, [], { task: toTask(item) }, Math.floor(nowMs / 1000));
     }
+    assertDirect('delete', toTask(item), ctx);
     // The version the phone saw must still be current, so a delete cannot cross a restore or a change of assignee.
     if (Number(item.ruleVersion) !== input.baseRuleVersion) throw conflict();
 
-    const set = {
-      deletedAt: nowMs,
-      deletedBy: ctx.userId,
-      expiresAt: Math.floor(nowMs / 1000) + THIRTY_DAYS_SECONDS,
-      ruleVersion: input.baseRuleVersion + 1,
-      updatedAt: Math.max(nowMs, Number(item.updatedAt) + 1),
-    };
+    const { set } = tombstoneChange(item, ctx.userId, nowMs);
     const op: TxOp = { update: taskKey(householdId, taskId), set, ifEquals: { ruleVersion: input.baseRuleVersion }, ifMissing: ['deletedAt'] };
     try {
       return await withWriteRecord(store, householdId, input.mutationId, [op], { task: toTask(applyChange(item, set)) }, Math.floor(nowMs / 1000));

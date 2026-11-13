@@ -88,3 +88,18 @@ export class TaskError extends Error {
     this.name = 'TaskError';
   }
 }
+
+export interface Proposal {
+  id: string;
+  taskId: string;
+  fromUserId: string;
+  toUserId: string;
+  change: Change;
+  baseRuleVersion: number;
+  baseCycleSeq?: number;
+  status: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'stale';
+  createdAt: number;
+  resolvedAt?: number;
+  // Epoch seconds: 30 days after it is resolved.
+  expiresAt?: number;
+}

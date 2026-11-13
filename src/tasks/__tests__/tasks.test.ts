@@ -192,8 +192,8 @@ describe('patchTask: schedule fields', () => {
 
   it('bumps the rule version when the assignee changes', async () => {
     const task = await create();
-    const { result } = await patch(task.id, { assignee: { value: U2, baseRuleVersion: 1 } });
-    expect(result.task).toMatchObject({ assignee: U2, ruleVersion: 2 });
+    const { result } = await patch(task.id, { assignee: { value: U1, baseRuleVersion: 1 } });
+    expect(result.task).toMatchObject({ assignee: U1, ruleVersion: 2 });
   });
 
   it('answers a repeat of the same mutation from its record', async () => {
