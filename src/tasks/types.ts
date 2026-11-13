@@ -54,3 +54,37 @@ export interface ProposalInput {
   clientAt?: number;
   notify?: boolean;
 }
+
+export interface Task {
+  id: string;
+  title: string;
+  notes?: string;
+  // The client time each of title, notes and checklist was last set (ms), so an older edit never overwrites a newer one.
+  fieldTimes: { title?: number; notes?: number; checklist?: number };
+  // A member's user id, 'either' or 'both'.
+  assignee: string;
+  overrideAssignee?: string;
+  overrideCycle?: number;
+  repeat: Repeat;
+  dueOn?: string;
+  cycleSeq: number;
+  ruleVersion: number;
+  checklist: ChecklistStep[];
+  checklistState: Record<string, { done: boolean; at: number }>;
+  status: 'open' | 'done';
+  doneAt?: number;
+  createdBy: string;
+  updatedAt: number;
+  deletedAt?: number;
+  deletedBy?: string;
+  // Epoch seconds, when the store may purge it.
+  expiresAt?: number;
+}
+
+// A refusal the API turns into { error: code, ...extra } with the status.
+export class TaskError extends Error {
+  constructor(readonly code: string, readonly status: number, readonly extra: Record<string, unknown> = {}) {
+    super(code);
+    this.name = 'TaskError';
+  }
+}
