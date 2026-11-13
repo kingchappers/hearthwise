@@ -87,4 +87,24 @@ describe('the app stack (infra)', () => {
     expect(read('initialSetup', 'backend.hcl')).toContain('key    = "hearthwise-infra-setup/terraform.tfstate"');
     expect(all).toContain('/hearthwise/vapid-private-key');
   });
+
+  it('locks its state, so two deploys can never write it at once', () => {
+    expect(read('backend.hcl')).toContain('use_lockfile = true');
+    expect(read('initialSetup', 'backend.hcl')).toContain('use_lockfile = true');
+  });
+
+  it('tags the API Gateway API with the app name, so access can be limited by tag later', () => {
+    const lambda = read('lambda.tf');
+    const api = lambda.slice(lambda.indexOf('resource "aws_apigatewayv2_api" "app"'), lambda.indexOf('# Integration between API Gateway and Lambda'));
+    expect(api).toContain('Application = var.app_name');
+  });
+});
+
+describe('the CI workflow', () => {
+  const workflow = readFileSync(join(INFRA, '..', '.github', 'workflows', 'yarnBuild.yml'), 'utf8');
+
+  it('never runs two deploys at the same time, and never cancels one that has started', () => {
+    const deploy = workflow.slice(workflow.indexOf('\n  deploy:'));
+    expect(deploy).toMatch(/concurrency:\s*\n\s+group: deploy\s*\n\s+cancel-in-progress: false/);
+  });
 });

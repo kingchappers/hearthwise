@@ -73,6 +73,13 @@ export function planUpdate(op: UpdateOp): UpdatePlan {
     throw new Error(`update condition on "${unset[0]}" has no value: use ifMissing to require an absent attribute`);
   }
 
+  // DynamoDB compares an object or array by structure, the in-process stores by identity, so the same condition would pass
+  // on one and never on the other. Conditions are on single values.
+  const compound = ifEquals.find(([, value]) => typeof value === 'object' && value !== null);
+  if (compound) {
+    throw new Error(`update condition on "${compound[0]}" must be a scalar (string, number, boolean or null), not an object or array`);
+  }
+
   return { set, remove, ifEquals, ifMissing: op.ifMissing ?? [], mustExist: op.mustExist ?? true };
 }
 

@@ -22,7 +22,7 @@ Hearthwise shares an AWS account with another app. This stack therefore **reads*
 - **Itself:** an explicit deny stops it changing its own role. The role's name starts with `<app_name>-`, which the role statements would otherwise cover.
 - **ACM certificates:** it can read any certificate, but can only create or change ones tagged `Application = <app_name>`.
 
-Known limits, because AWS cannot scope these by name: API Gateway APIs, CloudWatch Logs resource policies and log deliveries. The role can reach the other app's resources of those kinds. `docs/DECISIONS.md` records this as an accepted risk.
+Known limits, because AWS cannot scope these by name: API Gateway APIs, CloudWatch Logs resource policies and log deliveries. The role can change or delete the other app's resources of those kinds (for API Gateway, including re-pointing its routes), so treat push access to `main` as deploy access to both apps. `docs/DECISIONS.md` records this as an accepted risk.
 
 ## Usage
 

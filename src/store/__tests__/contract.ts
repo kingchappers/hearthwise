@@ -388,6 +388,8 @@ export function runStoreContract(name: string, backend: ContractBackend, options
         ['a key attribute in set', { set: { PK: 'x' } }],
         ['a key attribute in remove', { remove: ['SK'] }],
         ['an ifEquals value of undefined', { set: { a: 1 }, ifEquals: { b: undefined } }],
+        ['an ifEquals value that is an object', { set: { a: 1 }, ifEquals: { b: { c: 1 } } }],
+        ['an ifEquals value that is an array', { set: { a: 1 }, ifEquals: { b: [1] } }],
       ])('rejects a malformed update with %s as a plain error', async (_name, fields) => {
         const PK = newUser();
         await store.put({ ...task(PK), a: 0 });

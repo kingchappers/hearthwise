@@ -11,7 +11,7 @@ export interface UpdateOp {
   update: Key;
   set?: Record<string, unknown>;
   remove?: string[];
-  // Each named attribute must hold exactly this value.
+  // Each named attribute must hold exactly this value. Scalars only (string, number, boolean, null): objects and arrays are rejected.
   ifEquals?: Record<string, unknown>;
   // Each named attribute must be absent. A stored null does not count as absent.
   ifMissing?: string[];

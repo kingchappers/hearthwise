@@ -76,8 +76,10 @@ resource "aws_apigatewayv2_api" "app" {
   api_key_selection_expression = "$request.header.x-api-key"
   version                      = 0.1
 
+  # Tagged with the app name so the deploy role's access to API Gateway can be limited by tag (see infra/initialSetup).
   tags = {
     Environment = var.environment
+    Application = var.app_name
   }
 }
 

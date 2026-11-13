@@ -272,7 +272,9 @@ data "aws_iam_policy_document" "github_iam_policy_document" {
 
   # API Gateway management (v2 HTTP APIs).
   # KNOWN LIMIT: API and tag ARNs carry generated IDs, not names, so these cannot be scoped to this app's API. The deploy role
-  # can therefore reach other HTTP APIs in the account. The custom domain names below ARE scoped to this app's own.
+  # can therefore change or delete other HTTP APIs in the account, and with lambda:AddPermission could point one at a Hearthwise
+  # Lambda. The API is tagged Application = <app_name>: limit these actions by aws:ResourceTag/Application once that has been
+  # tested against a real apply (docs/DECISIONS.md). The custom domain names below ARE scoped to this app's own.
   statement {
     sid    = "APIGatewayManagement"
     effect = "Allow"

@@ -28,6 +28,15 @@ describe('planUpdate', () => {
     expect(() => planUpdate({ update: key, set: { a: 1 }, ifEquals: { b: undefined } })).toThrow(/use ifMissing/);
   });
 
+  it.each([['an object', { a: 1 }], ['an array', [1, 2]]])('rejects an ifEquals value that is %s, because the stores compare it differently', (_name, value) => {
+    expect(() => planUpdate({ update: key, set: { a: 1 }, ifEquals: { b: value } })).toThrow(/scalar/);
+  });
+
+  it('accepts a string, number, boolean or null in ifEquals', () => {
+    const plan = planUpdate({ update: key, set: { a: 1 }, ifEquals: { s: 'x', n: 2, b: true, z: null } });
+    expect(plan.ifEquals).toEqual([['s', 'x'], ['n', 2], ['b', true], ['z', null]]);
+  });
+
   it('requires the item to exist unless told otherwise', () => {
     expect(planUpdate({ update: key, set: { a: 1 } }).mustExist).toBe(true);
     expect(planUpdate({ update: key, set: { a: 1 }, mustExist: false }).mustExist).toBe(false);
