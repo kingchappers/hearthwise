@@ -1,7 +1,9 @@
 import type { MemberSettings, MemberSettingsPatch } from '../shared/household';
+import { ConditionFailedError } from '../store';
 import type { Store } from '../store';
-import { hhPk, memberSk } from './keys';
+import { hhPk, membershipKey, memberSk, metaKey } from './keys';
 import { toMember } from './guard';
+import { HouseholdError } from './types';
 import type { HouseholdContext, Member } from './types';
 
 function mergeSettings(current: MemberSettings, patch: MemberSettingsPatch): MemberSettings {
@@ -25,4 +27,23 @@ export async function updateOwnMember(
 
   const updated = await store.patch({ PK: hhPk(ctx.householdId), SK: memberSk(ctx.userId) }, fields, { mustExist: true });
   return toMember(updated);
+}
+
+// Only the person who made the household may remove someone from it, and never themselves. Nothing else is rewritten: a task
+// assigned to the removed person is read as `either`, and history shows "Former member" (see the design).
+export async function removeMember(store: Store, ctx: HouseholdContext, targetUserId: string): Promise<void> {
+  if (ctx.userId !== ctx.household.createdBy || targetUserId === ctx.userId) throw new HouseholdError('forbidden', 403);
+  if (!ctx.members.some(member => member.userId === targetUserId)) throw new HouseholdError('not_found', 404);
+
+  try {
+    await store.transact([
+      { delete: membershipKey(targetUserId), ifPresent: true },
+      { delete: { PK: hhPk(ctx.householdId), SK: memberSk(targetUserId) }, ifPresent: true },
+      { update: metaKey(ctx.householdId), set: { memberCount: 1 }, ifEquals: { memberCount: 2 } },
+    ]);
+  } catch (error) {
+    // Already removed in the meantime.
+    if (error instanceof ConditionFailedError) throw new HouseholdError('not_found', 404);
+    throw error;
+  }
 }

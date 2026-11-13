@@ -4,7 +4,7 @@ import { MemoryStore } from '../../store/memory';
 import { loadContext } from '../guard';
 import { createHousehold } from '../households';
 import { hhPk, membershipKey, memberSk } from '../keys';
-import { updateOwnMember } from '../members';
+import { removeMember, updateOwnMember } from '../members';
 import type { HouseholdContext } from '../types';
 
 let store: MemoryStore;
@@ -55,5 +55,41 @@ describe('updateOwnMember', () => {
     await store.patch({ PK: hhPk(householdId), SK: memberSk('auth0|u1') }, { lastDigestSent: '2026-11-12' });
     const member = await updateOwnMember(store, (await loadContext(store, 'auth0|u1'))!, { displayName: 'Samuel' });
     expect(member).toMatchObject({ joinedAt: '2026-11-13T10:00:00.000Z', lastDigestSent: '2026-11-12' });
+  });
+});
+
+describe('removeMember', () => {
+  it('lets only the household creator remove someone', async () => {
+    const asOther = (await loadContext(store, 'auth0|u2'))!;
+    await expect(removeMember(store, asOther, 'auth0|u1')).rejects.toMatchObject({ code: 'forbidden', status: 403 });
+  });
+
+  it('never lets the creator remove themselves', async () => {
+    await expect(removeMember(store, ctx, 'auth0|u1')).rejects.toMatchObject({ code: 'forbidden', status: 403 });
+    expect(await loadContext(store, 'auth0|u1')).toBeDefined();
+  });
+
+  it('removes the membership and the member record, and puts the member count back to one', async () => {
+    await store.patch({ PK: hhPk(householdId), SK: 'META' }, { memberCount: 2 });
+    ctx = (await loadContext(store, 'auth0|u1'))!;
+    await removeMember(store, ctx, 'auth0|u2');
+
+    expect(await loadContext(store, 'auth0|u2')).toBeUndefined();
+    expect(await store.get(membershipKey('auth0|u2'))).toBeUndefined();
+    expect(await store.get({ PK: hhPk(householdId), SK: memberSk('auth0|u2') })).toBeUndefined();
+    const after = (await loadContext(store, 'auth0|u1'))!;
+    expect(after.household.memberCount).toBe(1);
+    expect(after.members.map(member => member.userId)).toEqual(['auth0|u1']);
+  });
+
+  it('is not_found for someone who is not a member, and changes nothing', async () => {
+    await expect(removeMember(store, ctx, 'auth0|stranger')).rejects.toMatchObject({ code: 'not_found', status: 404 });
+    expect((await loadContext(store, 'auth0|u1'))?.members).toHaveLength(2);
+  });
+
+  it("never touches another household's member of the same id", async () => {
+    const other = await createHousehold(store, { userId: 'auth0|u3', name: 'Other', timezone: 'Europe/London', displayName: 'Cat' }, vi.fn());
+    await expect(removeMember(store, ctx, 'auth0|u3')).rejects.toMatchObject({ code: 'not_found' });
+    expect((await loadContext(store, 'auth0|u3'))?.householdId).toBe(other.householdId);
   });
 });
