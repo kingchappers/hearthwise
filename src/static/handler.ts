@@ -166,8 +166,12 @@ export function createStaticHandler(rootDir: string): StaticHandler {
       if (urlPath === null) return textResponse(400, 'text/plain', 'Bad Request');
 
       const requested = path.join(root, urlPath);
-      if (requested !== root && !requested.startsWith(root + path.sep)) {
-        return textResponse(403, 'text/plain', 'Forbidden');
+      // One plain prefix check, so everything below it handles a path known to be inside the root. The root itself (a request for
+      // "/") is the only path without the trailing separator, and it is answered here with the app's own index.html.
+      if (!requested.startsWith(root + path.sep)) {
+        return requested === root
+          ? fileResponse(indexPath, canonicalUrlPath(indexPath))
+          : textResponse(403, 'text/plain', 'Forbidden');
       }
       if (requested === handlerPath) return textResponse(404, 'text/plain', 'Not Found');
 
