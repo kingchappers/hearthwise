@@ -9,7 +9,7 @@ import { IconHome, IconSettings, IconShoppingCart } from '@tabler/icons-react';
 import { NavLink as RouterNavLink, useLocation } from 'react-router';
 import { SignedOutPanel } from './SignedOutPanel';
 import { isSessionEndedError, useSessionEnded } from '~/lib/session';
-import { clearSignInErrorFromAddress, readSignInError } from '~/lib/signInError';
+import { clearSignInErrorFromAddress, consumeSignInStarted, readSignInError } from '~/lib/signInError';
 import type { SignInError } from '~/lib/signInError';
 
 // The same three places on every device.
@@ -112,13 +112,18 @@ function useSessionState(): SessionState {
 }
 
 // A failed Auth0 sign-in lands on the page with the reason in the address. Read it once, then take it out of the address,
-// so a reload does not show it again and it is not left in history.
+// so a reload does not show it again and it is not left in history. The reason is shown only if this tab started a sign-in:
+// a link someone else made, with their own words in error_description, is dropped without being shown.
 function useSignInError(): SignInError | undefined {
-  const [signInError] = useState(() => (typeof window === 'undefined' ? undefined : readSignInError(window.location.search)));
+  const [found] = useState(() => {
+    if (typeof window === 'undefined') return undefined;
+    const error = readSignInError(window.location.search);
+    return { error, expected: error ? consumeSignInStarted() : false };
+  });
   useEffect(() => {
-    if (signInError) clearSignInErrorFromAddress();
-  }, [signInError]);
-  return signInError;
+    if (found?.error) clearSignInErrorFromAddress();
+  }, [found]);
+  return found?.expected ? found.error : undefined;
 }
 
 function MainContent({ session, signInError, children }: { session: SessionState; signInError?: SignInError; children: React.ReactNode }) {

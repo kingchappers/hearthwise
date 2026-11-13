@@ -7,6 +7,7 @@ vi.mock('@auth0/auth0-react', () => ({ useAuth0: mockUseAuth0 }));
 
 import { LocalAuthContext, useAuth } from '../auth';
 import type { AuthState } from '../auth';
+import { consumeSignInStarted } from '../signInError';
 
 const auth0 = (over: Record<string, unknown> = {}) => ({
   isAuthenticated: true, isLoading: false, error: undefined, user: { sub: 'auth0|1', email: 'a@b.c' },
@@ -24,6 +25,7 @@ describe('useAuth with Auth0', () => {
 
     await result.current.login();
     expect(mocked.loginWithRedirect).toHaveBeenCalledTimes(1);
+    expect(consumeSignInStarted()).toBe(true);
 
     await result.current.logout();
     expect(mocked.logout).toHaveBeenCalledWith({ logoutParams: { returnTo: window.location.origin } });

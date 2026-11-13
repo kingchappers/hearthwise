@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { MemoryRouter } from 'react-router';
 import { clearSessionEnded, markSessionEnded } from '~/lib/session';
+import { markSignInStarted } from '~/lib/signInError';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 
 const auth = vi.hoisted(() => ({
@@ -183,9 +184,17 @@ describe('DefaultLayout after a failed Auth0 sign-in', () => {
   });
 
   it('shows the reason and the docs hint, then takes the error out of the address', async () => {
+    markSignInStarted();
     renderLayout();
     expect(screen.getByRole('alert')).toHaveTextContent('is not authorized to access resource server');
     expect(screen.getByRole('alert')).toHaveTextContent('See docs/AUTH0.md');
+    await vi.waitFor(() => expect(window.location.search).toBe('?keep=1'));
+  });
+
+  it('ignores an error in the address when this tab never started a sign-in, but still removes it', async () => {
+    renderLayout();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/not authorized/)).not.toBeInTheDocument();
     await vi.waitFor(() => expect(window.location.search).toBe('?keep=1'));
   });
 

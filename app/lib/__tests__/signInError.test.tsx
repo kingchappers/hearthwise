@@ -1,12 +1,15 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
-import { clearSignInErrorFromAddress, readSignInError } from '../signInError';
+import { clearSignInErrorFromAddress, consumeSignInStarted, markSignInStarted, readSignInError } from '../signInError';
 import { SignedOutPanel } from '~/components/layout/SignedOutPanel';
 
 const UNAUTHORIZED = '?error=invalid_request&error_description=Client%20%22x%22%20is%20not%20authorized%20to%20access%20resource%20server%20%22https%3A%2F%2Fhearthwise-api%22.&state=abc';
 
-afterEach(() => window.history.replaceState(null, '', '/'));
+afterEach(() => {
+  window.history.replaceState(null, '', '/');
+  window.sessionStorage.clear();
+});
 
 describe('readSignInError', () => {
   it('returns the code and the decoded sentence', () => {
@@ -74,5 +77,25 @@ describe('SignedOutPanel with a sign-in error', () => {
   it('has no alert when there is no error', () => {
     renderPanel();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+// Anyone can send a link with ?error_description=... in it. The page only believes one it was expecting: this tab started a sign-in.
+describe('the sign-in marker', () => {
+  it('is not set until a sign-in starts', () => {
+    expect(consumeSignInStarted()).toBe(false);
+  });
+
+  it('is set by a sign-in start, and consumed once', () => {
+    markSignInStarted();
+    expect(consumeSignInStarted()).toBe(true);
+    expect(consumeSignInStarted()).toBe(false);
+  });
+
+  it('reads as not started, and never throws, when storage is blocked', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    expect(() => markSignInStarted()).not.toThrow();
+    expect(consumeSignInStarted()).toBe(false);
   });
 });
