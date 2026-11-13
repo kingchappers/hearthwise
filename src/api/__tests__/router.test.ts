@@ -130,4 +130,65 @@ describe('router', () => {
       { method: 'POST', template: '/api/a' },
     ]);
   });
+
+  it('dispatches a PATCH route and lists it', async () => {
+    const router = createRouter();
+    router.patch('/api/hh/members/me', async () => ({ statusCode: 200, headers: {}, body: '{"patched":true}' }));
+    const res = await router.dispatch(makeEvent('PATCH', '/api/hh/members/me'), 'user-1');
+    expect(res.statusCode).toBe(200);
+    expect(router.routes()).toContainEqual({ method: 'PATCH', template: '/api/hh/members/me' });
+  });
+
+  it('does not match a PATCH route on a PUT request', async () => {
+    const router = createRouter();
+    router.patch('/api/x', async () => ({ statusCode: 200, headers: {}, body: '' }));
+    expect((await router.dispatch(makeEvent('PUT', '/api/x'), 'u')).statusCode).toBe(404);
+  });
+
+  describe('path parameters', () => {
+    function captureUserId() {
+      const router = createRouter();
+      const seen: string[] = [];
+      router.delete('/api/hh/members/{userId}', async (_event, _userId, params) => {
+        seen.push(params.userId);
+        return { statusCode: 204, headers: {}, body: '' };
+      });
+      return { router, seen };
+    }
+
+    it('decodes an encoded pipe, so an Auth0 user id reaches the handler as it is', async () => {
+      const { router, seen } = captureUserId();
+      await router.dispatch(makeEvent('DELETE', '/api/hh/members/auth0%7Cabc123'), 'u');
+      expect(seen).toEqual(['auth0|abc123']);
+    });
+
+    it('leaves a plain id as it is', async () => {
+      const { router, seen } = captureUserId();
+      await router.dispatch(makeEvent('DELETE', '/api/hh/members/local%7C0190-abc'), 'u');
+      await router.dispatch(makeEvent('DELETE', '/api/hh/members/plain-id'), 'u');
+      expect(seen).toEqual(['local|0190-abc', 'plain-id']);
+    });
+
+    it('answers 400 for a malformed escape without calling the handler', async () => {
+      const { router, seen } = captureUserId();
+      const res = await router.dispatch(makeEvent('DELETE', '/api/hh/members/%E0%A4%A'), 'u');
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body)).toEqual({ error: 'invalid', field: 'path' });
+      expect(seen).toEqual([]);
+    });
+
+    it('keeps an encoded slash inside one parameter instead of adding a path segment', async () => {
+      const { router, seen } = captureUserId();
+      const res = await router.dispatch(makeEvent('DELETE', '/api/hh/members/a%2Fb'), 'u');
+      expect(res.statusCode).toBe(204);
+      expect(seen).toEqual(['a/b']);
+    });
+
+    it('does not let an encoded slash reach another route', async () => {
+      const router = createRouter();
+      router.delete('/api/hh/invites/{hash}', async () => ({ statusCode: 204, headers: {}, body: '' }));
+      expect((await router.dispatch(makeEvent('DELETE', '/api/hh/invites/a%2Fmembers/x'), 'u')).statusCode).toBe(404);
+    });
+  });
 });
+
