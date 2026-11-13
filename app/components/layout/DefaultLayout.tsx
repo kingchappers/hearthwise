@@ -9,6 +9,7 @@ import { IconHome, IconSettings, IconShoppingCart } from '@tabler/icons-react';
 import { Navigate, NavLink as RouterNavLink, useLocation } from 'react-router';
 import { SignedOutPanel } from './SignedOutPanel';
 import { LoadError } from './LoadError';
+import { RegisterMutations } from './RegisterMutations';
 import { useHousehold } from '~/lib/household';
 import { peekInviteToken } from '~/lib/inviteToken';
 import { isSessionEndedError, useSessionEnded } from '~/lib/session';
@@ -134,7 +135,8 @@ function HouseholdGate({ children }: { children: React.ReactNode }) {
     return <Navigate to={peekInviteToken() ? '/join' : '/welcome'} replace />;
   }
   if (pathname === '/welcome') return <Navigate to="/" replace />;
-  return <>{children}</>;
+  // Household writes are registered once there is a household to write to.
+  return <><RegisterMutations />{children}</>;
 }
 
 // A failed Auth0 sign-in lands on the page with the reason in the address. Read it once, then take it out of the address,
