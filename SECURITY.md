@@ -15,6 +15,10 @@ Please report a vulnerability privately through GitHub's "Report a vulnerability
 - **Responses** carry security headers; errors never include internal detail.
 - **Secrets** are never committed. The VAPID private key lives in SSM Parameter Store, not in the repository or in OpenTofu state.
 
+- **Writes are replay-safe.** Every household write carries a client-made `mutationId`. It is stored in the same transaction as the write, with an 8-day expiry, so a retry (a flaky connection, a reload) returns the first answer and writes nothing, and a retried delete can never undo a later restore.
+- **Whose task it is.** A change to who has a task, when it is due or how it repeats, a delete, and a restore need the other person's say (a proposal) when the task is theirs or is for both. The server decides this from the stored task, never from the request. A task cannot be given to someone who is not in the household yet.
+- **Tombstones are final for edits.** An edit to a deleted task is refused (410); only a restore brings it back.
+
 ## Infrastructure
 
 Hearthwise shares an AWS account with another app, so the deploy role is deliberately narrow. See `infra/initialSetup/README.md`. In short: it is trusted from `main` only, cannot change itself, can only create roles under a permissions boundary, and can read and write only its own state. Known limits that AWS cannot scope by name (API Gateway APIs and CloudWatch Logs resource policies) are recorded in `docs/DECISIONS.md`.

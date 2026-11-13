@@ -90,3 +90,21 @@ Decisions the spec was silent or inconsistent about; the plan is `docs/superpowe
 **Accepted: the email-existence leak to an invite holder.** Someone holding a valid invite can learn that an email already has an account (`email_taken`). Invites are one-time, trusted links the creator hands to one person, and the 5-answer cap burns a link that is being used to probe.
 
 **Accepted: best-effort limits.** The open-invite cap and the `email_taken` counter are read-then-write, so two simultaneous requests can pass either by one. Nothing depends on the exact number.
+
+## Step 3: tasks (2026-11-13)
+
+Decisions the spec was silent or inconsistent about; the plan is `docs/superpowers/plans/2026-11-13-phase-1-step-3-tasks.md`.
+
+| Spec says | Built | Why |
+|---|---|---|
+| "Delete the `DONE` record only if the other member's attribute is still missing" | An "also did it" write touches the task's `updatedAt`, and an undo's task update requires it unchanged | The Store's `delete` cannot carry a condition on an attribute, so the race is settled through the task's token |
+| A swap or a both task is "the other member's" for ownership | Ownership uses the stored assignee, normalised by who is in the household now (a person who left reads as either; both with one member reads as either) | A swap changes who does one cycle, not who owns the task |
+| Proposals records `ruleVersion`, and `cycleSeq` for a swap or a date change | Also: a proposal is refused (409) at creation if its base version is already out of date | A proposal built on a stale view would only ever go stale |
+| Who made a deletion | A delete applied by accepting a proposal records the accepter as `deletedBy` | They carried it out |
+| An assignee who is not in the household | Refused (400 `assignee`) on create, patch and in a proposal's `set.assignee` | A non-member read as either, so a task could be given to someone before they joined, and be theirs without their say (found in security review) |
+| Proposal ids | Made by the client (a UUID), so creating one is idempotent | The spec does not say who makes them |
+| "Next thing": undated to-dos only when nothing dated is due | Order: due (today or earlier), then undated, then the soonest future-dated task | "Due" read literally |
+| A completion's `cycleSeq` | The cycle shown at the tap, not re-read when the write runs; base versions for schedule changes, deletes and proposals are re-read when the write runs, from data that leaves out the write itself | A second tap must not complete the next cycle |
+| Step 2's write routes | Now require a `mutationId` (400 otherwise); they are not wrapped in write records | Their own conditions already make them idempotent; the id is there for step 5's replay |
+| Household hooks in `app/lib/household.ts` | Still use `useMutation` without a registered key (allowed by a guard test); step 5 moves them into `app/lib/mutations.ts` | Persisting them belongs with the rest of the offline work |
+| Time zone for "deleted on" on the Deleted page | The browser's | Keeps the page independent of the household query |
