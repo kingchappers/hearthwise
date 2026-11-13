@@ -1,14 +1,14 @@
 import { existsSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { sqlitePath } from '../../container/config';
-import { clearThrottle, deleteAllSessions, getAccount, replacePassword } from '../auth/localData';
+import { clearThrottle, deleteSessionsForUser, getAccountByEmail, isUsableEmail, replacePassword } from '../auth/localData';
 import { validatePassword } from '../auth/password';
 import { promptHidden } from '../auth/prompt';
 import { initStore, type Store } from '.';
 
 const USAGE = `Usage:
   backup --out <file>                      write a consistent, verified, owner-only copy of the SQLite database (never overwrites; STORE=sqlite only)
-  reset-password                           set a new password for the built-in login, end every session and clear any lock-out (prompts; the password is never taken from arguments)
+  reset-password <email>                   set a new password for one person's built-in login, end that person's sessions and clear their lock-out (prompts; the password is never taken from arguments; first-run setup is never reopened)
 
 The backend comes from the environment: STORE=dynamodb with DYNAMODB_TABLE (and your AWS credentials),
 or STORE=sqlite, which opens the database in DATA_DIR (default /data) the way the container does, or the file named by SQLITE_PATH.`;
@@ -36,23 +36,25 @@ export async function runCli(argv: string[], env: NodeJS.ProcessEnv = process.en
 
   if (values.help) return USAGE;
 
-  const [command, extra] = positionals;
+  const [command, email, ...rest] = positionals;
 
   if (command === 'reset-password') {
-    if (extra) throw new Error(USAGE); // a password-shaped argument is a mistake, and must not be echoed back
+    if (!email || rest.length > 0) throw new Error(USAGE);
+    // An argument that is not an email is refused without being repeated: it may be a password typed in the wrong place.
+    if (!isUsableEmail(email)) throw new Error('That is not a usable email address.');
     const store = await openStore(env);
-    if (!(await getAccount(store))) {
-      throw new Error('No account exists yet. Open the app and complete the first-run setup first.');
+    if (!(await getAccountByEmail(store, email))) {
+      throw new Error('No account has that email address. Accounts are created through first-run setup or an invite link.');
     }
     const password = await (io.readPassword ?? promptHidden)('New password: ');
     const problem = validatePassword(password);
     if (problem) throw new Error(problem);
     // The password goes first: this process is outside the server's login queue, so ending sessions
     // while the old password still works would let an attacker log straight back in.
-    await replacePassword(store, password);
-    await deleteAllSessions(store);
-    await clearThrottle(store);
-    return 'Password reset. All sessions have ended and any login lock-out is cleared.';
+    const account = await replacePassword(store, email, password);
+    await deleteSessionsForUser(store, account.userId);
+    await clearThrottle(store, email);
+    return `Password reset for ${account.email}. Their sessions have ended and their login lock-out is cleared. No one else is affected.`;
   }
 
   if (command === 'backup') {

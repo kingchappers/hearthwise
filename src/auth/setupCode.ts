@@ -4,8 +4,9 @@ function digest(value: string): Buffer {
   return createHash('sha256').update(value).digest();
 }
 
-// Lives in memory only. It doubles as the AUTH-11 recovery code. It is announced once when the provider is built
-// (at container boot, or on the first API request elsewhere) and discarded when the account is created or recovery completes.
+// Lives in memory only. It is announced once when the provider is built (at container boot, or on the first API request
+// elsewhere) and discarded when the first account is created. It is the only thing that lets a stranger who finds a fresh
+// install first still not claim it. A forgotten password is never reset with it: that is `store-cli reset-password <email>`.
 export class SetupCode {
   private code: string | undefined;
 

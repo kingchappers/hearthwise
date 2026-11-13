@@ -12,6 +12,9 @@ import type { HouseholdContext } from './types';
 const INVITE_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
 // Moving someone out of an empty household deletes its invites in the same transaction, so their number is bounded.
 const MAX_OPEN_INVITES = 10;
+// An invite that has been answered "that email already has an account" this many times is revoked, so a link cannot be used to
+// look up which emails have accounts.
+export const MAX_TAKEN_EMAIL_ANSWERS = 5;
 
 export const inviteHash = (token: string): string => createHash('sha256').update(token).digest('hex');
 
@@ -157,4 +160,22 @@ export async function acceptInvite(store: Store, input: AcceptInput, emit: typeo
 
   await emit({ event: 'invite_accepted', userId: input.userId, householdId, at: new Date(nowMs).toISOString() });
   return { householdId };
+}
+
+// Called when a sign-up through this invite was refused because the email already has an account. The invite stays usable for a
+// typo or two; after MAX_TAKEN_EMAIL_ANSWERS it is deleted, together with its pointer, and any later use is an expired link.
+export async function recordTakenEmailAnswer(store: Store, hash: string, householdId: string): Promise<void> {
+  const invite = await store.get(inviteKey(hash), { consistent: true });
+  if (!invite) return;
+  const answers = (Number(invite.takenEmailAnswers) || 0) + 1;
+  try {
+    if (answers >= MAX_TAKEN_EMAIL_ANSWERS) {
+      await store.transact([{ delete: inviteKey(hash) }, { delete: { PK: hhPk(householdId), SK: invitePointerSk(hash) } }]);
+    } else {
+      await store.patch(inviteKey(hash), { takenEmailAnswers: answers }, { mustExist: true });
+    }
+  } catch (error) {
+    // Used or revoked in the meantime: nothing left to count.
+    if (!(error instanceof ConditionFailedError)) throw error;
+  }
 }

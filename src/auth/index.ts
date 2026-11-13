@@ -31,7 +31,7 @@ async function createAuth(env: NodeJS.ProcessEnv): Promise<AuthProvider> {
 }
 
 // Creates only the chosen provider. The Lambda still bundles local-login modules (the token routes import them), but it
-// never creates the local-login provider, so its start-up work (setup code, recovery) never runs there.
+// never creates the local-login provider, so its start-up work (the first-run setup code) never runs there.
 export function initAuth(env: NodeJS.ProcessEnv = process.env): Promise<AuthProvider> {
   if (current) return Promise.resolve(current);
   pending ??= createAuth(env).then(

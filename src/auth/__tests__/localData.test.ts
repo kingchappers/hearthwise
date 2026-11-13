@@ -121,6 +121,28 @@ describe('createInvitedAccount', () => {
     expect((await loadContext(store, first.userId))?.members).toHaveLength(1);
   });
 
+  it('stops a link being used to look up which emails have accounts: the fifth taken-email answer revokes it', async () => {
+    const first = await firstAccount();
+    const invite = await inviteFor(first);
+    const tryEmail = (email: string) => createInvitedAccount(store, { token: invite.token, email, password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
+
+    for (let i = 0; i < 5; i += 1) await expect(tryEmail('me@example.com')).rejects.toBeInstanceOf(EmailTakenError);
+
+    await expect(tryEmail('fresh@example.com')).rejects.toMatchObject({ code: 'invite_expired', status: 410 });
+    expect(await store.get(inviteKey(invite.hash))).toBeUndefined();
+    expect(await store.get({ PK: `HH#${(await loadContext(store, first.userId))!.householdId}`, SK: `INVITE#${invite.hash}` })).toBeUndefined();
+    expect(await getAccountByEmail(store, 'fresh@example.com')).toBeUndefined();
+  });
+
+  it('counts only taken-email answers, so a few typos leave the link usable', async () => {
+    const first = await firstAccount();
+    const invite = await inviteFor(first);
+    const tryEmail = (email: string) => createInvitedAccount(store, { token: invite.token, email, password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
+
+    for (let i = 0; i < 4; i += 1) await expect(tryEmail('me@example.com')).rejects.toBeInstanceOf(EmailTakenError);
+    await expect(tryEmail('bea@example.com')).resolves.toMatchObject({ account: { email: 'bea@example.com' } });
+  });
+
   it('creates no account when the invite has expired, is unknown, or the household is full', async () => {
     const first = await firstAccount();
     const stale = await inviteFor(first, NOW_MS - 8 * 24 * 60 * 60 * 1000);

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { inviteHash, joinFailure, joinOps } from '../household/invites';
+import { inviteHash, joinFailure, joinOps, recordTakenEmailAnswer } from '../household/invites';
 import { inviteKey } from '../household/keys';
 import { HouseholdError } from '../household/types';
 import { emitSecurityEvent } from '../security/events';
@@ -124,7 +124,10 @@ export async function createInvitedAccount(
     ]);
   } catch (error) {
     if (!(error instanceof ConditionFailedError)) throw error;
-    if (error.failedIndex === 0) throw new EmailTakenError();
+    if (error.failedIndex === 0) {
+      await recordTakenEmailAnswer(store, hash, householdId);
+      throw new EmailTakenError();
+    }
     throw joinFailure(error.failedIndex, 1);
   }
 

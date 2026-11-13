@@ -28,13 +28,6 @@ describe('createCodeHooks', () => {
     expect(existsSync(`${codeFile()}.tmp`)).toBe(false);
   });
 
-  it('labels a recovery code and says what it does', () => {
-    createCodeHooks(dir, { print, warn }).announce('abc123XYZ', 'recovery');
-    const text = String(print.mock.calls[0][0]);
-    expect(text).toMatch(/^Recovery code: abc123XYZ$/m);
-    expect(text).toMatch(/new password/i);
-  });
-
   it('still prints the code, and warns without leaking it, when the file cannot be written', () => {
     mkdirSync(`${codeFile()}.tmp`); // a directory where the temporary file should go
     createCodeHooks(dir, { print, warn }).announce('abc123XYZ', 'setup');
