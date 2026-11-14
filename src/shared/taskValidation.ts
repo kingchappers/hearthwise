@@ -103,9 +103,9 @@ interface Envelope {
   notify?: boolean;
 }
 
-const ENVELOPE_KEYS = ['mutationId', 'clientAt', 'notify'];
+export const ENVELOPE_KEYS = ['mutationId', 'clientAt', 'notify'];
 
-function parseEnvelope(body: Record<string, unknown>): Parsed<Envelope> {
+export function parseEnvelope(body: Record<string, unknown>): Parsed<Envelope> {
   const mutationId = parseUuid(body.mutationId, 'mutationId');
   if (!mutationId.ok) return mutationId;
   const envelope: Envelope = { mutationId: mutationId.value };
