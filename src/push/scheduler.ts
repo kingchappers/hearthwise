@@ -44,8 +44,9 @@ async function sendReminders(store: Store, sender: PushSender, ctx: HouseholdCon
 }
 
 // Each held push is claimed with a delete that needs it to exist, and sent only by the run whose delete succeeded.
-async function releaseHeld(store: Store, sender: PushSender, householdId: string, nowMs: number): Promise<void> {
-  for (const item of await store.query(hhPk(householdId), { skPrefix: HELD_PREFIX })) {
+// One for a person who has since left the household is deleted and never sent: they must not keep receiving its content.
+async function releaseHeld(store: Store, sender: PushSender, ctx: HouseholdContext, nowMs: number): Promise<void> {
+  for (const item of await store.query(hhPk(ctx.householdId), { skPrefix: HELD_PREFIX })) {
     if (Number(item.releaseAt) > nowMs) continue;
     try {
       await store.delete({ PK: item.PK, SK: item.SK }, { ifPresent: true });
@@ -54,6 +55,7 @@ async function releaseHeld(store: Store, sender: PushSender, householdId: string
       throw error;
     }
     if (Number(item.expiresAt) * 1000 < nowMs) continue;
+    if (!ctx.members.some(member => member.userId === item.recipient)) continue;
     await deliver(store, sender, String(item.recipient), { title: String(item.title), body: String(item.body), tag: String(item.tag) });
   }
 }
@@ -69,7 +71,7 @@ export async function runSchedule(store: Store, sender: PushSender | undefined, 
       await sendReminders(store, sender, ctx, now);
       if (!released.has(ctx.householdId)) {
         released.add(ctx.householdId);
-        await releaseHeld(store, sender, ctx.householdId, now.getTime());
+        await releaseHeld(store, sender, ctx, now.getTime());
       }
     } catch (error) {
       console.error(`Scheduler failed for user ${userId}: ${error instanceof Error ? error.name : 'Error'}`);

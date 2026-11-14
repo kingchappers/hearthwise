@@ -3,6 +3,7 @@ import { hhPk, memberSk } from '../../household/keys';
 import { DEFAULT_SETTINGS } from '../../shared/household';
 import { HELD_PREFIX, heldKey } from '../notifyOther';
 import { runSchedule } from '../scheduler';
+import { saveSubscription } from '../subscriptions';
 import { NOW, U1, U2, fakeSender, putTask, twoMemberHousehold } from './fixture';
 
 const digestOn = (hour: number) => ({ ...DEFAULT_SETTINGS, digest: { on: true, hour } });
@@ -118,6 +119,21 @@ describe('held pushes', () => {
     await runSchedule(store, sender, new Date(NOW));
     expect(sender.sent).toEqual([]);
     expect((await store.query(hhPk(householdId), { skPrefix: HELD_PREFIX })).length).toBe(1);
+  });
+});
+
+describe('a held push for someone who has left the household', () => {
+  it('is deleted and never sent to them', async () => {
+    const { store, householdId } = await twoMemberHousehold();
+    await saveSubscription(store, 'auth0|gone', { endpoint: 'https://push.example/gone', p256dh: 'p', auth: 'a', createdAt: NOW });
+    await store.put({
+      ...heldKey(householdId, 'auth0|gone', 1, 'notify-m9'), recipient: 'auth0|gone', title: 'Sam added milk', body: 'milk', tag: 'notify-m9',
+      releaseAt: NOW - 1000, expiresAt: Math.floor(NOW / 1000) + 3600,
+    } as never);
+    const sender = fakeSender();
+    await runSchedule(store, sender, new Date(NOW));
+    expect(sender.sent).toEqual([]);
+    expect(await store.query(hhPk(householdId), { skPrefix: HELD_PREFIX })).toEqual([]);
   });
 });
 
