@@ -5,22 +5,15 @@ import { LocalAuthContext } from '~/lib/auth';
 import type { AuthState } from '~/lib/auth';
 import { clearSessionEnded } from '~/lib/session';
 import {
-  ensureLocalAuth, getLocalAuthState, loginLocal, logoutLocal, recoverLocal, refreshLocalAuth, setupLocal, subscribeLocalAuth,
+  ensureLocalAuth, getLocalAuthState, loginLocal, logoutLocal, refreshLocalAuth, setupLocal, signupWithInvite, subscribeLocalAuth,
 } from '~/lib/localAuth';
 import { LocalAuthForm } from './LocalAuthForm';
+import type { LocalAuthMode } from './LocalAuthForm';
 import { Logo } from '../layout/Logo';
 
-type FormMode = 'recovery' | 'setup' | 'login';
-
-function formMode(setupRequired: boolean, recoveryOpen: boolean): FormMode {
-  if (setupRequired) return 'setup';
-  if (recoveryOpen) return 'recovery';
-  return 'login';
-}
-
-const FORM_TITLES: Record<FormMode, string> = {
-  recovery: 'Set a new password',
+const FORM_TITLES: Record<LocalAuthMode, string> = {
   setup: 'Create your account',
+  invite: 'Create your account',
   login: 'Sign in',
 };
 
@@ -37,7 +30,7 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(() => {
     setFormOpen(true);
-    void refreshLocalAuth(); // setup or recovery may have opened (or closed) since the page loaded
+    void refreshLocalAuth(); // setup may have opened (or closed) since the page loaded
   }, []);
   const logout = useCallback(async () => {
     try {
@@ -55,13 +48,13 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
     mode: 'local',
     isAuthenticated: snapshot.status === 'signedIn',
     isLoading: snapshot.status === 'loading',
-    user: snapshot.status === 'signedIn' ? { sub: snapshot.user.sub, email: snapshot.user.email } : undefined,
+    user: snapshot.status === 'signedIn' ? { sub: snapshot.user.sub, email: snapshot.user.email, name: snapshot.user.displayName } : undefined,
     login,
     logout,
     getToken,
   }), [snapshot, login, logout, getToken]);
 
-  const mode = snapshot.status === 'signedOut' ? formMode(snapshot.setupRequired, snapshot.recoveryOpen) : 'login';
+  const mode: LocalAuthMode = snapshot.status === 'signedOut' && snapshot.setupRequired ? 'setup' : 'login';
 
   return (
     <LocalAuthContext.Provider value={value}>
@@ -73,11 +66,10 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
         {snapshot.status === 'signedOut' && (
           <LocalAuthForm
             key={mode}
-            setupRequired={snapshot.setupRequired}
-            recoveryOpen={snapshot.recoveryOpen}
+            mode={mode}
             onLogin={loginLocal}
             onSetup={setupLocal}
-            onRecover={recoverLocal}
+            onSignup={signupWithInvite}
           />
         )}
       </Modal>

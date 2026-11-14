@@ -61,3 +61,10 @@ variable "vapid_subject" {
   description = "VAPID subject: an https or mailto address that identifies this app. Leave empty until push is set up."
   default     = ""
 }
+
+# Where sign-up and security alerts are emailed. Empty means the topic exists but has no subscriber.
+variable "alert_email" {
+  type        = string
+  description = "Email address for sign-up and security alerts. Leave empty to create the topic without a subscription."
+  default     = ""
+}

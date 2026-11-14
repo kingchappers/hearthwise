@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Hearthwise is a shared household app for two adults: chores, to-dos and a shopping list, with one set of data and per-person views. React SPA + Auth0 (or built-in login) + AWS Lambda, or a self-hosted container on SQLite. Infrastructure is OpenTofu.
 
-**Status: phase 1, step 1 (scaffold).** The Store, auth, API shell, container, infrastructure, brand and an empty signed-in shell exist. Households, tasks, the shopping list, offline use and notifications arrive in steps 2 to 7. The approved design is `docs/designs/phase-1-foundation.md`; `docs/ROADMAP.md` lists the steps.
+**Status: phase 1, step 2 (accounts, households, invites).** The Store, auth, API shell, container, infrastructure, brand, households, invites and an empty signed-in shell exist. Tasks, the shopping list, offline use and notifications arrive in steps 3 to 7. The approved design is `docs/designs/phase-1-foundation.md`; `docs/ROADMAP.md` lists the steps.
 
 Hearthwise began as a copy of the scaffolding of a sibling app, Hoardwise, and shares an AWS account with it. Nothing here may point at the sibling's resources: see "Shared AWS account" below.
 
@@ -29,11 +29,14 @@ yarn store-cli        # Build and run the store command line tool (backup, reset
 ## Architecture
 
 - **Store** (`src/store/`): one interface over DynamoDB, SQLite and an in-memory store, shared contract tests. `transact` takes `put`, `delete` and a conditional `update` (`ifEquals`, `ifMissing`, `mustExist`). An attribute that is not set is left out, never stored as `null`. `expiresAt` is epoch seconds.
-- **API Lambda** (`api-handler.ts`, `src/api/`): authenticates every request, then dispatches through a small router. Routes register in `src/api/apiRoutes.ts`. There is no PATCH method on the router yet; step 3 adds it with its first PATCH route.
-- **Auth** (`src/auth/`): `AUTH_MODE` picks `auth0` (AWS default) or `local` (container default). Local login is single-account until step 2.
+- **API Lambda** (`api-handler.ts`, `src/api/`): authenticates every request, then dispatches through a small router. Routes register in `src/api/apiRoutes.ts`. The router has `get`, `post`, `patch` and `delete`, and decodes path parameters once (a malformed escape is a 400).
+- **Auth** (`src/auth/`): `AUTH_MODE` picks `auth0` (AWS default) or `local` (container default). Local login has one account per email; after first-run setup the only way to make one is an invite link (`signup-with-invite`).
+- **Households** (`src/household/`, routes in `src/api/households.ts`): households, members, invites. **Every household route is wrapped in `withHousehold`** (`guard.ts`), which reads the caller's membership and hands the handler a `HouseholdContext`; the household id never comes from the request. Request fields are checked with the validators in `src/shared/validation.ts`.
+- **Security events** (`src/security/events.ts`): `emitSecurityEvent` logs and publishes to SNS (`ALERT_TOPIC_ARN`); ids and event types only, never emails or names.
+- **Auth0 tenant:** `docs/AUTH0.md`; the first-login Action is `infra/auth0/first-login.js`.
 - **Static Lambda** (`src/static/`): serves the SPA and falls back to `index.html`.
 - **Container** (`container/`): Node server plus Caddy, same handlers, SQLite store, hourly maintenance loop.
-- **Frontend** (`app/`): React 19, React Router (SPA, `ssr: false`), Mantine 8, Tailwind. File routes in `app/routes/`. `~/*` maps to `app/*`. `DefaultLayout` wraps each page in `AuthProvider`.
+- **Frontend** (`app/`): React 19, React Router (SPA, `ssr: false`), Mantine 8, Tailwind. File routes in `app/routes/`. `~/*` maps to `app/*`. `DefaultLayout` wraps each page in `AuthProvider` and is the household gate: a signed-in person with no household goes to `/welcome` (or `/join` if an invite is waiting); `/join` is the only public page. Household data hooks are in `app/lib/household.ts`.
 - **Infrastructure** (`infra/`): OpenTofu. `infra/initialSetup/` creates the deploy role and its permissions boundary and is run by hand once.
 
 ## Conventions

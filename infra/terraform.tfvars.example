@@ -21,3 +21,7 @@ auth0_audience = "https://your-api-identifier"
 # VAPID_PUBLIC_KEY secret; only needed for a local `tofu plan`/`apply`.
 # vapid_public_key = "the public half of your VAPID key pair"
 # vapid_subject    = "mailto:you@example.com"
+
+# Sign-up and security alerts. Not read from this file in CI, where it comes from the repository variable ALERT_EMAIL;
+# only needed for a local `tofu plan`/`apply`. AWS emails a confirmation link that must be clicked.
+# alert_email = "you@example.com"

@@ -10,6 +10,11 @@ export function err(status: number, message: string, extra: object = {}): ApiRes
   return { statusCode: status, headers: SECURITY_HEADERS, body: JSON.stringify({ error: message, ...extra }) };
 }
 
+// A request field failed validation. The field is named so the client can point at it.
+export function invalid(field: string): ApiResponse {
+  return err(400, 'invalid', { field });
+}
+
 export function parseJsonObject(event: APIGatewayProxyEventV2): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(event.body || '{}');

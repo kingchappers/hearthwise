@@ -5,6 +5,19 @@ import { ApiError } from '~/lib/apiError';
 import { expireLocalSession } from '~/lib/localAuth';
 import { isSessionEndedError, markSessionEnded } from '~/lib/session';
 
+// The `error` code (and `canMove`) in a JSON error body, if there is one. A body that is missing or not JSON gives neither.
+async function readErrorBody(response: Response): Promise<{ code?: string; canMove?: boolean }> {
+  try {
+    const body = JSON.parse(await response.text()) as { error?: unknown; canMove?: unknown };
+    return {
+      code: typeof body.error === 'string' ? body.error : undefined,
+      canMove: typeof body.canMove === 'boolean' ? body.canMove : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 export function useProtectedApi() {
   const { getToken, mode } = useAuth();
 
@@ -23,7 +36,8 @@ export function useProtectedApi() {
         }));
 
         if (!response.ok) {
-          throw new ApiError(response.status, response.statusText);
+          const { code, canMove } = await readErrorBody(response);
+          throw new ApiError(response.status, response.statusText, code, { canMove });
         }
 
         if (response.status === 204) return null;

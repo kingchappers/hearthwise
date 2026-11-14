@@ -40,7 +40,7 @@ const start = async (extra: NodeJS.ProcessEnv = {}, options: StartOptions = {}) 
 };
 const setupCodeFromLogs = (): string => {
   const text = logSpy.mock.calls.map((call: unknown[]) => String(call[0])).join('\n');
-  const last = [...text.matchAll(/^(?:Setup|Recovery) code: (\S+)$/gm)].at(-1);
+  const last = [...text.matchAll(/^Setup code: (\S+)$/gm)].at(-1);
   if (!last) throw new Error('no setup code was logged');
   return last[1];
 };
@@ -75,13 +75,13 @@ describe('serving', () => {
 
   it('runs the whole login flow against a real database and keeps the session across a restart', async () => {
     let base = await start();
-    expect(await (await fetch(`${base}/api/auth/status`)).json()).toEqual({ setupRequired: true, recoveryOpen: false });
+    expect(await (await fetch(`${base}/api/auth/status`)).json()).toEqual({ setupRequired: true });
 
     const code = setupCodeFromLogs();
     const origin = base;
     const setup = await fetch(`${base}/api/auth/setup`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin },
-      body: JSON.stringify({ code, email: 'me@example.com', password: 'a perfectly fine password' }),
+      body: JSON.stringify({ code, email: 'me@example.com', password: 'a perfectly fine password', displayName: 'Sam' }),
     });
     expect(setup.status).toBe(200);
     const cookie = setup.headers.getSetCookie()[0].split(';')[0];
@@ -93,7 +93,7 @@ describe('serving', () => {
     await running!.close();
     running = undefined;
     base = await start();
-    expect(await (await fetch(`${base}/api/auth/status`)).json()).toEqual({ setupRequired: false, recoveryOpen: false });
+    expect(await (await fetch(`${base}/api/auth/status`)).json()).toEqual({ setupRequired: false });
     expect((await fetch(`${base}/api/health`, { headers: { Cookie: cookie } })).status).toBe(200);
   });
 
@@ -438,7 +438,7 @@ describe('Caddy supervision', () => {
   });
 });
 
-describe('first-run code and password recovery', () => {
+describe('first-run code', () => {
   const PASSWORD = 'a perfectly fine password';
   const NEW_PASSWORD = 'a different perfectly fine password';
   const codePath = (): string => join(dir, 'data', 'SETUP_CODE.txt');
@@ -451,8 +451,8 @@ describe('first-run code and password recovery', () => {
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   const cookieOf = (res: Response): string => res.headers.getSetCookie()[0].split(';')[0];
-  const status = async (base: string): Promise<{ setupRequired: boolean; recoveryOpen: boolean }> =>
-    (await call(base, '/api/auth/status')).json() as Promise<{ setupRequired: boolean; recoveryOpen: boolean }>;
+  const status = async (base: string): Promise<{ setupRequired: boolean }> =>
+    (await call(base, '/api/auth/status')).json() as Promise<{ setupRequired: boolean }>;
   const restart = async (): Promise<string> => {
     await running?.close();
     running = undefined;
@@ -465,7 +465,7 @@ describe('first-run code and password recovery', () => {
     const code = setupCodeFromLogs();
     expect(readFileSync(codePath(), 'utf8')).toBe(`${code}\n`);
     expect(statSync(codePath()).mode & 0o777).toBe(0o600);
-    const res = await call(base, '/api/auth/setup', { body: { code, email: 'me@example.com', password: PASSWORD } });
+    const res = await call(base, '/api/auth/setup', { body: { code, email: 'me@example.com', password: PASSWORD, displayName: 'Sam' } });
     expect(res.status).toBe(200);
     expect(existsSync(codePath())).toBe(false);
   });
@@ -480,9 +480,9 @@ describe('first-run code and password recovery', () => {
     expect(existsSync(codePath())).toBe(false);
   });
 
-  it('never reopens setup or recovery because a RESET_PASSWORD file is in the data folder', async () => {
+  it('never reopens setup because a RESET_PASSWORD file is in the data folder', async () => {
     const first = await start();
-    const setup = await call(first, '/api/auth/setup', { body: { code: setupCodeFromLogs(), email: 'me@example.com', password: PASSWORD } });
+    const setup = await call(first, '/api/auth/setup', { body: { code: setupCodeFromLogs(), email: 'me@example.com', password: PASSWORD, displayName: 'Sam' } });
     expect(setup.status).toBe(200);
     await running?.close();
     running = undefined;
@@ -490,18 +490,18 @@ describe('first-run code and password recovery', () => {
 
     const base = await start();
     expect(existsSync(markerPath())).toBe(true);
-    expect(await status(base)).toEqual({ setupRequired: false, recoveryOpen: false });
+    expect(await status(base)).toEqual({ setupRequired: false });
   });
 
-  it('removes a stale code file left by a crash when recovery is not requested', async () => {
+  it('removes a stale code file left by a crash once setup is done', async () => {
     const base = await start();
-    await call(base, '/api/auth/setup', { body: { code: setupCodeFromLogs(), email: 'me@example.com', password: PASSWORD } });
+    await call(base, '/api/auth/setup', { body: { code: setupCodeFromLogs(), email: 'me@example.com', password: PASSWORD, displayName: 'Sam' } });
     await running?.close();
     running = undefined;
     writeFileSync(codePath(), 'stale\n');
     const next = await start();
     expect(existsSync(codePath())).toBe(false);
-    expect(await status(next)).toEqual({ setupRequired: false, recoveryOpen: false });
+    expect(await status(next)).toEqual({ setupRequired: false });
   });
 
 });

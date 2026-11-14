@@ -28,15 +28,12 @@ export function removeCodeFile(dataDir: string, warn: Warn): void {
   removeFile(`${file}.tmp`, warn);
 }
 
-function formatBlock(code: string, kind: 'setup' | 'recovery'): string {
+function formatBlock(code: string): string {
   const rule = '='.repeat(60);
-  const [label, action] = kind === 'setup'
-    ? ['Setup code', 'Open the app and enter this code to create your account.']
-    : ['Recovery code', 'Open the app and enter this code to set a new password.'];
   return [
     rule,
-    `${label}: ${code}`,
-    action,
+    `Setup code: ${code}`,
+    'Open the app and enter this code to create your account.',
     `The code is also saved as ${SETUP_CODE_FILE} in your data folder until you use it.`,
     rule,
   ].join('\n');
@@ -46,8 +43,8 @@ export function createCodeHooks(dataDir: string, io: { print(text: string): void
   const file = path.join(dataDir, SETUP_CODE_FILE);
   const temporary = `${file}.tmp`;
   return {
-    announce(code, kind) {
-      io.print(formatBlock(code, kind));
+    announce(code) {
+      io.print(formatBlock(code));
       try {
         // Exclusive create applies the mode and never follows a symlink, so any stale entry is cleared first.
         rmSync(temporary, { force: true });

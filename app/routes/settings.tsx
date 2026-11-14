@@ -1,5 +1,8 @@
 import { Button, Card, Input, Radio, SegmentedControl, Stack, Switch, Text, Title, useMantineColorScheme } from '@mantine/core';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
+import { InviteLink } from '~/components/household/InviteLink';
+import { Members } from '~/components/household/Members';
+import { useHousehold } from '~/lib/household';
 import { useAuth } from '~/lib/auth';
 import { usePreferences, type TextSize, type UndoDuration } from '~/lib/preferences';
 import { TEXT_SIZE_OPTIONS } from '~/lib/textSize';
@@ -14,6 +17,22 @@ const APPEARANCE_OPTIONS = [
   { value: 'dark', label: 'Dark' },
 ];
 
+// The layout gate has already made sure there is a household by the time this renders.
+function HouseholdSection() {
+  const household = useHousehold();
+  if (household.status !== 'ready') return null;
+  const { data } = household;
+  return (
+    <Card withBorder>
+      <Title order={2} size="h4" mb="sm">Household</Title>
+      <Stack gap="lg">
+        <Members data={data} />
+        {data.household.memberCount < 2 && <InviteLink />}
+      </Stack>
+    </Card>
+  );
+}
+
 function SettingsContent() {
   const [preferences, setPreferences] = usePreferences();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -23,6 +42,8 @@ function SettingsContent() {
     <Stack maw={640}>
       <Title order={1} size="h3">Settings</Title>
       <Text size="sm">Display settings are saved on this device.</Text>
+
+      <HouseholdSection />
 
       <Card withBorder>
         <Title order={2} size="h4" mb="sm">Signing in</Title>

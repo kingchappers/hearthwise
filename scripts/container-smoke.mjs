@@ -201,10 +201,10 @@ async function main() {
   step('SETUP_CODE.txt is owned by 10001 with mode 600', fileStat === '10001 600', fileStat);
   step('SETUP_CODE.txt holds the logged code', docker('exec', name, 'cat', '/data/SETUP_CODE.txt') === code);
 
-  const setup = await post('/api/auth/setup', { code, email: 'smoke@example.com', password: 'a perfectly fine password' });
+  const setup = await post('/api/auth/setup', { code, email: 'smoke@example.com', password: 'a perfectly fine password', displayName: 'Smoke One' });
   step('setup succeeds', setup.status === 200, setup.body);
   step('SETUP_CODE.txt is removed once setup completes', spawnSync('docker', ['exec', name, 'test', '-e', '/data/SETUP_CODE.txt']).status !== 0);
-    const setCookie = [].concat(setup.headers['set-cookie'] ?? [])[0] ?? '';
+  const setCookie = [].concat(setup.headers['set-cookie'] ?? [])[0] ?? '';
   const cookie = setCookie.split(';')[0];
 
   if (tls || proxy) {
@@ -226,6 +226,31 @@ async function main() {
   step('GET /api/health answers 200 to a signed-in session', signedIn.status === 200 && JSON.parse(signedIn.body).status === 'ok', `${signedIn.status} ${signedIn.body}`);
   const crossSite = await post('/api/auth/logout', {}, { Origin: 'https://evil.example', Cookie: cookie });
   step('a request from another origin is refused', crossSite.status === 403, String(crossSite.status));
+
+  // Households and invites: the first person makes a household and an invite, the second signs up with it.
+  const ONE = { Cookie: cookie };
+  const noHousehold = await get('/api/hh', ONE);
+  step('a signed-in person with no household gets 403 no_household', noHousehold.status === 403 && JSON.parse(noHousehold.body).error === 'no_household', `${noHousehold.status} ${noHousehold.body}`);
+  const created = await post('/api/households', { name: 'Smoke Home', displayName: 'Smoke One', timezone: 'Europe/London' }, ONE);
+  step('creating a household answers 201', created.status === 201, `${created.status} ${created.body}`);
+  const invite = await post('/api/hh/invites', {}, ONE);
+  const link = invite.status === 201 ? JSON.parse(invite.body).link : '';
+  step('creating an invite answers 201 with a link on the public origin, token in the fragment', invite.status === 201 && link.startsWith(`${publicOrigin}/join#`) && link.split('#')[1].length === 43, `${invite.status} ${invite.body}`);
+  const token = link.split('#')[1];
+
+  const signup = await post('/api/auth/signup-with-invite', { token, email: 'second@example.com', password: 'another fine password', displayName: 'Smoke Two' });
+  step('signing up with the invite succeeds', signup.status === 200, `${signup.status} ${signup.body}`);
+  const cookie2 = ([].concat(signup.headers['set-cookie'] ?? [])[0] ?? '').split(';')[0];
+  const TWO = { Cookie: cookie2 };
+  const [householdOne, householdTwo] = await Promise.all([get('/api/hh', ONE), get('/api/hh', TWO)]);
+  const [dataOne, dataTwo] = [householdOne, householdTwo].map(response => { try { return JSON.parse(response.body); } catch { return {}; } });
+  step('both sessions see the same household with two members', householdOne.status === 200 && householdTwo.status === 200
+    && dataOne.household?.name === 'Smoke Home' && dataTwo.household?.name === 'Smoke Home'
+    && dataOne.members?.length === 2 && dataTwo.members?.length === 2, `${householdOne.body} | ${householdTwo.body}`);
+  const reused = await post('/api/auth/signup-with-invite', { token, email: 'third@example.com', password: 'a third fine password', displayName: 'Smoke Three' });
+  step('using the invite link a second time answers 410', reused.status === 410, `${reused.status} ${reused.body}`);
+  const noOpenSignup = await post('/api/auth/setup', { code: 'x', email: 'fourth@example.com', password: 'a fourth fine password', displayName: 'Four' });
+  step('there is no open sign-up after setup', noOpenSignup.status === 409, `${noOpenSignup.status} ${noOpenSignup.body}`);
 
   // Sends a request with a forged X-Forwarded-For to an API route that answers 401, waits for the app to log exactly one
   // new "Request:" line for it, and returns that line's sourceIp.
@@ -262,17 +287,33 @@ async function main() {
     'node', 'build/store-cli/store-cli.js', 'backup', '--out', '/data/manual-backup.sqlite');
   step('store-cli backup works inside the image', backup.includes('Backed up'), backup);
 
-  // Nothing reopens setup or recovery: a leftover RESET_PASSWORD file is ignored, and left alone.
+  // reset-password takes the email as an argument and the new password on stdin (never from arguments or the environment).
+  const reset = spawnSync('docker', ['exec', '-i', '-e', 'STORE=sqlite', '-e', 'SQLITE_PATH=/data/hearthwise.sqlite', name,
+    'node', 'build/store-cli/store-cli.js', 'reset-password', 'second@example.com'], { encoding: 'utf8', input: 'a brand new password\n' });
+  step('store-cli reset-password <email> works inside the image', reset.status === 0 && /Password reset for second@example\.com/.test(reset.stdout), `${reset.status} ${reset.stdout} ${reset.stderr}`);
+  const noEmail = spawnSync('docker', ['exec', '-i', '-e', 'STORE=sqlite', '-e', 'SQLITE_PATH=/data/hearthwise.sqlite', name,
+    'node', 'build/store-cli/store-cli.js', 'reset-password'], { encoding: 'utf8', input: 'a brand new password\n' });
+  step('reset-password with no email prints the usage and changes nothing', noEmail.status !== 0 && /reset-password <email>/.test(noEmail.stderr), `${noEmail.status} ${noEmail.stderr}`);
+  const endedSession = await get('/api/auth/me', TWO);
+  step("that person's session has ended", endedSession.status === 401, String(endedSession.status));
+  const otherSession = await get('/api/auth/me', ONE);
+  step("the other person's session is untouched", otherSession.status === 200, String(otherSession.status));
+  const loginWithOld = await post('/api/auth/login', { email: 'second@example.com', password: 'another fine password' });
+  step('the old password no longer signs in', loginWithOld.status === 401, String(loginWithOld.status));
+  const loginWithNew = await post('/api/auth/login', { email: 'second@example.com', password: 'a brand new password' });
+  step('the new password signs in', loginWithNew.status === 200, String(loginWithNew.status));
+
+  // Nothing reopens setup: a leftover RESET_PASSWORD file from an older version is ignored, and left alone.
   docker('exec', name, 'touch', '/data/RESET_PASSWORD');
   docker('restart', name);
   await waitFor(async () => (await get('/healthz')).status === 200, '/healthz after the restart with a RESET_PASSWORD file');
   step('a RESET_PASSWORD file is left in place', spawnSync('docker', ['exec', name, 'test', '-e', '/data/RESET_PASSWORD']).status === 0);
   const unchanged = JSON.parse((await get('/api/auth/status')).body);
-  step('recovery and setup stay closed', unchanged.recoveryOpen === false && unchanged.setupRequired === false, JSON.stringify(unchanged));
-  const stillSignedIn = await get('/api/auth/me', { Cookie: cookie });
+  step('status is exactly { setupRequired: false }, with no recoveryOpen', JSON.stringify(unchanged) === '{"setupRequired":false}', JSON.stringify(unchanged));
+  const stillSignedIn = await get('/api/auth/me', ONE);
   step('the session survives', stillSignedIn.status === 200, String(stillSignedIn.status));
   const login = await post('/api/auth/login', { email: 'smoke@example.com', password: 'a perfectly fine password' });
-  step('the original password still signs in', login.status === 200, login.body);
+  step('the original password still signs in', login.status === 200, String(login.status));
 
   const started = Date.now();
   docker('stop', '-t', '20', name);

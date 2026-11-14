@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import { markSignInStarted } from './signInError';
 
 export interface AuthUser {
   sub?: string;
   name?: string;
+  nickname?: string;
   email?: string;
   picture?: string;
 }
@@ -28,7 +30,10 @@ export function useAuth(): AuthState {
   const auth0 = useAuth0();
 
   const { loginWithRedirect, logout, getAccessTokenSilently } = auth0;
-  const login = useCallback(() => loginWithRedirect(), [loginWithRedirect]);
+  const login = useCallback(() => {
+    markSignInStarted();
+    return loginWithRedirect();
+  }, [loginWithRedirect]);
   const signOut = useCallback(() => logout({ logoutParams: { returnTo: window.location.origin } }), [logout]);
   const getToken = useCallback(() => getAccessTokenSilently(), [getAccessTokenSilently]);
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setStore } from '..';
-import { createAccount, createSession, getAccount, recordFailure, throttleRemaining } from '../../auth/localData';
+import { createFirstAccount, createSession, getAccountByEmail, readSession, recordFailure, throttleRemaining } from '../../auth/localData';
 import { verifyPassword } from '../../auth/password';
 import { runCli } from '../cli';
 import { SqliteStore } from '../sqlite';
@@ -46,7 +46,7 @@ describe('runCli', () => {
   describe('a missing SQLite database', () => {
     it.each([
       ['backup', ['backup', '--out', 'copy.sqlite']],
-      ['reset-password', ['reset-password']],
+      ['reset-password', ['reset-password', 'me@example.com']],
     ])('is not created by %s', async (_name, args) => {
       const argv = args.map(arg => (arg.endsWith('.sqlite') ? join(dir, arg) : arg));
 
@@ -87,71 +87,114 @@ describe('runCli', () => {
     });
   });
 
-  describe('reset-password', () => {
-    async function seedAccount(): Promise<void> {
+  describe('reset-password <email>', () => {
+    const OLD = 'the old password 1';
+    const NEW = 'the new password 22';
+    const now = () => Math.floor(Date.now() / 1000);
+
+    // Two people: the first made through setup, the second written the way an invited sign-up writes one.
+    async function seedTwoAccounts() {
       const store = new SqliteStore(env.SQLITE_PATH as string);
-      await createAccount(store, 'me@example.com', 'the old password 1');
-      await createSession(store, 'local|u1', Math.floor(Date.now() / 1000));
-      for (let i = 0; i < 6; i++) await recordFailure(store, Math.floor(Date.now() / 1000));
+      const first = await createFirstAccount(store, { email: 'me@example.com', password: OLD, displayName: 'Sam' });
+      const { hashPassword } = await import('../../auth/password');
+      const second = { userId: 'local|bea', email: 'bea@example.com', displayName: 'Bea', ...(await hashPassword(OLD)), createdAt: new Date().toISOString() };
+      await store.put({ PK: 'AUTH#ACCOUNT#bea@example.com', SK: 'PROFILE', ...second });
+      const sessions = {
+        me: await createSession(store, first, now()),
+        bea: await createSession(store, second, now()),
+      };
+      for (let i = 0; i < 6; i += 1) { await recordFailure(store, 'me@example.com', now()); await recordFailure(store, 'bea@example.com', now()); }
       store.close();
+      return { first, second, sessions };
     }
 
-    it('sets the new password, ends every session and clears the lock-out', async () => {
-      await seedAccount();
-      const message = await runCli(['reset-password'], env, { readPassword: async () => 'the new password 22' });
-      expect(message).toMatch(/all sessions have ended/i);
+    const reset = (args: string[], password = NEW) => runCli(args, env, { readPassword: async () => password });
+
+    it('sets the new password, ends only that person\'s sessions and clears only their lock-out', async () => {
+      const { sessions } = await seedTwoAccounts();
+      const message = await reset(['reset-password', 'me@example.com']);
+      expect(message).toMatch(/me@example\.com/);
 
       const store = new SqliteStore(env.SQLITE_PATH as string);
-      expect(await verifyPassword('the new password 22', (await getAccount(store))!)).toBe(true);
-      expect(await store.query('AUTH#SESSIONS')).toEqual([]);
-      expect(await throttleRemaining(store, Math.floor(Date.now() / 1000))).toBe(0);
+      expect(await verifyPassword(NEW, (await getAccountByEmail(store, 'me@example.com'))!)).toBe(true);
+      expect(await readSession(store, sessions.me, now())).toBeUndefined();
+      expect(await throttleRemaining(store, 'me@example.com', now())).toBe(0);
+      // The other person is untouched.
+      expect(await readSession(store, sessions.bea, now())).toBeDefined();
+      expect(await throttleRemaining(store, 'bea@example.com', now())).toBeGreaterThan(0);
+      expect(await verifyPassword(OLD, (await getAccountByEmail(store, 'bea@example.com'))!)).toBe(true);
+      store.close();
+    });
+
+    it('finds the account whatever the case or spacing of the email', async () => {
+      await seedTwoAccounts();
+      await reset(['reset-password', 'BEA@Example.com']);
+      const store = new SqliteStore(env.SQLITE_PATH as string);
+      expect(await verifyPassword(NEW, (await getAccountByEmail(store, 'bea@example.com'))!)).toBe(true);
       store.close();
     });
 
     it('replaces the password before ending sessions, so no old-password session can outlive the reset', async () => {
-      await seedAccount();
+      await seedTwoAccounts();
       const realDelete = SqliteStore.prototype.delete;
-      let oldPasswordStillWorkedAtSessionDelete: boolean | undefined;
+      let oldStillWorkedAtSessionDelete: boolean | undefined;
       vi.spyOn(SqliteStore.prototype, 'delete').mockImplementation(async function (this: SqliteStore, key, options) {
-        if (key.PK === 'AUTH#SESSIONS' && oldPasswordStillWorkedAtSessionDelete === undefined) {
-          oldPasswordStillWorkedAtSessionDelete = await verifyPassword('the old password 1', (await getAccount(this))!);
+        if (key.PK === 'AUTH#SESSIONS' && oldStillWorkedAtSessionDelete === undefined) {
+          oldStillWorkedAtSessionDelete = await verifyPassword(OLD, (await getAccountByEmail(this, 'me@example.com'))!);
         }
         return realDelete.call(this, key, options);
       });
-
-      await runCli(['reset-password'], env, { readPassword: async () => 'the new password 22' });
+      await reset(['reset-password', 'me@example.com']);
       vi.restoreAllMocks();
+      expect(oldStillWorkedAtSessionDelete).toBe(false);
+    });
 
-      expect(oldPasswordStillWorkedAtSessionDelete).toBe(false);
+    it('never reopens first-run setup', async () => {
+      await seedTwoAccounts();
+      await reset(['reset-password', 'me@example.com']);
       const store = new SqliteStore(env.SQLITE_PATH as string);
-      expect(await store.query('AUTH#SESSIONS')).toEqual([]);
-      expect(await verifyPassword('the new password 22', (await getAccount(store))!)).toBe(true);
+      expect(await store.get({ PK: 'AUTH#SETUP', SK: 'DONE' })).toBeDefined();
       store.close();
     });
 
     it('refuses a password that fails the policy, changing nothing', async () => {
-      await seedAccount();
-      await expect(runCli(['reset-password'], env, { readPassword: async () => 'short' })).rejects.toThrow(/at least 12/);
+      const { sessions } = await seedTwoAccounts();
+      await expect(reset(['reset-password', 'me@example.com'], 'short')).rejects.toThrow(/at least 12/);
       const store = new SqliteStore(env.SQLITE_PATH as string);
-      expect(await verifyPassword('the old password 1', (await getAccount(store))!)).toBe(true);
-      expect((await store.query('AUTH#SESSIONS')).length).toBe(1);
+      expect(await verifyPassword(OLD, (await getAccountByEmail(store, 'me@example.com'))!)).toBe(true);
+      expect(await readSession(store, sessions.me, now())).toBeDefined();
       store.close();
     });
 
-    it('refuses when no account exists yet', async () => {
-      await seedDatabase();
-      await expect(runCli(['reset-password'], env, { readPassword: async () => 'the new password 22' })).rejects.toThrow(/No account/);
+    it('says so when no account has that email, before asking for a password', async () => {
+      await seedTwoAccounts();
+      const readPassword = vi.fn(async () => NEW);
+      await expect(runCli(['reset-password', 'nobody@example.com'], env, { readPassword })).rejects.toThrow(/No account/);
+      expect(readPassword).not.toHaveBeenCalled();
     });
 
-    it('never takes the password from argv or the environment', async () => {
-      await seedAccount();
-      const readPassword = vi.fn(async () => 'a valid password 99');
-      await expect(runCli(['reset-password', 'sneaky-password-123'], env, { readPassword })).rejects.toThrow(/Usage/);
+    it('needs an email: with none it prints usage, and asks for no password', async () => {
+      await seedTwoAccounts();
+      const readPassword = vi.fn(async () => NEW);
+      await expect(runCli(['reset-password'], env, { readPassword })).rejects.toThrow(/Usage[\s\S]*reset-password <email>/);
+      expect(readPassword).not.toHaveBeenCalled();
+    });
+
+    it('takes exactly one argument, and never a password: a second argument is usage, and an argument that is not an email is refused without echoing it', async () => {
+      await seedTwoAccounts();
+      const readPassword = vi.fn(async () => NEW);
+      await expect(runCli(['reset-password', 'me@example.com', 'sneaky-password-123'], env, { readPassword })).rejects.toThrow(/Usage/);
+      const refused = await runCli(['reset-password', 'sneaky-password-123'], env, { readPassword }).then(() => undefined, (error: Error) => error);
+      expect(refused?.message).toMatch(/not a usable email/i);
+      expect(refused?.message).not.toContain('sneaky-password-123');
       expect(readPassword).not.toHaveBeenCalled();
       const store = new SqliteStore(env.SQLITE_PATH as string);
-      expect(await verifyPassword('the old password 1', (await getAccount(store))!)).toBe(true);
-      expect((await store.query('AUTH#SESSIONS')).length).toBe(1);
+      expect(await verifyPassword(OLD, (await getAccountByEmail(store, 'me@example.com'))!)).toBe(true);
       store.close();
+    });
+
+    it('lists the new form in its usage text', async () => {
+      expect(await runCli(['--help'], env)).toMatch(/reset-password <email>/);
     });
   });
 
