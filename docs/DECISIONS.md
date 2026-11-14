@@ -65,3 +65,15 @@ The deploy role (`hearthwise-github-actions`) lives in an account that also hold
 
 - **State locking:** both backends use `use_lockfile = true` and the deploy job has a `concurrency` group that never cancels a running deploy, so two pushes to `main` cannot apply at once.
 - **`ifEquals` is scalar-only:** the Store rejects an object or array condition value, because DynamoDB compares by structure and the in-process stores by identity. Task completion and the other step 3 conditions use scalars.
+
+### Deploy safety: protected deletions (2026-11-13)
+
+The first CI deploy ran with `APP_DOMAIN` set as a GitHub *secret* instead of a *variable*, so `app_domain` was empty and OpenTofu deleted the custom domain, its certificate and its mapping, exactly as the configuration says to for "no domain". The site's address went down until the domain was recreated and the registrar's CNAME was changed by hand.
+
+The deploy job now runs `scripts/check-plan.mjs` between `tofu plan` and `tofu apply`. It fails the deploy if the plan would delete or replace `aws_dynamodb_table` (all the household's data), `aws_acm_certificate`, `aws_apigatewayv2_domain_name` or `aws_apigatewayv2_api_mapping`.
+
+- A deliberate change (for example moving to a new domain) sets the repository **variable** `ALLOW_DESTRUCTIVE_DEPLOY` to `true` for that one deploy, then removes it. Only the exact value `true` counts.
+- The check prints resource addresses only. `plan.json` holds variable values (including Auth0's), stays on the runner, is git-ignored, and is never uploaded.
+- It guards CI deploys, not a local `tofu apply`; a local apply prints the plan, so read it.
+- Tests: `src/infra/__tests__/checkPlan.test.ts` (the check) and `infraGuards.test.ts` (it sits between plan and apply; the override is a variable; the plan is never uploaded).
+

@@ -50,6 +50,7 @@ The same AWS account, state bucket and GitHub OIDC provider as the sibling app a
 
 - Every resource name starts with `hearthwise` (`app_name`). The table is `hearthwise-data`; the SSM path is `/hearthwise/*`; state is under `hearthwise/` in the bucket.
 - The deploy role is trusted from `main` only, cannot change itself, and can only create roles under the `hearthwise-lambda-boundary` permissions boundary. A pull request never gets AWS credentials.
+- The deploy job fails if the plan would delete the data table or the custom domain (`scripts/check-plan.mjs`); `ALLOW_DESTRUCTIVE_DEPLOY=true` (a repository variable) overrides it for one deliberate deploy. `APP_DOMAIN` must be a repository variable, not a secret.
 - `src/infra/__tests__/infraGuards.test.ts` pins these rules. A change to them is a security decision: record it in `docs/DECISIONS.md`.
 
 ## Security

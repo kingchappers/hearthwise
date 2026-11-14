@@ -135,13 +135,19 @@ jobs:
 
     # The plan is applied straight away and never uploaded: this repository is public, and a saved plan can hold the
     # Auth0 values.
-    - name: OpenTofu init, plan and apply
+    # Between plan and apply, the plan is checked for deletions that cannot be quietly undone (the data table, the custom domain,
+    # its certificate and mapping). plan.json holds variable values: it stays on the runner and only addresses are printed.
+    - name: OpenTofu init, plan, check and apply
       working-directory: infra
       env:
         TF_INPUT: 'false'
         TF_IN_AUTOMATION: 'true'
+        # Set to "true" for one deliberate deploy that must delete or replace those resources (for example moving to a new domain).
+        ALLOW_DESTRUCTIVE_DEPLOY: ${{ vars.ALLOW_DESTRUCTIVE_DEPLOY }}
       timeout-minutes: 15
       run: |
         tofu init -backend-config=backend.hcl
         tofu plan -out=tfplan
+        tofu show -json tfplan > plan.json
+        node ../scripts/check-plan.mjs plan.json
         tofu apply -auto-approve tfplan

@@ -60,3 +60,6 @@ terraform.rc
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# A plan as JSON holds variable values, including the Auth0 ones
+plan.json
