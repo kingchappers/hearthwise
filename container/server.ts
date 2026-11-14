@@ -15,6 +15,9 @@ import { buildCaddyfile } from './caddy';
 import { createRequestListener, type HandlerResult } from './adapter';
 import { parseConfig, type ContainerConfig } from './config';
 import { startMaintenance } from './maintenance';
+import { initPush, resetPush } from '../src/push/init';
+import { getSender } from '../src/push/registry';
+import { runSchedule } from '../src/push/scheduler';
 import { createCodeHooks, removeCodeFile } from './recovery';
 
 export interface RunningServer {
@@ -94,9 +97,13 @@ export async function startServer(env: NodeJS.ProcessEnv, options: StartOptions 
   if (config.appOrigin) process.env.APP_ORIGIN = config.appOrigin;
   const opened = await initStore(runtimeEnv);
 
+  // Keys: from the environment, vapid.json, or newly made. None (a broken file) means no push, and the server still starts.
+  resetPush();
+  const vapid = await initPush(runtimeEnv, { dataDir: config.dataDir, log });
   let maintenance: { stop(): void } | undefined;
   const releaseInternals = (): void => {
     maintenance?.stop();
+    resetPush();
     removeCodeFile(config.dataDir, warn);
     (opened as { close?: () => void }).close?.();
     setStore(undefined);
@@ -122,6 +129,7 @@ export async function startServer(env: NodeJS.ProcessEnv, options: StartOptions 
         },
         newestBackupAgeSeconds: now => newestBackupAgeSeconds(config.backupDir, now),
         log,
+        runScheduler: now => runSchedule(store, getSender(), now),
       },
       { backupHour: config.backupHour, backupKeep: config.backupKeep },
     );
@@ -144,7 +152,7 @@ export async function startServer(env: NodeJS.ProcessEnv, options: StartOptions 
     const server = createServer(createRequestListener({
       apiHandler: tracked(options.apiHandler ?? realApi),
       staticHandler: tracked((event: { rawPath: string }) => staticHandler(event) as Promise<HandlerResult>),
-      configBody: JSON.stringify({ auth: 'local' }),
+      configBody: JSON.stringify(vapid ? { auth: 'local', vapidPublicKey: vapid.publicKey } : { auth: 'local' }),
       trustProxy: config.trustProxy,
       isHealthy: async () => {
         await store.get({ PK: 'HEALTH', SK: 'PING' });

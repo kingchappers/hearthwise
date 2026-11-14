@@ -6,6 +6,8 @@ import { TaskList } from '~/components/tasks/TaskList';
 import { TaskSheet } from '~/components/tasks/TaskSheet';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { LoadError } from '~/components/layout/LoadError';
+import { LetThemKnow } from '~/components/shared/LetThemKnow';
+import { PushPrompt } from '~/components/settings/PushPrompt';
 import { useTaskActions } from '~/hooks/useTaskActions';
 import { useHousehold } from '~/lib/household';
 import { pageTitle } from '~/lib/pageTitle';
@@ -41,6 +43,8 @@ function TodayContent() {
           {view === 'list' ? 'Show the next thing' : 'Show the full list'}
         </Button>
       </Group>
+      <PushPrompt />
+      <LetThemKnow />
       <ProposalBanner
         proposals={tasks.proposals}
         tasks={tasks.tasks}

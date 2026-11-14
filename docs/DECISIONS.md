@@ -122,3 +122,19 @@ The spike (`e2e/offline/`, Chromium) passed: TanStack Query's built-in persisten
 | An older `schemaVersion` replays its writes then drops its data | The persister's restore returns the entry with its lists removed; the app invalidates everything after a restore | Keeps the writes without a second code path |
 | Show the saved lists before sign-in has finished | Done, and accepted: nothing checks for a live session first | The same data is already readable in the browser's storage on this device, and showing it at once is what lets a shop launch with no signal work. Clearing it whenever sign-in is not complete would also break "an expired sign-in, then the waiting writes resume" (security review, accepted) |
 | Signing out while launching | Ends the session on this device (the Auth0 cache and stored person are cleared, the page reloads); sign-out always happens, and the person is told if the saved copy could not be cleared | Security review: sign-out must never silently do nothing, or fail open |
+
+## Step 6: notifications (2026-11-14)
+
+| Spec says | Built | Why |
+|---|---|---|
+| "Let <name> know" is a checkbox on every action | One tick per page (Today, the task page, Shopping, the task sheet): unticked by default, never remembered, and off again when the last box leaves the screen. While ticked, every change made on that page carries `notify` | A tick on every row would bury the lists; resetting on leaving means nothing notifies by surprise |
+| Subscribe and unsubscribe "as in Hoardwise" | Subscribe takes `{ endpoint, keys }` only (no settings, no mutation id; both routes are idempotent). The endpoint must be on a known push service, https, default port, no credentials, never an IP (checked again at each send); at most ten devices per person (409 `too_many_devices`, and the newest ten are used at send time) | Security review: any signed-in person could otherwise aim the server at an address of their choosing |
+| `notifyOther` is called with parsed `notify` and `clientAt` | The route reads them from the request's envelope after the write (`src/api/notify.ts`), leaving the parsers as they were | One place, no parser churn |
+| Which actions notify | Task create, edit, delete, complete and propose; item put, delete and batch (clear ticked). Not accept, decline, withdraw, restore or undo | The spec's list of actions stops there; undo takes back a held push instead |
+| Digest and nudges | Nudges are tasks due *today*; the digest is tasks due today or on an earlier day; an empty digest is not sent and not claimed; hours are the chosen hour to two hours after, never past local midnight | Spec: "item 35", plus the midnight rule |
+| A held push past `expiresAt` is skipped | It is also deleted. One held for someone who has since left the household is deleted and never sent | Security review: a removed member must not keep receiving household content |
+| `web-push` in the container | Installed into `build/container/node_modules` by `build-container.cjs` and loaded on first use; the runtime image still has no npm | The image ships no package manager |
+| `loadVapid` | Also reads `VAPID_PRIVATE_KEY`/`VAPID_PUBLIC_KEY` from the environment in the container; keys that cannot be read or written mean push is off, never a failed start | Spec 36a |
+| Quiet hours "end" | The first quarter-hour whose local hour equals the end hour, searched forward from now | Works for time zones with half-hour offsets |
+| The push Lambda's table access | Query, GetItem, UpdateItem, PutItem, DeleteItem on the table only (no Scan); the API role gained read of the one VAPID parameter | `infraGuards.test.ts` pins both |
+| Push payload parsing in the worker | `app/lib/pushPayload.ts`: a non-JSON push shows as text; the address a push opens is always a path in this app | The step 5 review flagged a throw on a non-JSON payload |

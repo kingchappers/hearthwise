@@ -64,6 +64,12 @@ All settings are environment variables on the container.
 
 The container refuses to start, and lists every problem, if a setting is invalid.
 
+## Notifications
+
+Notifications are off until each person turns them on in Settings. The container makes its own push key pair the first time it starts and keeps it in `vapid.json` in the data folder (readable only by the app user). **Keep that file:** if it is lost, a new pair is made and everyone has to turn notifications on again on each device. It is not part of the database backup, so copy it with the backups volume. To use your own keys instead, set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (and `VAPID_SUBJECT`, a `mailto:` or https address, default `mailto:admin@localhost`).
+
+Your server must be able to reach the push services (Google, Mozilla, Apple, Microsoft) over HTTPS. On an iPhone, the app has to be on the Home Screen first: Settings shows the steps. Reminder hours are in the household's time zone, and the container checks once an hour, so a reminder can arrive up to an hour after the chosen time.
+
 ## Backups
 
 The container takes a backup when it starts and once a day after `BACKUP_HOUR`, and keeps the newest `BACKUP_KEEP`. Each is a consistent copy of the database named `hearthwise-YYYYMMDD-HHMMSS.sqlite`, readable only by the app user.

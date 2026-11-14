@@ -66,6 +66,7 @@ jobs:
         VITE_AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
         VITE_AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
         VITE_AUTH0_AUDIENCE: ${{ secrets.AUTH0_AUDIENCE }}
+        VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
       run: yarn run build
 
     - name: Install OpenTofu
@@ -139,6 +140,7 @@ jobs:
         VITE_AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
         VITE_AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
         VITE_AUTH0_AUDIENCE: ${{ secrets.AUTH0_AUDIENCE }}
+        VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
       run: yarn run build
 
     - name: Configure AWS Credentials

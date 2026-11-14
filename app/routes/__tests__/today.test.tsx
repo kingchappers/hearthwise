@@ -23,6 +23,8 @@ vi.mock('~/lib/household', () => ({
   }),
 }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
+vi.mock('~/components/settings/PushPrompt', () => ({ PushPrompt: () => <p>push prompt</p> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
 
 import Today, { meta } from '../_index';
 
@@ -125,5 +127,19 @@ describe('Today', () => {
     renderToday();
     expect(document.body.textContent).not.toMatch(/overdue|missed|streak/i);
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
+  });
+});
+
+describe('Today: Let them know', () => {
+  it('has the box, unticked, for the changes made on this page', () => {
+    renderToday();
+    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
+  });
+});
+
+describe('Today: the notification prompt', () => {
+  it('shows the one-time prompt', () => {
+    renderToday();
+    expect(screen.getByText('push prompt')).toBeInTheDocument();
   });
 });

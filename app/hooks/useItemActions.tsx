@@ -2,6 +2,7 @@ import { notifications } from '@mantine/notifications';
 import type { ShoppingItem } from '../../src/shopping/types';
 import { ToastAction } from '~/components/layout/ToastAction';
 import { useHousehold } from '~/lib/household';
+import { notifyFields } from '~/lib/letThemKnow';
 import { useItemMutation } from '~/lib/mutations';
 import { usePreferences } from '~/lib/preferences';
 import { undoAutoClose } from '~/lib/undoDuration';
@@ -28,7 +29,7 @@ export function useItemActions(): ItemActions {
   const restore = useItemMutation('itemRestore');
 
   const by = household.data?.me.userId ?? '';
-  const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by });
+  const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by, ...notifyFields() });
 
   function toast(text: string, undo?: () => void): void {
     const id = crypto.randomUUID();

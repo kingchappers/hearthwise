@@ -6,8 +6,11 @@ import { getStore } from '../store';
 import { completeCycle, undoCompletion } from '../tasks/completions';
 import { taskHistory } from '../tasks/history';
 import { acceptProposal, createProposal, declineProposal, listProposals, withdrawProposal } from '../tasks/proposals';
+import { taskKey } from '../tasks/keys';
 import { restoreEntries } from '../tasks/restore';
 import { createTask, deleteTask, listTasks, patchTask } from '../tasks/tasks';
+import { notifyAfter } from './notify';
+import * as events from '../push/events';
 import { err, invalid, noStore, ok, parseJsonObject } from './http';
 import type { Router } from './router';
 import type { ApiResponse } from './types';
@@ -25,7 +28,9 @@ const postTask: TaskHandler = async (event, ctx) => {
   if (!body) return invalid('body');
   const input = parseCreateTask(body);
   if (!input.ok) return invalid(input.field);
-  return written(await createTask(getStore(), ctx, input.value), 201);
+  const outcome = await createTask(getStore(), ctx, input.value);
+  await notifyAfter(ctx, body, outcome.fresh, events.taskAdded(ctx.member.displayName, outcome.result.task.title, input.value.mutationId, outcome.result.task.id));
+  return written(outcome, 201);
 };
 
 const patchTaskRoute: TaskHandler = async (event, ctx, params) => {
@@ -33,7 +38,9 @@ const patchTaskRoute: TaskHandler = async (event, ctx, params) => {
   if (!body) return invalid('body');
   const input = parsePatchTask(body);
   if (!input.ok) return invalid(input.field);
-  return written(await patchTask(getStore(), ctx, params.id, input.value), 200);
+  const outcome = await patchTask(getStore(), ctx, params.id, input.value);
+  await notifyAfter(ctx, body, outcome.fresh, events.taskChanged(ctx.member.displayName, outcome.result.task.title, input.value.mutationId, outcome.result.task.id));
+  return written(outcome, 200);
 };
 
 const deleteTaskRoute: TaskHandler = async (event, ctx, params) => {
@@ -41,7 +48,9 @@ const deleteTaskRoute: TaskHandler = async (event, ctx, params) => {
   if (!body) return invalid('body');
   const input = parseDeleteBody(body);
   if (!input.ok) return invalid(input.field);
-  return written(await deleteTask(getStore(), ctx, params.id, input.value), 200);
+  const outcome = await deleteTask(getStore(), ctx, params.id, input.value);
+  await notifyAfter(ctx, body, outcome.fresh, events.taskDeleted(ctx.member.displayName, outcome.result.task.title, input.value.mutationId));
+  return written(outcome, 200);
 };
 
 const completeRoute: TaskHandler = async (event, ctx, params) => {
@@ -49,7 +58,9 @@ const completeRoute: TaskHandler = async (event, ctx, params) => {
   if (!body) return invalid('body');
   const input = parseCompleteBody(body);
   if (!input.ok) return invalid(input.field);
-  return written(await completeCycle(getStore(), ctx, params.id, input.value), 200);
+  const outcome = await completeCycle(getStore(), ctx, params.id, input.value);
+  await notifyAfter(ctx, body, outcome.fresh, events.taskDone(ctx.member.displayName, outcome.result.task.title, input.value.mutationId, params.id, outcome.result.cycleSeq));
+  return written(outcome, 200);
 };
 
 // The cycle in the path is a positive integer written plainly; anything else is a completion that cannot exist.
@@ -71,7 +82,10 @@ const proposeRoute: TaskHandler = async (event, ctx) => {
   if (!body) return invalid('body');
   const input = parseProposalBody(body);
   if (!input.ok) return invalid(input.field);
-  return written(await createProposal(getStore(), ctx, input.value), 201);
+  const outcome = await createProposal(getStore(), ctx, input.value);
+  const proposed = await getStore().get(taskKey(ctx.householdId, input.value.taskId));
+  await notifyAfter(ctx, body, outcome.fresh, events.taskProposed(ctx.member.displayName, String(proposed?.title ?? 'a task'), input.value.mutationId));
+  return written(outcome, 201);
 };
 
 function resolveRoute(act: typeof acceptProposal | typeof declineProposal | typeof withdrawProposal): TaskHandler {
