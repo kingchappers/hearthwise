@@ -1,18 +1,22 @@
 import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
+import { useAuth } from '~/lib/auth';
 import { useProtectedApi } from '~/hooks/useProtectedApi';
-import { registerMutations } from '~/lib/mutations';
-import { dataForMutation } from '~/lib/pending';
+import { useResumeOnReconnect } from '~/hooks/useResumeOnReconnect';
+import { useHouseholdRuntime } from '~/lib/householdRuntime';
 
-// Registers every household mutation with the query client, once the person is signed in and has a household. Renders nothing.
+// The household mutations are registered when the client is made (a restored write needs its function before anything is restored).
+// What they need from the signed-in tree is the function that sends a request with the person's token: it is plugged in here, and
+// the waiting writes are sent once the cache is restored and the person it belongs to is signed in. Renders nothing.
 export function RegisterMutations() {
-  const client = useQueryClient();
   const { request } = useProtectedApi();
+  const { user } = useAuth();
+  const { runtime, restored, cacheUserId } = useHouseholdRuntime();
 
   useEffect(() => {
-    registerMutations(client, request, except => dataForMutation(client, except), message => notifications.show({ color: 'honey', message }));
-  }, [client, request]);
+    runtime.request = request;
+    return () => { if (runtime.request === request) runtime.request = undefined; };
+  }, [runtime, request]);
 
+  useResumeOnReconnect({ restored, signedInUserId: user?.sub, cacheUserId });
   return null;
 }

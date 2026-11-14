@@ -4,7 +4,7 @@ import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { InviteLink } from '~/components/household/InviteLink';
 import { Members } from '~/components/household/Members';
 import { useHousehold } from '~/lib/household';
-import { useAuth } from '~/lib/auth';
+import { requestSignOut } from '~/lib/signOut';
 import { usePreferences, type TextSize, type UndoDuration } from '~/lib/preferences';
 import { TEXT_SIZE_OPTIONS } from '~/lib/textSize';
 import { UNDO_DURATION_OPTIONS } from '~/lib/undoDuration';
@@ -37,7 +37,6 @@ function HouseholdSection() {
 function SettingsContent() {
   const [preferences, setPreferences] = usePreferences();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
-  const { logout } = useAuth();
 
   return (
     <Stack maw={640}>
@@ -50,7 +49,7 @@ function SettingsContent() {
         <Title order={2} size="h4" mb="sm">Signing in</Title>
         <Stack gap="sm" align="flex-start">
           <Text size="sm">{SESSION_LIFETIME_TEXT}</Text>
-          <Button variant="default" onClick={() => void logout()}>Sign out</Button>
+          <Button variant="default" onClick={requestSignOut}>Sign out</Button>
         </Stack>
       </Card>
 

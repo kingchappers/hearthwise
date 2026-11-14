@@ -157,6 +157,13 @@ async function main() {
   await waitFor(async () => (await get('/healthz')).status === 200, '/healthz');
   step('healthz is 200', true);
 
+  // The service worker: served as JavaScript that is always revalidated, and built the way the design needs (no skipWaiting while a
+  // page is open, nothing under /api cached, config.json never precached).
+  const worker = await get('/sw.js');
+  step('/sw.js is served as JavaScript that is always revalidated', worker.status === 200 && /javascript/.test(String(worker.headers['content-type'])) && /no-cache/.test(String(worker.headers['cache-control'])), `${worker.status} ${worker.headers['content-type']} ${worker.headers['cache-control']}`);
+  step('the worker precaches the app shell and never calls skipWaiting', worker.body.includes('index.html') && !worker.body.includes('skipWaiting'));
+  step('the worker never precaches config.json', !/url:\s*["']config\.json["']/.test(worker.body));
+
   for (const path of ['/config.json', '//config.json', '/%63onfig.json']) {
     const config = await get(path);
     let auth;

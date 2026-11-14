@@ -1,4 +1,5 @@
 import { useAuth } from '~/lib/auth';
+import { requestSignOut } from '~/lib/signOut';
 import { Box, Avatar, Menu, UnstyledButton } from '@mantine/core';
 import { IconLogout, IconUser } from '@tabler/icons-react';
 
@@ -11,7 +12,7 @@ function initialsFor(name?: string, email?: string): string {
 }
 
 export const Profile = () => {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return <div className="loading-text">Loading profile...</div>;
@@ -70,7 +71,7 @@ export const Profile = () => {
 
           <Menu.Dropdown>
             <Menu.Label hiddenFrom="sm">{user.email}</Menu.Label>
-            <Menu.Item onClick={() => logout()} component="button" leftSection={<IconLogout size={14} />}>
+            <Menu.Item onClick={requestSignOut} component="button" leftSection={<IconLogout size={14} />}>
               Logout
             </Menu.Item>
           </Menu.Dropdown>

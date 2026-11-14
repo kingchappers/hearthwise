@@ -9,6 +9,7 @@ vi.mock('~/lib/session', async importOriginal => ({
   markSessionEnded,
 }));
 
+import { launchingError } from '~/lib/session';
 import { useProtectedApi } from '../useProtectedApi';
 
 beforeEach(() => {
@@ -19,6 +20,15 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('useProtectedApi while the app is still launching', () => {
+  it('does not report an ended session: the person has not been signed out, sign-in just has not finished', async () => {
+    getAccessTokenSilently.mockRejectedValue(launchingError());
+    const { result } = renderHook(() => useProtectedApi());
+    await expect(result.current.request('/api/hh')).rejects.toMatchObject({ error: 'signing_in' });
+    expect(markSessionEnded).not.toHaveBeenCalled();
+  });
 });
 
 describe('useProtectedApi', () => {
