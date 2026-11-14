@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Hearthwise is a shared household app for two adults: chores, to-dos and a shopping list, with one set of data and per-person views. React SPA + Auth0 (or built-in login) + AWS Lambda, or a self-hosted container on SQLite. Infrastructure is OpenTofu.
 
-**Status: phase 1, step 6 (notifications).** The Store, auth, API shell, container, infrastructure, brand, households, invites, chores and to-dos with proposals, the shopping list, offline use, and notifications exist. The finishing pass arrives in step 7. The approved design is `docs/designs/phase-1-foundation.md`; `docs/ROADMAP.md` lists the steps.
+**Status: phase 1, step 7 (finish).** The Store, auth, API shell, container, infrastructure, brand, households, invites, chores and to-dos with proposals, the shopping list, offline use, and notifications exist. The finishing pass is in: wording test, accessibility checks, `DEPLOYMENT.md`, and the real-phone checklist `docs/MANUAL-CHECKS.md`, which a person must run. The approved design is `docs/designs/phase-1-foundation.md`; `docs/ROADMAP.md` lists the steps.
 
 Hearthwise began as a copy of the scaffolding of a sibling app, Hoardwise, and shares an AWS account with it. Nothing here may point at the sibling's resources: see "Shared AWS account" below.
 

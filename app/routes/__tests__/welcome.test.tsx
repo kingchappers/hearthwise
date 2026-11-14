@@ -10,6 +10,7 @@ vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children
 const create = vi.hoisted(() => vi.fn().mockResolvedValue({ householdId: 'h' }));
 vi.mock('~/lib/household', () => ({ useCreateHousehold: () => ({ mutateAsync: create, isPending: false }) }));
 
+import { expectNoViolations, expectSoundHeadings } from '~/test-utils/accessibility';
 import Welcome, { meta } from '../welcome';
 
 function renderWelcome() {
@@ -23,6 +24,12 @@ beforeEach(() => {
 });
 
 describe('Welcome', () => {
+  it('has sound headings and no unlabelled controls', async () => {
+    const { container } = renderWelcome();
+    expectSoundHeadings(container);
+    await expectNoViolations(container);
+  });
+
   it('is titled Welcome', () => {
     expect(meta({} as never)).toEqual([{ title: 'Welcome – Hearthwise' }]);
   });

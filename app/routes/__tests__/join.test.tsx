@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ApiError } from '~/lib/apiError';
+import { expectNoViolations, expectSoundHeadings } from '~/test-utils/accessibility';
 
 const TOKEN = 'A'.repeat(43);
 const auth = vi.hoisted(() => ({
@@ -122,6 +123,13 @@ describe('Join in Auth0 mode', () => {
 });
 
 describe('Join in local mode', () => {
+  it('has sound headings and no unlabelled controls', async () => {
+    auth.mode = 'local';
+    const { container } = renderJoin();
+    expectSoundHeadings(container);
+    await expectNoViolations(container);
+  });
+
   beforeEach(() => { auth.mode = 'local'; });
 
   it('shows the invite sign-up form without a setup code, and never starts Auth0 sign-in', () => {

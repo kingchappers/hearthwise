@@ -10,7 +10,7 @@ Each step is its own pull request, in this order. Design: [`designs/phase-1-foun
 4. **Shopping list** (built): list, item recycle bin, "clear ticked".
 5. **Offline** (built): persistence spike, service worker, persisted query cache, persisted paused mutations.
 6. **Notifications** (built): "Let them know", held pushes, opt-in digest and due nudges, settings.
-7. **Finish:** accessibility pass, wording review, PWA install and iPhone push check, deployment docs.
+7. **Finish** (built, except the real-phone checks): wording test, accessibility checks on every route, deployment docs, and the release checklist [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md) for the PWA install and iPhone push check.
 
 ## Later phases
 
