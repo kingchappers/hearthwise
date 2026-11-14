@@ -1,11 +1,29 @@
 import { useEffect, useState } from 'react';
 import { Auth0Provider } from '@auth0/auth0-react';
 import { Center, Loader, Text } from '@mantine/core';
+import { LocalAuthContext } from '~/lib/auth';
+import type { AuthState } from '~/lib/auth';
+import { readStoredUser } from '~/lib/persistedCache';
 import { getRuntimeConfig, peekRuntimeConfig } from '~/lib/runtimeConfig';
 import type { RuntimeConfig } from '~/lib/runtimeConfig';
 import { LocalAuthProvider } from './LocalAuthProvider';
 
 type Loaded = { status: 'loading' } | { status: 'error' } | { status: 'ready'; config: RuntimeConfig };
+
+// What a person who signed in before sees while the app is still working out whether they still are: their saved lists, with
+// writes waiting. Nothing can be sent yet, because a token is exactly what is missing.
+function launchingState(userId: string): AuthState {
+  return {
+    mode: 'auth0',
+    isAuthenticated: true,
+    isLoading: false,
+    launching: true,
+    user: { sub: userId },
+    login: () => undefined,
+    logout: () => undefined,
+    getToken: () => Promise.reject(Object.assign(new Error('Signing in'), { error: 'login_required' })),
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState<Loaded>(() => {
@@ -26,6 +44,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     return () => { cancelled = true; };
   }, []);
+
+  // Someone who signed in before sees their saved lists straight away, with no signal or while the settings load, instead of a
+  // loading or error screen.
+  const storedUser = loaded.status === 'ready' ? undefined : readStoredUser();
+  if (storedUser) return <LocalAuthContext.Provider value={launchingState(storedUser)}>{children}</LocalAuthContext.Provider>;
 
   if (loaded.status === 'loading') {
     return <Center mih="100vh"><Loader aria-label="Starting the app" /></Center>;

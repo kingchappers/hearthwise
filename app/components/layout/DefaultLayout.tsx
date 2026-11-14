@@ -10,10 +10,12 @@ import { Navigate, NavLink as RouterNavLink, useLocation } from 'react-router';
 import { SignedOutPanel } from './SignedOutPanel';
 import { LoadError } from './LoadError';
 import { PendingWritesBanner } from './PendingWritesBanner';
+import { SignOutDialog } from './SignOutDialog';
+import { UpdateNotice } from './UpdateNotice';
 import { RegisterMutations } from './RegisterMutations';
 import { useHousehold } from '~/lib/household';
 import { peekInviteToken } from '~/lib/inviteToken';
-import { storeUser } from '~/lib/persistedCache';
+import { clearUserCache, readStoredUser, storeUser } from '~/lib/persistedCache';
 import { isSessionEndedError, useSessionEnded } from '~/lib/session';
 import { clearSignInErrorFromAddress, consumeSignInStarted, readSignInError } from '~/lib/signInError';
 import type { SignInError } from '~/lib/signInError';
@@ -172,10 +174,14 @@ function MainContent({ session, signInError, children }: { session: SessionState
 
 function LayoutShell({ children }: { children: React.ReactNode }) {
   const session = useSessionState();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, launching } = useAuth();
   // Remember who is signed in, so their saved cache can be opened at the next launch before sign-in has finished.
   useEffect(() => {
-    if (isAuthenticated && user?.sub) storeUser(user.sub);
+    if (!isAuthenticated || !user?.sub) return;
+    // Someone else was signed in here before: their saved lists and waiting writes are deleted, not left on the device.
+    const previous = readStoredUser();
+    if (previous && previous !== user.sub) void clearUserCache(previous).catch(error => console.error('Could not clear the previous person\'s cache:', error));
+    storeUser(user.sub);
   }, [isAuthenticated, user?.sub]);
   const signInError = useSignInError();
 
@@ -203,7 +209,10 @@ function LayoutShell({ children }: { children: React.ReactNode }) {
 
       {/* Clears the phone tab bar, which is fixed to the bottom of the screen. */}
       <AppShell.Main id="main" tabIndex={-1} style={{ outline: 'none', paddingBottom: 'calc(var(--tab-bar-height) + var(--mantine-spacing-xl))' }}>
+        <UpdateNotice />
+        {launching && <Text size="sm" role="status">Signing in…</Text>}
         <MainContent session={session} signInError={signInError}>{children}</MainContent>
+        <SignOutDialog />
       </AppShell.Main>
       <BottomTabs />
     </AppShell>

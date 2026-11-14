@@ -5,6 +5,7 @@ import { MantineProvider } from '@mantine/core';
 import { MemoryRouter, useLocation } from 'react-router';
 import { clearSessionEnded, markSessionEnded } from '~/lib/session';
 import { markSignInStarted } from '~/lib/signInError';
+import { LocalAuthContext } from '~/lib/auth';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 
 const auth = vi.hoisted(() => ({
@@ -20,8 +21,11 @@ vi.mock('@auth0/auth0-react', () => ({
 }));
 const household = vi.hoisted(() => ({ current: { status: 'ready', refetch: () => {} } as { status: string; refetch: () => void } }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => household.current }));
+const clearUserCache = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('~/lib/persistedCache', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/persistedCache')>()), clearUserCache }));
 vi.mock('../RegisterMutations', () => ({ RegisterMutations: () => null }));
 vi.mock('../PendingWritesBanner', () => ({ PendingWritesBanner: () => null }));
+vi.mock('../SignOutDialog', () => ({ SignOutDialog: () => null }));
 vi.mock('../../authentication/Authentication', () => ({ default: () => null }));
 vi.mock('../../authentication/AuthProvider', () => ({ AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
@@ -247,6 +251,46 @@ describe('remembering who is signed in', () => {
     auth.user = { sub: 'auth0|me' };
     renderLayout();
     expect(window.localStorage.getItem('hearthwise-user')).toBeNull();
+  });
+});
+
+describe('a different person signing in', () => {
+  it('deletes the previous person\'s saved cache, so nothing of theirs stays on the device', async () => {
+    window.localStorage.setItem('hearthwise-user', 'auth0|previous');
+    clearUserCache.mockClear();
+    auth.user = { sub: 'auth0|new' };
+    renderLayout();
+    expect(clearUserCache).toHaveBeenCalledWith('auth0|previous');
+    expect(window.localStorage.getItem('hearthwise-user')).toBe('auth0|new');
+  });
+
+  it('leaves the cache alone when the same person signs in again', () => {
+    window.localStorage.setItem('hearthwise-user', 'auth0|me');
+    clearUserCache.mockClear();
+    auth.user = { sub: 'auth0|me' };
+    renderLayout();
+    expect(clearUserCache).not.toHaveBeenCalled();
+  });
+});
+
+describe('launching before sign-in has finished', () => {
+  it('shows the saved lists with a small Signing in note', () => {
+    render(
+      <MantineProvider>
+        <MemoryRouter>
+          <LocalAuthContext.Provider value={{ mode: 'auth0', isAuthenticated: true, isLoading: false, launching: true, user: { sub: 'auth0|me' }, login: vi.fn(), logout: vi.fn(), getToken: async () => undefined }}>
+            <DefaultLayout><p>cached list</p></DefaultLayout>
+          </LocalAuthContext.Provider>
+        </MemoryRouter>
+      </MantineProvider>,
+    );
+    expect(screen.getByText('cached list')).toBeInTheDocument();
+    expect(screen.getByText('Signing in…')).toBeInTheDocument();
+  });
+
+  it('shows no note once signed in', () => {
+    renderLayout();
+    expect(screen.queryByText('Signing in…')).not.toBeInTheDocument();
   });
 });
 

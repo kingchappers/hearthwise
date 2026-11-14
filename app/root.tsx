@@ -25,7 +25,9 @@ import { Button, ColorSchemeScript, Progress, Tabs, Group, MantineProvider, Stac
 import { DatesProvider } from '@mantine/dates';
 import { useMediaQuery } from '@mantine/hooks';
 import { Notifications } from '@mantine/notifications';
+import { useEffect } from 'react';
 import { HouseholdProvider } from './lib/householdRuntime';
+import { registerServiceWorker } from './lib/serviceWorker';
 
 export const theme = createTheme({
   primaryColor: 'hearth',
@@ -147,6 +149,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // On every load: a launch with no signal needs the worker to have been installed by an earlier one.
+  useEffect(() => { void registerServiceWorker(); }, []);
   return <Outlet />;
 }
 
