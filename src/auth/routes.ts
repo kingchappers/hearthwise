@@ -109,7 +109,7 @@ async function attemptSignup(event: APIGatewayProxyEventV2, ctx: AuthRouteContex
   if (isResponse(fields)) return fields;
 
   try {
-    const { account } = await createInvitedAccount(ctx.store, { token: token.value, ...fields, nowMs: ctx.nowSeconds() * 1000 });
+    const { account } = await createInvitedAccount(ctx.store, token.value, { ...fields, nowMs: ctx.nowSeconds() * 1000 });
     return signInResponse(ctx, account, ctx.nowSeconds());
   } catch (error) {
     if (error instanceof EmailTakenError) return err(409, 'email_taken');

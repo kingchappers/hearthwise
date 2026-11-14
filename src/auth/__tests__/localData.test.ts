@@ -96,7 +96,7 @@ describe('createInvitedAccount', () => {
     const first = await firstAccount();
     const invite = await inviteFor(first);
     const emit = vi.fn();
-    const { account, householdId } = await createInvitedAccount(store, { token: invite.token, email: 'Bea@Example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, emit);
+    const { account, householdId } = await createInvitedAccount(store, invite.token, { email: 'Bea@Example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, emit);
 
     expect(account.email).toBe('bea@example.com');
     expect(householdId).toBe((await loadContext(store, first.userId))!.householdId);
@@ -109,14 +109,14 @@ describe('createInvitedAccount', () => {
   it('treats ME@Example.com and me@example.com as one account', async () => {
     const first = await firstAccount('ME@Example.com ');
     const invite = await inviteFor(first);
-    await expect(createInvitedAccount(store, { token: invite.token, email: 'me@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
+    await expect(createInvitedAccount(store, invite.token, { email: 'me@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
       .rejects.toBeInstanceOf(EmailTakenError);
   });
 
   it('leaves the invite unused and nobody joined when the email is taken', async () => {
     const first = await firstAccount();
     const invite = await inviteFor(first);
-    await expect(createInvitedAccount(store, { token: invite.token, email: 'me@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn())).rejects.toBeDefined();
+    await expect(createInvitedAccount(store, invite.token, { email: 'me@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn())).rejects.toBeDefined();
     expect('usedBy' in ((await store.get(inviteKey(invite.hash))) as object)).toBe(false);
     expect((await loadContext(store, first.userId))?.members).toHaveLength(1);
   });
@@ -124,7 +124,7 @@ describe('createInvitedAccount', () => {
   it('stops a link being used to look up which emails have accounts: the fifth taken-email answer revokes it', async () => {
     const first = await firstAccount();
     const invite = await inviteFor(first);
-    const tryEmail = (email: string) => createInvitedAccount(store, { token: invite.token, email, password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
+    const tryEmail = (email: string) => createInvitedAccount(store, invite.token, { email, password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
 
     for (let i = 0; i < 5; i += 1) await expect(tryEmail('me@example.com')).rejects.toBeInstanceOf(EmailTakenError);
 
@@ -137,7 +137,7 @@ describe('createInvitedAccount', () => {
   it('counts only taken-email answers, so a few typos leave the link usable', async () => {
     const first = await firstAccount();
     const invite = await inviteFor(first);
-    const tryEmail = (email: string) => createInvitedAccount(store, { token: invite.token, email, password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
+    const tryEmail = (email: string) => createInvitedAccount(store, invite.token, { email, password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
 
     for (let i = 0; i < 4; i += 1) await expect(tryEmail('me@example.com')).rejects.toBeInstanceOf(EmailTakenError);
     await expect(tryEmail('bea@example.com')).resolves.toMatchObject({ account: { email: 'bea@example.com' } });
@@ -146,16 +146,16 @@ describe('createInvitedAccount', () => {
   it('creates no account when the invite has expired, is unknown, or the household is full', async () => {
     const first = await firstAccount();
     const stale = await inviteFor(first, NOW_MS - 8 * 24 * 60 * 60 * 1000);
-    await expect(createInvitedAccount(store, { token: stale.token, email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
+    await expect(createInvitedAccount(store, stale.token, { email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
       .rejects.toMatchObject({ code: 'invite_expired', status: 410 });
-    await expect(createInvitedAccount(store, { token: 'A'.repeat(43), email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
+    await expect(createInvitedAccount(store, 'A'.repeat(43), { email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()))
       .rejects.toMatchObject({ code: 'invite_expired' });
     expect(await getAccountByEmail(store, 'bea@example.com')).toBeUndefined();
 
     const one = await createInvite(store, (await loadContext(store, first.userId))!, NOW_MS);
     const two = await createInvite(store, (await loadContext(store, first.userId))!, NOW_MS);
-    await createInvitedAccount(store, { token: one.token, email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
-    await expect(createInvitedAccount(store, { token: two.token, email: 'cat@example.com', password: PASSWORD, displayName: 'Cat', nowMs: NOW_MS }, vi.fn()))
+    await createInvitedAccount(store, one.token, { email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn());
+    await expect(createInvitedAccount(store, two.token, { email: 'cat@example.com', password: PASSWORD, displayName: 'Cat', nowMs: NOW_MS }, vi.fn()))
       .rejects.toMatchObject({ code: 'household_full', status: 409 });
     expect(await getAccountByEmail(store, 'cat@example.com')).toBeUndefined();
   });
@@ -165,8 +165,8 @@ describe('createInvitedAccount', () => {
     const one = await createInvite(store, (await (async () => { await createHousehold(store, { userId: first.userId, name: 'Home', timezone: 'Europe/London', displayName: 'Sam', nowMs: NOW_MS }, vi.fn()); return loadContext(store, first.userId); })())!, NOW_MS);
     const two = await createInvite(store, (await loadContext(store, first.userId))!, NOW_MS);
     const results = await Promise.allSettled([
-      createInvitedAccount(store, { token: one.token, email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()),
-      createInvitedAccount(store, { token: two.token, email: 'cat@example.com', password: PASSWORD, displayName: 'Cat', nowMs: NOW_MS }, vi.fn()),
+      createInvitedAccount(store, one.token, { email: 'bea@example.com', password: PASSWORD, displayName: 'Bea', nowMs: NOW_MS }, vi.fn()),
+      createInvitedAccount(store, two.token, { email: 'cat@example.com', password: PASSWORD, displayName: 'Cat', nowMs: NOW_MS }, vi.fn()),
     ]);
     expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     const accounts = [await getAccountByEmail(store, 'bea@example.com'), await getAccountByEmail(store, 'cat@example.com')].filter(Boolean);

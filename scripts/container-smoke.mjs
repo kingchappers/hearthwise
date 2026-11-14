@@ -314,10 +314,10 @@ async function main() {
   step("that person's session has ended", endedSession.status === 401, String(endedSession.status));
   const otherSession = await get('/api/auth/me', ONE);
   step("the other person's session is untouched", otherSession.status === 200, String(otherSession.status));
-  const oldPassword = await post('/api/auth/login', { email: 'second@example.com', password: 'another fine password' });
-  step('the old password no longer signs in', oldPassword.status === 401, String(oldPassword.status));
-  const newPassword = await post('/api/auth/login', { email: 'second@example.com', password: 'a brand new password' });
-  step('the new password signs in', newPassword.status === 200, newPassword.body);
+  const loginWithOld = await post('/api/auth/login', { email: 'second@example.com', password: 'another fine password' });
+  step('the old password no longer signs in', loginWithOld.status === 401, String(loginWithOld.status));
+  const loginWithNew = await post('/api/auth/login', { email: 'second@example.com', password: 'a brand new password' });
+  step('the new password signs in', loginWithNew.status === 200, String(loginWithNew.status));
 
   // Nothing reopens setup: a leftover RESET_PASSWORD file from an older version is ignored, and left alone.
   docker('exec', name, 'touch', '/data/RESET_PASSWORD');
@@ -329,7 +329,7 @@ async function main() {
   const stillSignedIn = await get('/api/auth/me', ONE);
   step('the session survives', stillSignedIn.status === 200, String(stillSignedIn.status));
   const login = await post('/api/auth/login', { email: 'smoke@example.com', password: 'a perfectly fine password' });
-  step('the original password still signs in', login.status === 200, login.body);
+  step('the original password still signs in', login.status === 200, String(login.status));
 
   const started = Date.now();
   docker('stop', '-t', '20', name);

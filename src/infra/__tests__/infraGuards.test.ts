@@ -175,4 +175,22 @@ describe('the CI workflow', () => {
     const deploy = workflow.slice(workflow.indexOf('\n  deploy:'));
     expect(deploy).toMatch(/concurrency:\s*\n\s+group: deploy\s*\n\s+cancel-in-progress: false/);
   });
+
+  it('checks the plan for protected deletions after planning and before applying', () => {
+    const plan = workflow.indexOf('tofu plan -out=tfplan');
+    const check = workflow.indexOf('node ../scripts/check-plan.mjs');
+    const apply = workflow.indexOf('tofu apply');
+    expect(plan).toBeGreaterThan(-1);
+    expect(check).toBeGreaterThan(plan);
+    expect(apply).toBeGreaterThan(check);
+  });
+
+  it('takes the override from a repository variable, not a secret, and never uploads the plan', () => {
+    expect(workflow).toContain('ALLOW_DESTRUCTIVE_DEPLOY: ${{ vars.ALLOW_DESTRUCTIVE_DEPLOY }}');
+    expect(workflow).not.toContain('upload-artifact');
+  });
+
+  it('reads the custom domain from a repository variable, which the plan check protects', () => {
+    expect(workflow).toContain('TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}');
+  });
 });

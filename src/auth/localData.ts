@@ -96,20 +96,19 @@ export async function createFirstAccount(store: Store, input: FirstAccountInput)
   return account;
 }
 
-interface InvitedAccountInput extends FirstAccountInput {
-  token: string;
-}
-
 // The account, its household membership and the used-up invite are one transaction: if any part fails (the link is spent, the
 // household is full, the email is taken) nothing is written, so a failed sign-up never leaves an account with no household.
+// The invite token is its own argument, not a field beside the password: it is hashed (SHA-256, fine for 32 random bytes) to find
+// the invite, and keeping it out of the object that carries the password keeps that hash from being mistaken for password hashing.
 export async function createInvitedAccount(
   store: Store,
-  input: InvitedAccountInput,
+  token: string,
+  input: FirstAccountInput,
   emit: typeof emitSecurityEvent = emitSecurityEvent,
 ): Promise<{ account: Account; householdId: string }> {
   const nowMs = input.nowMs ?? Date.now();
   const email = usableOrThrow(input.email);
-  const hash = inviteHash(input.token);
+  const hash = inviteHash(token);
 
   // Looked at before the costly password hashing, so a bad link cannot be used to make the server do that work.
   const invite = await store.get(inviteKey(hash), { consistent: true });
