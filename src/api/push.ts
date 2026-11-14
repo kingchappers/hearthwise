@@ -1,9 +1,9 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
-import { removeSubscription, saveSubscription } from '../push/subscriptions';
+import { loadSubscriptions, MAX_DEVICES, removeSubscription, saveSubscription } from '../push/subscriptions';
 import { parseSubscribeBody, parseUnsubscribeBody } from '../shared/pushValidation';
 import { getStore } from '../store';
 import { SECURITY_HEADERS } from './constants';
-import { invalid, parseJsonObject } from './http';
+import { err, invalid, parseJsonObject } from './http';
 import { created } from './respond';
 import type { Router } from './router';
 import type { ApiResponse } from './types';
@@ -14,6 +14,9 @@ async function subscribe(event: APIGatewayProxyEventV2, userId: string): Promise
   if (!body) return invalid('body');
   const input = parseSubscribeBody(body);
   if (!input.ok) return invalid(input.field);
+  const existing = await loadSubscriptions(getStore(), userId);
+  // A device already saved is saved again (its keys may have changed); only a new one counts against the limit.
+  if (existing.length >= MAX_DEVICES && !existing.some(sub => sub.endpoint === input.value.endpoint)) return err(409, 'too_many_devices');
   await saveSubscription(getStore(), userId, { ...input.value, createdAt: Date.now() });
   return created({});
 }

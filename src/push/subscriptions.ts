@@ -8,6 +8,8 @@ export interface PushSubscriptionRecord {
   createdAt: number;
 }
 
+// Enough for a phone, a tablet and a laptop each, and no more than a person could use.
+export const MAX_DEVICES = 10;
 const SUB_PREFIX = 'PUSHSUB#';
 // One item per subscribed person, so the scheduler can list them without scanning the table.
 const INDEX_PK = 'PUSHIDX';

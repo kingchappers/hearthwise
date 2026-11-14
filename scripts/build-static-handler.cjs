@@ -28,6 +28,8 @@ const runtimeConfig = {
   clientId: process.env.VITE_AUTH0_CLIENT_ID || '',
   audience: process.env.VITE_AUTH0_AUDIENCE || '',
 };
+// The public half of the push key only: it is meant to be seen by the browser. The private half is never read here.
+if (process.env.VAPID_PUBLIC_KEY) runtimeConfig.vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 fs.writeFileSync(path.join(root, 'build/client/config.json'), JSON.stringify(runtimeConfig) + '\n');
 if (auth0Domain === '') {
   console.warn('VITE_AUTH0_DOMAIN is not set; the content security policy will not allow Auth0.');

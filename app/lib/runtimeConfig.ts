@@ -1,6 +1,8 @@
-export type RuntimeConfig =
+// vapidPublicKey is the public half of the push key, when the server has one. Without it, this device is never offered push.
+export type RuntimeConfig = { vapidPublicKey?: string } & (
   | { auth: 'local' }
-  | { auth: 'auth0'; domain: string; clientId: string; audience: string };
+  | { auth: 'auth0'; domain: string; clientId: string; audience: string }
+);
 
 function nonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
@@ -10,11 +12,12 @@ export function parseRuntimeConfig(value: unknown): RuntimeConfig {
   if (typeof value !== 'object' || value === null) throw new Error('config.json must be a JSON object');
   const record = value as Record<string, unknown>;
 
-  if (record.auth === 'local') return { auth: 'local' };
+  const vapid = nonEmptyString(record.vapidPublicKey) ? { vapidPublicKey: record.vapidPublicKey } : {};
+  if (record.auth === 'local') return { auth: 'local', ...vapid };
   if (record.auth === 'auth0') {
     const { domain, clientId, audience } = record;
     if (nonEmptyString(domain) && nonEmptyString(clientId) && nonEmptyString(audience)) {
-      return { auth: 'auth0', domain, clientId, audience };
+      return { auth: 'auth0', domain, clientId, audience, ...vapid };
     }
     throw new Error('config.json: auth0 mode needs a domain, clientId and audience');
   }

@@ -33,6 +33,8 @@ const packageJson = {
     '@aws-sdk/client-dynamodb': '^3.0.0',
     '@aws-sdk/lib-dynamodb': '^3.0.0',
     '@aws-sdk/client-sns': '^3.0.0',
+    '@aws-sdk/client-ssm': '^3.0.0',
+    'web-push': '^3.6.7',
   },
 };
 fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));

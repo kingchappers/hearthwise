@@ -4,6 +4,7 @@ import { initStore } from './src/store';
 import { initAuth } from './src/auth';
 import { SECURITY_HEADERS } from './src/api/constants';
 import { registerApiRoutes } from './src/api/apiRoutes';
+import { initPush } from './src/push/init';
 
 const router = createRouter();
 registerApiRoutes(router);
@@ -30,6 +31,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     if ('rejection' in result) return result.rejection;
 
     await initStore();
+    // The keys are loaded once per process; with none, no push is ever sent.
+    await initPush();
     return await router.dispatch(event, result.userId);
   } catch (error) {
     console.error(`Unhandled error in ${event.requestContext.routeKey}:`, error instanceof Error ? error.message : String(error));

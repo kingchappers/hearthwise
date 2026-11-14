@@ -4,10 +4,26 @@ import type { Parsed } from './validation';
 const MAX_ENDPOINT = 2000;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 
+// The server calls this address, so it must be a real push service and nothing a caller can aim at the server's own network:
+// https only, the default port, no credentials, and a host that is (or is under) a known push service. Hosts that are IP
+// literals never match.
+const PUSH_HOSTS = [
+  'fcm.googleapis.com',
+  'push.services.mozilla.com',
+  'push.apple.com',
+  'notify.windows.com',
+];
+
+function isPushHost(hostname: string): boolean {
+  return PUSH_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`));
+}
+
 function parseEndpoint(value: unknown): Parsed<string> {
   if (typeof value !== 'string' || value.length > MAX_ENDPOINT) return bad('endpoint');
   try {
-    return new URL(value).protocol === 'https:' ? good(value) : bad('endpoint');
+    const url = new URL(value);
+    const plain = url.protocol === 'https:' && url.port === '' && url.username === '' && url.password === '';
+    return plain && isPushHost(url.hostname) ? good(value) : bad('endpoint');
   } catch {
     return bad('endpoint');
   }
