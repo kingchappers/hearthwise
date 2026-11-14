@@ -25,13 +25,7 @@ import { Button, ColorSchemeScript, Progress, Tabs, Group, MantineProvider, Stac
 import { DatesProvider } from '@mantine/dates';
 import { useMediaQuery } from '@mantine/hooks';
 import { Notifications } from '@mantine/notifications';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 30_000, retry: 1 },
-  },
-});
+import { HouseholdProvider } from './lib/householdRuntime';
 
 export const theme = createTheme({
   primaryColor: 'hearth',
@@ -137,14 +131,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>
+        <HouseholdProvider>
           <MantineProvider defaultColorScheme="auto" theme={theme} cssVariablesResolver={cssVariablesResolver}>
             <ReduceMotion />
             <TextSize />
             <ResponsiveNotifications />
             <DatesProvider settings={{ locale: 'en-gb' }}>{children}</DatesProvider>
           </MantineProvider>
-        </QueryClientProvider>
+        </HouseholdProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

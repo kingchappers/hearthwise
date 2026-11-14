@@ -9,9 +9,11 @@ import { IconHome, IconSettings, IconShoppingCart } from '@tabler/icons-react';
 import { Navigate, NavLink as RouterNavLink, useLocation } from 'react-router';
 import { SignedOutPanel } from './SignedOutPanel';
 import { LoadError } from './LoadError';
+import { PendingWritesBanner } from './PendingWritesBanner';
 import { RegisterMutations } from './RegisterMutations';
 import { useHousehold } from '~/lib/household';
 import { peekInviteToken } from '~/lib/inviteToken';
+import { storeUser } from '~/lib/persistedCache';
 import { isSessionEndedError, useSessionEnded } from '~/lib/session';
 import { clearSignInErrorFromAddress, consumeSignInStarted, readSignInError } from '~/lib/signInError';
 import type { SignInError } from '~/lib/signInError';
@@ -136,7 +138,7 @@ function HouseholdGate({ children }: { children: React.ReactNode }) {
   }
   if (pathname === '/welcome') return <Navigate to="/" replace />;
   // Household writes are registered once there is a household to write to.
-  return <><RegisterMutations />{children}</>;
+  return <><RegisterMutations /><PendingWritesBanner />{children}</>;
 }
 
 // A failed Auth0 sign-in lands on the page with the reason in the address. Read it once, then take it out of the address,
@@ -170,6 +172,11 @@ function MainContent({ session, signInError, children }: { session: SessionState
 
 function LayoutShell({ children }: { children: React.ReactNode }) {
   const session = useSessionState();
+  const { isAuthenticated, user } = useAuth();
+  // Remember who is signed in, so their saved cache can be opened at the next launch before sign-in has finished.
+  useEffect(() => {
+    if (isAuthenticated && user?.sub) storeUser(user.sub);
+  }, [isAuthenticated, user?.sub]);
   const signInError = useSignInError();
 
   return (

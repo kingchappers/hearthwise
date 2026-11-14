@@ -11,6 +11,7 @@ const auth = vi.hoisted(() => ({
   isAuthenticated: true,
   isLoading: false,
   error: undefined as (Error & { error?: string }) | undefined,
+  user: undefined as { sub: string } | undefined,
   loginWithRedirect: vi.fn(),
 }));
 vi.mock('@auth0/auth0-react', () => ({
@@ -20,6 +21,7 @@ vi.mock('@auth0/auth0-react', () => ({
 const household = vi.hoisted(() => ({ current: { status: 'ready', refetch: () => {} } as { status: string; refetch: () => void } }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => household.current }));
 vi.mock('../RegisterMutations', () => ({ RegisterMutations: () => null }));
+vi.mock('../PendingWritesBanner', () => ({ PendingWritesBanner: () => null }));
 vi.mock('../../authentication/Authentication', () => ({ default: () => null }));
 vi.mock('../../authentication/AuthProvider', () => ({ AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
@@ -45,6 +47,7 @@ beforeEach(() => {
   auth.isAuthenticated = true;
   auth.isLoading = false;
   auth.error = undefined;
+  auth.user = undefined;
   auth.loginWithRedirect.mockClear();
   window.sessionStorage.clear();
   window.localStorage.clear();
@@ -231,6 +234,21 @@ function renderAt(url: string) {
     </MantineProvider>,
   );
 }
+
+describe('remembering who is signed in', () => {
+  it('keeps the signed-in person\'s id on the device, so their saved cache opens at the next launch', () => {
+    auth.user = { sub: 'auth0|me' };
+    renderLayout();
+    expect(window.localStorage.getItem('hearthwise-user')).toBe('auth0|me');
+  });
+
+  it('keeps nothing for someone who is not signed in', () => {
+    auth.isAuthenticated = false;
+    auth.user = { sub: 'auth0|me' };
+    renderLayout();
+    expect(window.localStorage.getItem('hearthwise-user')).toBeNull();
+  });
+});
 
 describe('the household gate', () => {
   it('sends a signed-in person with no household and no invite to /welcome', () => {

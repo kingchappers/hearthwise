@@ -1,7 +1,7 @@
 // Every household mutation is registered here, once, with the query client: its key, its function and the scope that makes household
 // writes run one at a time, in order. Components use `useMutation({ mutationKey })` and nothing else, so step 5 can persist and replay
 // them from this one place. A household write defined anywhere else would be lost on a reload.
-import { useMutation } from '@tanstack/react-query';
+import { MutationObserver, useMutation } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import type { Repeat } from '../../src/shared/schedule';
 import { needsProposal } from '../../src/tasks/ownership';
@@ -11,6 +11,7 @@ import { ApiError } from './apiError';
 import type { TasksData } from './overlay';
 import { ITEMS_KEY } from './items';
 import { noteMutationSettled, TASKS_KEY } from './queries';
+import { retryDelay, shouldRetry } from './retryRules';
 
 export type MutationKind =
   | 'create' | 'edit' | 'schedule' | 'delete' | 'complete' | 'uncomplete' | 'tick' | 'restore'
@@ -157,29 +158,75 @@ const ITEM_RUNNERS: { [K in ItemMutationKind]: (vars: ItemMutationVars[K], reque
   itemRestore: (v, request) => send(request, 'POST', '/api/hh/restore', { mutationId: v.mutationId, clientAt: v.at, entries: v.itemIds.map(id => ({ kind: 'item', id })) }),
 };
 
-// What to tell the person when the server refused a write. A network failure or a server error says nothing here: those are retried
-// (step 5), and a sign-in problem asks the person to sign in again.
+// What to tell the person when the server refused a write. A network failure, a server error or a lapsed sign-in says nothing here:
+// those are retried (retryRules.ts). A write dropped because someone else is now signed in says nothing either.
 export function describeFailure(error: unknown): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
+  if (error.code === 'wrong_user') return undefined;
   if (error.status === 409) return 'This changed on another phone. Please check it and try again.';
-  if (error.status === 410) return 'That task was deleted.';
+  if (error.status === 410) return 'That was deleted on another phone.';
   if (error.status === 403 && error.code === 'proposal_required') return 'That change needs their say. Ask them instead.';
   if (error.status === 401 || error.status >= 500) return undefined;
   return "We couldn't save that change.";
 }
 
-export function registerMutations(client: QueryClient, request: Request, getData: GetData, report: (message: string) => void): void {
+// A write the server said needs the other person's say, turned into the proposal it should have been. Only the changes that have a
+// proposal form (a schedule change, a delete, a restore) can be asked; an edit of words never needs one.
+function askInstead(client: QueryClient, kind: MutationKind, variables: MutationVars[MutationKind]): (() => void) | undefined {
+  const taskId = (variables as { taskId?: string }).taskId;
+  if (!taskId) return undefined;
+  let change: Change | undefined;
+  if (kind === 'delete') change = { kind: 'delete' };
+  else if (kind === 'restore') change = { kind: 'restore' };
+  else if (kind === 'schedule') {
+    const { assignee, repeat, dueOn } = variables as MutationVars['schedule'];
+    change = { kind: 'edit', set: { ...(assignee === undefined ? {} : { assignee }), ...(repeat === undefined ? {} : { repeat }), ...(dueOn === undefined ? {} : { dueOn }) } };
+  }
+  if (!change) return undefined;
+  const asked = change;
+  return () => {
+    new MutationObserver(client, { mutationKey: mutationKeys.propose }).mutate({
+      mutationId: crypto.randomUUID(), at: Date.now(), by: variables.by, id: crypto.randomUUID(), taskId, change: asked, baseRuleVersionHint: 1,
+    } as never).catch(() => undefined);
+  };
+}
+
+// Writes belong to the person who made them. `guard` says who that is and who is signed in now: a write that finds someone else
+// signed in is dropped, never sent, so it cannot go out under another person's name.
+export interface OwnerGuard {
+  ownerId: string;
+  currentUserId: () => string | undefined;
+}
+
+function guarded<V, R>(guard: OwnerGuard | undefined, run: (variables: V) => Promise<R>): (variables: V) => Promise<R> {
+  return variables => {
+    if (guard && guard.currentUserId() !== guard.ownerId) return Promise.reject(new ApiError(403, 'Forbidden', 'wrong_user'));
+    return run(variables);
+  };
+}
+
+// What every household mutation carries so a write survives a bad connection and a reload: online-only (it waits while offline),
+// retried by the shared rules, and backed off by them.
+const OFFLINE_DEFAULTS = { networkMode: 'online' as const, retry: shouldRetry, retryDelay };
+
+export function registerMutations(
+  client: QueryClient, request: Request, getData: GetData, report: (message: string, options?: { ask?: () => void }) => void, guard?: OwnerGuard,
+): void {
   for (const kind of Object.keys(mutationKeys) as MutationKind[]) {
     client.setMutationDefaults(mutationKeys[kind], {
+      ...OFFLINE_DEFAULTS,
       scope: { id: 'household' },
-      mutationFn: (variables: MutationVars[typeof kind]) => {
+      mutationFn: guarded(guard, (variables: MutationVars[typeof kind]) => {
         const data = getData(variables.mutationId);
         const run = RUNNERS[kind] as Runner<MutationKind>;
         return run(variables, request, taskId => data.tasks.find(task => task.id === taskId));
-      },
-      onError: (error: unknown) => {
+      }),
+      onError: (error: unknown, variables: MutationVars[typeof kind]) => {
         const message = describeFailure(error);
-        if (message) report(message);
+        if (!message) return;
+        const proposalRequired = error instanceof ApiError && error.code === 'proposal_required';
+        const ask = proposalRequired ? askInstead(client, kind, variables) : undefined;
+        report(message, ask ? { ask } : undefined);
       },
       onSettled: () => {
         noteMutationSettled();
@@ -189,8 +236,9 @@ export function registerMutations(client: QueryClient, request: Request, getData
   }
   for (const kind of Object.keys(itemMutationKeys) as ItemMutationKind[]) {
     client.setMutationDefaults(itemMutationKeys[kind], {
+      ...OFFLINE_DEFAULTS,
       scope: { id: 'household' },
-      mutationFn: (variables: ItemMutationVars[typeof kind]) => (ITEM_RUNNERS[kind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, request),
+      mutationFn: guarded(guard, (variables: ItemMutationVars[typeof kind]) => (ITEM_RUNNERS[kind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, request)),
       onError: (error: unknown) => {
         const message = describeFailure(error);
         if (message) report(message);

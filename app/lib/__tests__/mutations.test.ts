@@ -4,6 +4,7 @@ import type { Task } from '../../../src/tasks/types';
 import { ApiError } from '../apiError';
 import type { TasksData } from '../overlay';
 import { itemMutationKeys, mutationKeys, planCreate, registerMutations } from '../mutations';
+import { retryDelay, shouldRetry } from '../retryRules';
 import type { ItemMutationKind, MutationKind } from '../mutations';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,14 +17,14 @@ const task = (over: Partial<Task> = {}): Task => ({
 
 let client: QueryClient;
 let request: ReturnType<typeof vi.fn>;
-let report: ReturnType<typeof vi.fn<(message: string) => void>>;
+let report: ReturnType<typeof vi.fn<(message: string, options?: { ask?: () => void }) => void>>;
 let current: TasksData;
 let excluded: (string | undefined)[];
 
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   request = vi.fn().mockResolvedValue({});
-  report = vi.fn<(message: string) => void>();
+  report = vi.fn<(message: string, options?: { ask?: () => void }) => void>();
   current = { tasks: [task()], proposals: [], serverTime: 1 };
   excluded = [];
   registerMutations(client, request as never, exceptId => { excluded.push(exceptId); return current; }, report);
@@ -130,25 +131,28 @@ describe('when a write fails', () => {
   it('drops a 409 or 410 and says what happened, in plain words', async () => {
     request.mockRejectedValueOnce(new ApiError(409, 'Conflict', 'conflict'));
     await expect(run('complete', { taskId: 't1', cycleSeq: 3, nextDueOn: null })).rejects.toBeInstanceOf(ApiError);
-    expect(report).toHaveBeenCalledWith(expect.stringMatching(/changed on another phone/i));
+    expect(report.mock.calls.at(-1)![0]).toMatch(/changed on another phone/i);
     request.mockRejectedValueOnce(new ApiError(410, 'Gone', 'gone'));
     await expect(run('edit', { taskId: 't1', title: 'x' })).rejects.toBeInstanceOf(ApiError);
-    expect(report).toHaveBeenLastCalledWith(expect.stringMatching(/was deleted/i));
+    expect(report.mock.calls.at(-1)![0]).toMatch(/was deleted/i);
   });
 
   it('says a change needs the other person\'s say, on proposal_required', async () => {
     request.mockRejectedValueOnce(new ApiError(403, 'Forbidden', 'proposal_required'));
     await expect(run('delete', { taskId: 't1' })).rejects.toBeInstanceOf(ApiError);
-    expect(report).toHaveBeenCalledWith(expect.stringMatching(/needs their say/i));
+    expect(report.mock.calls.at(-1)![0]).toMatch(/needs their say/i);
   });
 
-  it('says the change could not be saved for any other 4xx, and says nothing for a network failure', async () => {
+  it('says the change could not be saved for any other 4xx', async () => {
     request.mockRejectedValueOnce(new ApiError(400, 'Bad Request', 'invalid'));
     await expect(run('edit', { taskId: 't1', title: 'x' })).rejects.toBeInstanceOf(ApiError);
-    expect(report).toHaveBeenCalledWith(expect.stringMatching(/couldn't save/i));
-    report.mockClear();
+    expect(report.mock.calls.at(-1)![0]).toMatch(/couldn't save/i);
+  });
+
+  it('says nothing for a network failure: the write is sent again instead', async () => {
     request.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    await expect(run('edit', { taskId: 't1', title: 'x' })).rejects.toThrow('Failed to fetch');
+    await run('edit', { taskId: 't1', title: 'x' });
+    expect(request).toHaveBeenCalledTimes(2);
     expect(report).not.toHaveBeenCalled();
   });
 });
@@ -219,5 +223,64 @@ describe('the item mutations', () => {
     await runItem('itemRestore', { itemIds: ['a', 'b'] });
     expect(call()[0]).toBe('/api/hh/restore');
     expect(body().entries).toEqual([{ kind: 'item', id: 'a' }, { kind: 'item', id: 'b' }]);
+  });
+});
+
+describe('what every household mutation carries for offline use', () => {
+  it('is online-only, retried by the shared rules, and backed off by them', () => {
+    for (const key of [...Object.values(mutationKeys), ...Object.values(itemMutationKeys)]) {
+      const defaults = client.getMutationDefaults(key);
+      expect(defaults.networkMode, key.join('/')).toBe('online');
+      expect(defaults.retry, key.join('/')).toBe(shouldRetry);
+      expect(defaults.retryDelay, key.join('/')).toBe(retryDelay);
+    }
+  });
+});
+
+describe('a write that belongs to someone else', () => {
+  it('is dropped without being sent, and says nothing, when a different person is signed in', async () => {
+    const guarded = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    registerMutations(guarded, request as never, () => current, report, { ownerId: 'auth0|a', currentUserId: () => 'auth0|b' });
+    await expect(new MutationObserver(guarded, { mutationKey: mutationKeys.delete }).mutate({ mutationId: 'm', at: 1, by: 'auth0|a', taskId: 't1' } as never))
+      .rejects.toMatchObject({ status: 403, code: 'wrong_user' });
+    expect(request).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it('is sent as normal for the person it belongs to', async () => {
+    const guarded = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    registerMutations(guarded, request as never, () => current, report, { ownerId: 'auth0|a', currentUserId: () => 'auth0|a' });
+    await new MutationObserver(guarded, { mutationKey: mutationKeys.delete }).mutate({ mutationId: 'm', at: 1, by: 'auth0|a', taskId: 't1' } as never);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('asking instead, after a write that needed their say', () => {
+  it('offers to send a delete as a proposal, and does so on request', async () => {
+    request.mockRejectedValueOnce(new ApiError(403, 'Forbidden', 'proposal_required'));
+    await expect(run('delete', { taskId: 't1' })).rejects.toBeInstanceOf(ApiError);
+    const ask = report.mock.calls.at(-1)![1]?.ask;
+    expect(ask).toBeTypeOf('function');
+    request.mockClear();
+    ask!();
+    await vi.waitFor(() => expect(request).toHaveBeenCalled());
+    expect(call()[0]).toBe('/api/hh/proposals');
+    expect(body().change).toEqual({ kind: 'delete' });
+    expect(body().taskId).toBe('t1');
+  });
+
+  it('offers to send a schedule change as an edit proposal', async () => {
+    request.mockRejectedValueOnce(new ApiError(403, 'Forbidden', 'proposal_required'));
+    await expect(run('schedule', { taskId: 't1', dueOn: '2026-11-20' })).rejects.toBeInstanceOf(ApiError);
+    request.mockClear();
+    report.mock.calls.at(-1)![1]!.ask!();
+    await vi.waitFor(() => expect(request).toHaveBeenCalled());
+    expect(body().change).toEqual({ kind: 'edit', set: { dueOn: '2026-11-20' } });
+  });
+
+  it('offers nothing for a write that has no proposal form (an edit of words)', async () => {
+    request.mockRejectedValueOnce(new ApiError(403, 'Forbidden', 'proposal_required'));
+    await expect(run('edit', { taskId: 't1', title: 'x' })).rejects.toBeInstanceOf(ApiError);
+    expect(report.mock.calls.at(-1)![1]?.ask).toBeUndefined();
   });
 });
