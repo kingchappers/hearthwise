@@ -14,6 +14,8 @@ vi.mock('~/lib/household', () => ({
   useRemoveMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateMe: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+vi.mock('~/lib/queries', () => ({ useTasks: () => ({ status: 'ready', tasks: [], proposals: [], today: '2026-11-13', refetch: vi.fn() }) }));
+vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => ({ me: { userId: 'u1', displayName: 'Sam' }, members: [], caller: { userId: 'u1', members: [] }, today: '2026-11-13', needsAsk: () => false }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import { SignedOutPanel } from '~/components/layout/SignedOutPanel';
@@ -22,6 +24,7 @@ import Shopping from '~/routes/shopping';
 import Settings from '~/routes/settings';
 import Welcome from '~/routes/welcome';
 import Join from '~/routes/join';
+import Deleted from '~/routes/deleted';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 import { expectReadable } from '~/test-utils/readableText';
 
@@ -79,5 +82,16 @@ describe('members in settings', () => {
     renderIn(<Settings />);
     expectReadable(screen.getByText('Share the link with your partner. It works once and expires in 7 days.'));
     expectReadable(screen.getByText('How you will appear to your partner.'));
+  });
+});
+
+describe('tasks', () => {
+  it('shows the Deleted hints and the empty states at a readable size', () => {
+    const { unmount } = renderIn(<Settings />);
+    expectReadable(screen.getByText('Deleted tasks stay for 30 days, and can be restored.'));
+    unmount();
+    renderIn(<Deleted />);
+    expectReadable(screen.getByText('Deleted tasks stay here for 30 days.'));
+    expectReadable(screen.getByText('Nothing has been deleted.'));
   });
 });

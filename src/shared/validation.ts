@@ -4,8 +4,8 @@ import type { HourSetting, MemberSettingsPatch } from './household';
 // One validator per request field. A failure names the field, so the API can answer 400 { error: 'invalid', field }.
 export type Parsed<T> = { ok: true; value: T } | { ok: false; field: string };
 
-const good = <T>(value: T): Parsed<T> => ({ ok: true, value });
-const bad = (field: string): Parsed<never> => ({ ok: false, field });
+export const good = <T>(value: T): Parsed<T> => ({ ok: true, value });
+export const bad = (field: string): Parsed<never> => ({ ok: false, field });
 
 const MAX_DISPLAY_NAME = 40;
 const MAX_HOUSEHOLD_NAME = 60;
@@ -13,7 +13,7 @@ const MAX_HOUSEHOLD_NAME = 60;
 const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function trimmedText(value: unknown, max: number, field: string): Parsed<string> {
+export function trimmedText(value: unknown, max: number, field: string): Parsed<string> {
   if (typeof value !== 'string') return bad(field);
   const text = value.trim();
   // Code points, not UTF-16 units, so an emoji counts as one character.
@@ -32,16 +32,21 @@ export function parseInviteToken(value: unknown): Parsed<string> {
   return typeof value === 'string' && INVITE_TOKEN.test(value) ? good(value) : bad('token');
 }
 
+// Every household write must carry one, so a replay can be told from a new write.
+export function parseRequiredMutationId(value: unknown): Parsed<string> {
+  return typeof value === 'string' && UUID.test(value) ? good(value) : bad('mutationId');
+}
+
 export function parseMutationId(value: unknown): Parsed<string | undefined> {
   if (value === undefined) return good(undefined);
   return typeof value === 'string' && UUID.test(value) ? good(value) : bad('mutationId');
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+export const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const isHour = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 23;
 
 // The first key that is not allowed, as a dotted field path ("settings.colour"), or just the key at the top level.
-function unknownKey(value: Record<string, unknown>, allowed: string[], path: string): string | undefined {
+export function unknownKey(value: Record<string, unknown>, allowed: string[], path: string): string | undefined {
   const extra = Object.keys(value).find(key => !allowed.includes(key));
   if (extra === undefined) return undefined;
   return path === '' ? extra : `${path}.${extra}`;
