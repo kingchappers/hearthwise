@@ -14,6 +14,8 @@ vi.mock('~/lib/household', () => ({
   useRemoveMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateMe: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+vi.mock('~/lib/items', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/items')>()), useItems: () => ({ status: 'ready', items: [], refetch: vi.fn() }) }));
+vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => ({ add: vi.fn(), tick: vi.fn(), edit: vi.fn(), remove: vi.fn(), clearTicked: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => ({ status: 'ready', tasks: [], proposals: [], today: '2026-11-13', refetch: vi.fn() }) }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => ({ me: { userId: 'u1', displayName: 'Sam' }, members: [], caller: { userId: 'u1', members: [] }, today: '2026-11-13', needsAsk: () => false }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));

@@ -9,6 +9,7 @@ import type { Caller } from '../../src/tasks/ownership';
 import type { Change, ChecklistStep, Task } from '../../src/tasks/types';
 import { ApiError } from './apiError';
 import type { TasksData } from './overlay';
+import { ITEMS_KEY } from './items';
 import { noteMutationSettled, TASKS_KEY } from './queries';
 
 export type MutationKind =
@@ -52,6 +53,23 @@ export interface MutationVars {
   accept: Common & { id: string };
   decline: Common & { id: string };
   withdraw: Common & { id: string };
+}
+
+export type ItemMutationKind = 'itemAdd' | 'itemEdit' | 'itemTick' | 'itemDelete' | 'itemClear' | 'itemRestore';
+
+export const itemMutationKeys: { [K in ItemMutationKind]: readonly ['household', K] } = {
+  itemAdd: ['household', 'itemAdd'], itemEdit: ['household', 'itemEdit'], itemTick: ['household', 'itemTick'],
+  itemDelete: ['household', 'itemDelete'], itemClear: ['household', 'itemClear'], itemRestore: ['household', 'itemRestore'],
+};
+
+export interface ItemMutationVars {
+  itemAdd: Common & { item: { id: string; text: string; quantity?: string } };
+  itemEdit: Common & { itemId: string; text?: string; quantity?: string };
+  itemTick: Common & { itemId: string; done: boolean };
+  itemDelete: Common & { itemId: string };
+  // Each ticked item with the time it was ticked, as this phone saw it: the server keeps one that was changed since.
+  itemClear: Common & { entries: { id: string; ifTickedAt: number }[] };
+  itemRestore: Common & { itemIds: string[] };
 }
 
 type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
@@ -121,6 +139,24 @@ const RUNNERS: { [K in MutationKind]: Runner<K> } = {
   withdraw: (v, request) => send(request, 'POST', `/api/hh/proposals/${v.id}/withdraw`, { mutationId: v.mutationId, clientAt: v.at }),
 };
 
+const ITEM_RUNNERS: { [K in ItemMutationKind]: (vars: ItemMutationVars[K], request: Request) => Promise<unknown> } = {
+  itemAdd: (v, request) => send(request, 'PUT', `/api/hh/items/${v.item.id}`, {
+    mutationId: v.mutationId, clientAt: v.at, text: v.item.text, textAt: v.at,
+    ...(v.item.quantity === undefined ? {} : { quantity: v.item.quantity, quantityAt: v.at }),
+  }),
+  itemEdit: (v, request) => send(request, 'PUT', `/api/hh/items/${v.itemId}`, {
+    mutationId: v.mutationId, clientAt: v.at,
+    ...(v.text === undefined ? {} : { text: v.text, textAt: v.at }),
+    ...(v.quantity === undefined ? {} : { quantity: v.quantity, quantityAt: v.at }),
+  }),
+  itemTick: (v, request) => send(request, 'PUT', `/api/hh/items/${v.itemId}`, { mutationId: v.mutationId, clientAt: v.at, ticked: v.done, tickedAt: v.at }),
+  itemDelete: (v, request) => send(request, 'DELETE', `/api/hh/items/${v.itemId}`, { mutationId: v.mutationId, clientAt: v.at }),
+  itemClear: (v, request) => send(request, 'POST', '/api/hh/items/batch', {
+    mutationId: v.mutationId, clientAt: v.at, writes: v.entries.map(entry => ({ id: entry.id, delete: true, ifTickedAt: entry.ifTickedAt })),
+  }),
+  itemRestore: (v, request) => send(request, 'POST', '/api/hh/restore', { mutationId: v.mutationId, clientAt: v.at, entries: v.itemIds.map(id => ({ kind: 'item', id })) }),
+};
+
 // What to tell the person when the server refused a write. A network failure or a server error says nothing here: those are retried
 // (step 5), and a sign-in problem asks the person to sign in again.
 export function describeFailure(error: unknown): string | undefined {
@@ -151,11 +187,29 @@ export function registerMutations(client: QueryClient, request: Request, getData
       },
     });
   }
+  for (const kind of Object.keys(itemMutationKeys) as ItemMutationKind[]) {
+    client.setMutationDefaults(itemMutationKeys[kind], {
+      scope: { id: 'household' },
+      mutationFn: (variables: ItemMutationVars[typeof kind]) => (ITEM_RUNNERS[kind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, request),
+      onError: (error: unknown) => {
+        const message = describeFailure(error);
+        if (message) report(message);
+      },
+      onSettled: () => {
+        noteMutationSettled();
+        void client.invalidateQueries({ queryKey: ITEMS_KEY });
+      },
+    });
+  }
 }
 
 // The one way a component runs a household mutation: by key. Its function is the registered default.
 export function useHouseholdMutation<K extends MutationKind>(kind: K) {
   return useMutation<unknown, Error, MutationVars[K]>({ mutationKey: mutationKeys[kind] });
+}
+
+export function useItemMutation<K extends ItemMutationKind>(kind: K) {
+  return useMutation<unknown, Error, ItemMutationVars[K]>({ mutationKey: itemMutationKeys[kind] });
 }
 
 export type PlannedMutation =
