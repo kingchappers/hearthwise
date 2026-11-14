@@ -5,10 +5,11 @@
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate } from 'workbox-strategies';
+import { parsePushPayload } from './lib/pushPayload';
 
 // The parts of the worker's global scope this file uses (the app is compiled with the DOM library, which has no worker types).
 interface WorkerEvent { waitUntil(promise: Promise<unknown>): void }
-interface PushEvent extends WorkerEvent { data?: { json(): { title?: string; body?: string; tag?: string; url?: string } } }
+interface PushEvent extends WorkerEvent { data?: { json(): unknown; text(): string } }
 interface NotificationClickEvent extends WorkerEvent { notification: { close(): void; data?: { url?: string } } }
 interface WorkerWindow { focus(): Promise<unknown>; navigate?(url: string): Promise<unknown>; url: string }
 declare const self: {
@@ -28,14 +29,14 @@ registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { deny
 registerRoute(({ url }) => url.pathname === '/config.json', new StaleWhileRevalidate({ cacheName: 'hearthwise-config' }));
 
 self.addEventListener('push', event => {
-  const payload = event.data?.json() ?? {};
-  event.waitUntil(self.registration.showNotification(payload.title ?? 'Hearthwise', {
+  const payload = parsePushPayload(event.data);
+  event.waitUntil(self.registration.showNotification(payload.title, {
     body: payload.body,
     // A tag groups a phone's notifications without hiding any.
     tag: payload.tag,
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    data: { url: payload.url ?? '/' },
+    data: { url: payload.url },
   }));
 });
 

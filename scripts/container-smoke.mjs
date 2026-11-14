@@ -171,6 +171,16 @@ async function main() {
     step(`${path} is the local config, not the Auth0 one`, config.status === 200 && auth === 'local', `${config.status} ${config.body}`);
   }
 
+  // Push keys: made on first start, public half served, private half never served or logged.
+  const vapidMode = docker('exec', name, 'stat', '-c', '%u %a', '/data/vapid.json');
+  step('/data/vapid.json is owned by 10001 with mode 600', vapidMode === '10001 600', vapidMode);
+  const privateKey = JSON.parse(docker('exec', name, 'cat', '/data/vapid.json')).privateKey;
+  const served = await get('/config.json');
+  let servedConfig;
+  try { servedConfig = JSON.parse(served.body); } catch { servedConfig = {}; }
+  step('/config.json carries the public push key and never the private one', typeof servedConfig.vapidPublicKey === 'string' && servedConfig.vapidPublicKey.length > 40 && !served.body.includes(privateKey));
+  step('the private push key is not in the container log', !dockerLogs().includes(privateKey));
+
   const status = await get('/api/auth/status');
   step('setup is required on a fresh volume', JSON.parse(status.body).setupRequired === true, status.body);
 

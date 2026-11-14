@@ -1,3 +1,4 @@
+import { deleteHeldFor } from '../push/notifyOther';
 import { replayOf, withWriteRecord } from '../api/writeRecord';
 import type { WriteOutcome } from '../api/writeRecord';
 import type { HouseholdContext } from '../household/types';
@@ -133,8 +134,17 @@ export async function completeCycle(
   throw conflict();
 }
 
+// Undoing a completion also takes back a "Let them know" push still held for it.
 export async function undoCompletion(
   store: Store, ctx: HouseholdContext, taskId: string, cycleSeq: number, input: { mutationId: string }, nowMs: number = Date.now(),
+): Promise<WriteOutcome<{ task: Task }>> {
+  const outcome = await undoCompletionWrite(store, ctx, taskId, cycleSeq, input, nowMs);
+  if (outcome.fresh) await deleteHeldFor(store, ctx.householdId, `${taskId}#${cycleSeq}`);
+  return outcome;
+}
+
+async function undoCompletionWrite(
+  store: Store, ctx: HouseholdContext, taskId: string, cycleSeq: number, input: { mutationId: string }, nowMs: number,
 ): Promise<WriteOutcome<{ task: Task }>> {
   const { householdId } = ctx;
   const replayed = await replayOf<{ task: Task }>(store, householdId, input.mutationId);

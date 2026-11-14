@@ -168,8 +168,55 @@ describe('the app stack (infra)', () => {
   });
 });
 
+describe('push keys and the scheduler (infra)', () => {
+  const push = read('push-lambda.tf');
+  const api = read('api-lambda.tf');
+  const block = (source: string, name: string): string => {
+    const start = source.indexOf(`resource "aws_iam_role_policy" "${name}"`);
+    if (start < 0) throw new Error(`no policy ${name}`);
+    const end = source.indexOf('\nresource ', start + 1);
+    return source.slice(start, end < 0 ? undefined : end);
+  };
+
+  it('lets the scheduler change only what it must: query, read, claim (update), hold (put) and delete, on the table alone', () => {
+    const policy = block(push, 'push_dynamodb');
+    for (const action of ['Query', 'GetItem', 'UpdateItem', 'PutItem', 'DeleteItem']) expect(policy).toContain(`"dynamodb:${action}"`);
+    expect(policy).not.toMatch(/dynamodb:(Scan|BatchWrite|\*)/);
+    expect(policy).toContain('Resource = aws_dynamodb_table.hearthwise_data.arn');
+  });
+
+  it('lets the scheduler read the one VAPID parameter and no other', () => {
+    const policy = block(push, 'push_ssm');
+    expect(policy).toContain('parameter${local.vapid_private_key_parameter}');
+    expect(policy).not.toMatch(/parameter\/?\*|Resource\s*=\s*"\*"/);
+  });
+
+  it('lets the API read the same one parameter, and hands it the three VAPID settings', () => {
+    const policy = block(api, 'api_ssm');
+    expect(policy).toContain('ssm:GetParameter');
+    expect(policy).toContain('parameter${local.vapid_private_key_parameter}');
+    expect(policy).not.toMatch(/parameter\/?\*|Resource\s*=\s*"\*"/);
+    for (const name of ['VAPID_PUBLIC_KEY', 'VAPID_SUBJECT', 'VAPID_PRIVATE_KEY_PARAMETER']) expect(api).toContain(name);
+  });
+
+  it('keeps the private key out of every variable, output and the repository', () => {
+    for (const file of rootFiles) {
+      const source = read(file);
+      expect(source).not.toMatch(/vapid_private_key\s*=\s*var\./);
+      expect(source).not.toMatch(/variable "vapid_private/);
+    }
+  });
+});
+
 describe('the CI workflow', () => {
   const workflow = readFileSync(join(INFRA, '..', '.github', 'workflows', 'yarnBuild.yml'), 'utf8');
+
+  it('gives the public push key to every step that builds the app, so /config.json can offer push', () => {
+    const builds = workflow.split('\n    - name: ').filter(step => /^(Build app with Auth0 config|Build the Lambda bundles)/.test(step));
+    expect(builds).toHaveLength(2);
+    for (const step of builds) expect(step).toContain('VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}');
+    expect(workflow).not.toMatch(/VAPID_PRIVATE/);
+  });
 
   it('never runs two deploys at the same time, and never cancels one that has started', () => {
     const deploy = workflow.slice(workflow.indexOf('\n  deploy:'));

@@ -306,3 +306,24 @@ describe('asking instead, after a write that needed their say', () => {
     expect(report.mock.calls.at(-1)![1]?.ask).toBeUndefined();
   });
 });
+
+describe('Let them know', () => {
+  it('adds notify: true to the body of a write that asked for it, for a task and for an item', async () => {
+    await run('create', { task: { id: 't9', title: 'Bins', assignee: 'either', repeat: { type: 'none' } }, notify: true });
+    expect(body()).toMatchObject({ notify: true, clientAt: 1_800_000_000_000 });
+    await run('complete', { taskId: 't1', cycleSeq: 3, nextDueOn: null, notify: true });
+    expect(body().notify).toBe(true);
+    await new MutationObserver(client, { mutationKey: itemMutationKeys.itemTick }).mutate({ mutationId: 'b'.repeat(8) + '-0000-4000-8000-000000000002', at: 1, by: ME, itemId: 'i1', done: true, notify: true } as never);
+    expect(body().notify).toBe(true);
+  });
+
+  it.each([['missing', {}], ['false', { notify: false }]])('sends no notify at all when it is %s', async (_name, extra) => {
+    await run('create', { task: { id: 't9', title: 'Bins', assignee: 'either', repeat: { type: 'none' } }, ...extra });
+    expect('notify' in body()).toBe(false);
+  });
+
+  it('leaves a write with no body alone', async () => {
+    await run('uncomplete', { taskId: 't1', cycleSeq: 3, previous: { checklistState: {} }, notify: true });
+    expect(call()[1].method).toBe('DELETE');
+  });
+});

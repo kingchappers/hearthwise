@@ -5,24 +5,51 @@ const HOUR = 3600;
 const options = { backupHour: 3, backupKeep: 7 };
 const at = (hour: number) => new Date(2026, 9, 10, hour, 0, 0);
 
-function deps(ageSeconds: number): MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number } {
-  const state = { logs: [] as string[], backups: [] as Date[], purges: 0 };
+function deps(ageSeconds: number): MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number; schedules: number } {
+  const state = { logs: [] as string[], backups: [] as Date[], purges: 0, schedules: 0 };
   return Object.assign(state, {
     purgeExpired: () => { state.purges += 1; return 0; },
     backup: (now: Date) => { state.backups.push(now); },
     newestBackupAgeSeconds: () => ageSeconds,
     log: (message: string) => { state.logs.push(message); },
+    runScheduler: async () => { state.schedules += 1; },
   });
 }
 
 // A fake store with a clock: backup() records the time and becomes the newest backup.
-function world(last?: Date): MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number } {
+function world(last?: Date): MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number; schedules: number } {
   let newest = last?.getTime();
   const state = deps(0);
   state.newestBackupAgeSeconds = now => (newest === undefined ? Infinity : (now.getTime() - newest) / 1000);
   state.backup = now => { state.backups.push(now); newest = now.getTime(); };
   return state;
 }
+
+describe('the reminder scheduler', () => {
+  it('runs once on every tick, after the purge', async () => {
+    const d = deps(0);
+    await runTick(d, options, at(10));
+    await runTick(d, options, at(11));
+    expect(d.schedules).toBe(2);
+  });
+
+  it('is logged by name when it fails, and never stops the purge or the backup', async () => {
+    const d = deps(25 * HOUR);
+    d.runScheduler = async () => { throw Object.assign(new TypeError('secret detail'), { code: 'ECONNRESET' }); };
+    await runTick(d, options, at(3));
+    expect(d.purges).toBe(1);
+    expect(d.backups).toHaveLength(1);
+    expect(d.logs.join('\n')).toContain('Reminder scheduler failed: TypeError (ECONNRESET)');
+    expect(d.logs.join('\n')).not.toContain('secret detail');
+  });
+
+  it('does not stop a purge failure reaching it', async () => {
+    const d = deps(0);
+    d.purgeExpired = () => { throw new Error('disk'); };
+    await runTick(d, options, at(10));
+    expect(d.schedules).toBe(1);
+  });
+});
 
 describe('runTick', () => {
   it('purges every tick and backs up from the backup hour on, never before it', () => {

@@ -16,6 +16,7 @@ vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children
 vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
 vi.mock('~/lib/history', () => ({ useTaskHistory: () => ({ data: state.history, isError: false }) }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
 
 import TaskPage, { meta } from '../tasks.$id';
 
@@ -115,5 +116,14 @@ describe('the task page', () => {
     await expectNoViolations(container);
     expect(document.body.textContent).not.toMatch(/overdue|missed|streak/i);
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
+  });
+});
+
+describe('the task page: Let them know', () => {
+  it('has the box, unticked, beside the task\'s actions', () => {
+    const t = task({ title: 'Bathroom' });
+    state.tasks.tasks = [t];
+    renderPage(t.id);
+    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
   });
 });

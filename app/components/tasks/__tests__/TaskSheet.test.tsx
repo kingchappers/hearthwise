@@ -6,6 +6,7 @@ import { MEMBERS, ME, THEM, TODAY, makeActions, renderIn, task } from './fixture
 
 let actions: TaskActions;
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => actions }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
 
 import { TaskSheet } from '../TaskSheet';
 
@@ -111,5 +112,12 @@ describe('TaskSheet: an existing task', () => {
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
     expect(document.body.textContent).not.toMatch(/overdue|missed|streak/i);
     expect(MEMBERS).toHaveLength(2);
+  });
+});
+
+describe('TaskSheet: Let them know', () => {
+  it('has the box on a new task and on an edit, unticked', () => {
+    open();
+    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
   });
 });

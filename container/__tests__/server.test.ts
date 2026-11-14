@@ -45,11 +45,37 @@ const setupCodeFromLogs = (): string => {
   return last[1];
 };
 
+describe('push keys', () => {
+  it('creates vapid.json once with mode 0600, serves only the public key, and never logs the private one', async () => {
+    const base = await start();
+    const file = join(dir, 'data', 'vapid.json');
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    const { publicKey, privateKey } = JSON.parse(readFileSync(file, 'utf8')) as { publicKey: string; privateKey: string };
+    const served = await (await fetch(`${base}/config.json`)).text();
+    expect(served).toContain(publicKey);
+    expect(served).not.toContain(privateKey);
+    const logged = logSpy.mock.calls.map((call: unknown[]) => String(call[0])).join('\n');
+    expect(logged).not.toContain(privateKey);
+    await running?.close();
+    running = undefined;
+    const again = await start();
+    expect(JSON.parse(readFileSync(file, 'utf8')).publicKey).toBe(publicKey);
+    expect((await (await fetch(`${again}/config.json`)).json()).vapidPublicKey).toBe(publicKey);
+  });
+
+  it('keeps serving without push when the keys cannot be made', async () => {
+    mkdirSync(join(dir, 'data'), { recursive: true });
+    writeFileSync(join(dir, 'data', 'vapid.json'), '{broken');
+    const base = await start();
+    expect(await (await fetch(`${base}/config.json`)).json()).toEqual({ auth: 'local' });
+  });
+});
+
 describe('serving', () => {
   it('serves health, the runtime config (not the built file) and the app shell with a CSP header', async () => {
     const base = await start();
     expect((await fetch(`${base}/healthz`)).status).toBe(200);
-    expect(await (await fetch(`${base}/config.json`)).json()).toEqual({ auth: 'local' });
+    expect(await (await fetch(`${base}/config.json`)).json()).toEqual({ auth: 'local', vapidPublicKey: expect.stringMatching(/^[A-Za-z0-9_-]{80,100}$/) });
     const page = await fetch(`${base}/some/route`);
     expect(await page.text()).toContain('app');
     expect(page.headers.get('content-security-policy-report-only')).toBeTruthy();
@@ -69,8 +95,8 @@ describe('serving', () => {
       req.end();
     });
     expect(base).toContain('127.0.0.1');
-    expect(JSON.parse(await get('//config.json'))).toEqual({ auth: 'local' });
-    expect(JSON.parse(await get('/%63onfig.json'))).toEqual({ auth: 'local' });
+    expect(JSON.parse(await get('//config.json'))).toMatchObject({ auth: 'local' });
+    expect(JSON.parse(await get('/%63onfig.json'))).toMatchObject({ auth: 'local' });
   });
 
   it('runs the whole login flow against a real database and keeps the session across a restart', async () => {

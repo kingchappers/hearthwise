@@ -73,3 +73,12 @@ describe('peekRuntimeConfig', () => {
     }
   });
 });
+
+describe('vapidPublicKey', () => {
+  it('is kept in either mode when it is a string, and left out when it is not', () => {
+    expect(parseRuntimeConfig({ auth: 'local', vapidPublicKey: 'abc' })).toEqual({ auth: 'local', vapidPublicKey: 'abc' });
+    expect(parseRuntimeConfig({ auth: 'auth0', domain: 'd', clientId: 'c', audience: 'a', vapidPublicKey: 'abc' })).toMatchObject({ vapidPublicKey: 'abc' });
+    expect(parseRuntimeConfig({ auth: 'local', vapidPublicKey: 5 })).toEqual({ auth: 'local' });
+    expect(parseRuntimeConfig({ auth: 'local', vapidPublicKey: '  ' })).toEqual({ auth: 'local' });
+  });
+});

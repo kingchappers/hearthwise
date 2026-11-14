@@ -3,6 +3,10 @@ import { Link } from 'react-router';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { InviteLink } from '~/components/household/InviteLink';
 import { Members } from '~/components/household/Members';
+import { DefaultView } from '~/components/settings/DefaultView';
+import { PushCheck } from '~/components/settings/PushCheck';
+import { QuietHours } from '~/components/settings/QuietHours';
+import { Reminders } from '~/components/settings/Reminders';
 import { useHousehold } from '~/lib/household';
 import { requestSignOut } from '~/lib/signOut';
 import { usePreferences, type TextSize, type UndoDuration } from '~/lib/preferences';
@@ -44,6 +48,21 @@ function SettingsContent() {
       <Text size="sm">Display settings are saved on this device.</Text>
 
       <HouseholdSection />
+
+      <Card withBorder id="notifications">
+        <Title order={2} size="h4" mb="sm">Notifications</Title>
+        <Stack gap="lg">
+          <Text size="sm">Everything here is off until you turn it on. These settings are yours; the other person keeps their own.</Text>
+          <PushCheck />
+          <Reminders />
+          <QuietHours />
+        </Stack>
+      </Card>
+
+      <Card withBorder>
+        <Title order={2} size="h4" mb="sm">Your view</Title>
+        <DefaultView />
+      </Card>
 
       <Card withBorder>
         <Title order={2} size="h4" mb="sm">Signing in</Title>

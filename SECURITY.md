@@ -4,7 +4,7 @@
 
 Please report a vulnerability privately through GitHub's "Report a vulnerability" button on this repository's Security tab, not in a public issue. Include what you found and how to reproduce it. I will reply and agree a way to fix it before anything is made public.
 
-## What the code does today (phase 1, step 2)
+## What the code does today (phase 1, step 6)
 
 - **Every API request is authenticated.** A JWT checked against Auth0's keys in `auth0` mode, a session lookup in `local` mode. The user id comes from the credential, never from the request.
 - **Local login** keeps one account per email (case and spacing ignored), hashes passwords, throttles failures per email, sets `__Host-` Secure session cookies when served over HTTPS, and refuses state-changing requests from another origin. An unknown email and a wrong password get the same answer. After first-run setup, the only way to make an account is an invite link.
@@ -19,6 +19,9 @@ Please report a vulnerability privately through GitHub's "Report a vulnerability
 - **Whose task it is.** A change to who has a task, when it is due or how it repeats, a delete, and a restore need the other person's say (a proposal) when the task is theirs or is for both. The server decides this from the stored task, never from the request. A task cannot be given to someone who is not in the household yet.
 - **Shopping conflicts.** Each item field has the client time it was last set; an older write never overwrites a newer one, and times more than 5 minutes ahead are clamped to server time. "Clear ticked" deletes an item only if it is still ticked and was not ticked again after the clearing phone saw it.
 - **The device's saved copy.** The lists and any waiting writes are kept in the browser per person. Another person's copy is never opened or sent; a write is bound to the person who made it and is dropped if someone else is signed in; signing out (after asking, when writes are waiting) and a different person signing in both delete the saved copy. The service worker never caches the API.
+- **Notifications are never a surprise.** Nothing is sent unless a person asks: the other member gets a push only for a change the sender ticked "Let them know" on, never for a retry, never for a write that failed, never when `clientAt` is more than 30 minutes old, and never to the person who made the change. A person's own digest and due nudges are off until they turn them on. A push held for quiet hours is released once, never to someone who has left the household, and is taken back if the completion it announced is undone.
+- **The server only calls real push services.** A device's address is checked when it subscribes and again before every send: https, the default port, no credentials, a host that is under fcm.googleapis.com, push.services.mozilla.com, push.apple.com or notify.windows.com, never an IP address. A person has at most ten devices. Push failures are logged with the household id and event type only, never content.
+- **Push keys.** The VAPID private key is an SSM SecureString (AWS) or `vapid.json` with mode 0600 in the data folder (container). It is never logged, never in `/config.json` (which carries only the public key), and the API and scheduler roles can read that one parameter and no other.
 - **Tombstones are final for edits.** An edit to a deleted task is refused (410); only a restore brings it back.
 
 ## Infrastructure
@@ -27,4 +30,4 @@ Hearthwise shares an AWS account with another app, so the deploy role is deliber
 
 ## Later steps
 
-Notifications arrive in step 6 and get a dedicated security review before merge (`/security-review` plus a human read-through), as step 2 did.
+Step 7 is the finishing pass: accessibility, wording, and a check of install and push on a real iPhone.

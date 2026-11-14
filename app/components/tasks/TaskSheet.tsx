@@ -3,6 +3,7 @@ import { Alert, Button, Group, NativeSelect, Stack, Text, Textarea, TextInput } 
 import { firstOnOrAfter } from '../../../src/shared/schedule';
 import type { Repeat } from '../../../src/shared/schedule';
 import type { ChecklistStep, Task } from '../../../src/tasks/types';
+import { LetThemKnow } from '~/components/shared/LetThemKnow';
 import { useTaskActions } from '~/hooks/useTaskActions';
 import type { TaskChanges } from '~/lib/taskChanges';
 import { ResponsiveSheet } from '../layout/ResponsiveSheet';
@@ -120,6 +121,7 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
           )}
         </Stack>
         {error && <Alert color="honey" role="alert">{error}</Alert>}
+        <LetThemKnow />
         <Button type="submit">{asks ? `Ask ${other?.displayName ?? 'them'}` : 'Save'}</Button>
       </Stack>
     </form>

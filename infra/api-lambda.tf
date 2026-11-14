@@ -30,6 +30,23 @@ resource "aws_iam_role_policy_attachment" "api_basic_execution" {
   role       = aws_iam_role.api_role.name
 }
 
+# The API sends the "Let them know" push, so it reads the VAPID private key: that one parameter and no other (INFRA-01)
+resource "aws_iam_role_policy" "api_ssm" {
+  name = "${var.app_name}-api-ssm"
+  role = aws_iam_role.api_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter"]
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.vapid_private_key_parameter}"
+      }
+    ]
+  })
+}
+
 # Archive the API handler
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
@@ -55,6 +72,10 @@ resource "aws_lambda_function" "api" {
       AUTH0_AUDIENCE  = var.auth0_audience
       DYNAMODB_TABLE  = aws_dynamodb_table.hearthwise_data.name
       ALERT_TOPIC_ARN = aws_sns_topic.alerts.arn
+
+      VAPID_PUBLIC_KEY            = var.vapid_public_key
+      VAPID_SUBJECT               = var.vapid_subject
+      VAPID_PRIVATE_KEY_PARAMETER = local.vapid_private_key_parameter
     }
   }
 

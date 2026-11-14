@@ -1,6 +1,12 @@
 // Entry point for the reminder scheduler Lambda. The build script compiles this file to
 // build/push/index.js, the same way api-handler.ts becomes the API Lambda.
-// Step 6 replaces this with the real scheduler.
+import { initPush } from './src/push/init';
+import { getSender } from './src/push/registry';
+import { runSchedule } from './src/push/scheduler';
+import { initStore } from './src/store';
+
 export const handler = async (): Promise<void> => {
-  console.log('push scheduler: not implemented yet');
+  const store = await initStore();
+  await initPush();
+  await runSchedule(store, getSender(), new Date());
 };

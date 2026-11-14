@@ -1,9 +1,8 @@
 # ============================================================================
 # Reminder scheduler: opt-in push notifications
 #
-# Runs once an hour. Step 1 deploys a handler that only logs; step 6 replaces it with
-# the real scheduler, which reads who has turned reminders on and sends the digest,
-# due nudges and held pushes. Until a VAPID key pair exists, every run finds nothing to do.
+# Runs once an hour: sends each person's digest and due nudges (if they turned them on) and releases held pushes.
+# Until a VAPID key pair exists, every run finds nothing to do.
 # ============================================================================
 
 locals {
@@ -39,8 +38,8 @@ resource "aws_iam_role_policy_attachment" "push_basic_execution" {
   role       = aws_iam_role.push_role.name
 }
 
-# It reads subscribers, members and tasks, and removes a subscription the push
-# service reports as gone. Step 6 widens this to the writes the scheduler needs (INFRA-01).
+# It reads subscribers, members and tasks; claims a digest or a held push (UpdateItem, DeleteItem); and removes a subscription the
+# push service reports as gone. It never scans the table (INFRA-01).
 resource "aws_iam_role_policy" "push_dynamodb" {
   name = "${var.app_name}-push-dynamodb"
   role = aws_iam_role.push_role.id
@@ -53,6 +52,8 @@ resource "aws_iam_role_policy" "push_dynamodb" {
         Action = [
           "dynamodb:Query",
           "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:PutItem",
           "dynamodb:DeleteItem",
         ]
         Resource = aws_dynamodb_table.hearthwise_data.arn

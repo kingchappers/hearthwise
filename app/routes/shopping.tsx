@@ -4,6 +4,7 @@ import { ClearTicked } from '~/components/shopping/ClearTicked';
 import { ShoppingList } from '~/components/shopping/ShoppingList';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { LoadError } from '~/components/layout/LoadError';
+import { LetThemKnow } from '~/components/shared/LetThemKnow';
 import { useItemActions } from '~/hooks/useItemActions';
 import { useItems } from '~/lib/items';
 import { pageTitle } from '~/lib/pageTitle';
@@ -22,6 +23,7 @@ function ShoppingContent() {
   return (
     <Stack maw={640}>
       <Title order={1} size="h3">Shopping</Title>
+      <LetThemKnow />
       <AddItem onAdd={actions.add} />
       <ShoppingList items={items.items} onTick={actions.tick} onDelete={actions.remove} onEdit={actions.edit} />
       <ClearTicked count={ticked.length} onClear={() => actions.clearTicked(ticked)} />

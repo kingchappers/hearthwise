@@ -8,7 +8,11 @@ import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 
 const logout = vi.hoisted(() => vi.fn());
 vi.mock('~/lib/signOut', () => ({ requestSignOut: logout }));
-vi.mock('~/lib/household', () => ({ useHousehold: () => ({ status: 'loading', refetch: vi.fn() }) }));
+vi.mock('~/lib/household', () => ({ useHousehold: () => ({ status: 'loading', refetch: vi.fn() }), useUpdateMe: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('~/components/settings/Reminders', () => ({ Reminders: () => <p>reminders</p> }));
+vi.mock('~/components/settings/QuietHours', () => ({ QuietHours: () => <p>quiet hours</p> }));
+vi.mock('~/components/settings/DefaultView', () => ({ DefaultView: () => <p>default view</p> }));
+vi.mock('~/components/settings/PushCheck', () => ({ PushCheck: () => <p>push check</p> }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import Settings, { meta } from '../settings';
@@ -26,6 +30,23 @@ function renderSettings() {
 beforeEach(() => {
   window.localStorage.clear();
   logout.mockClear();
+});
+
+describe('Settings: notifications', () => {
+  it('has a Notifications section with the push check, reminders and quiet hours, and a section for your own view', () => {
+    renderSettings();
+    const notifications = screen.getByRole('heading', { level: 2, name: 'Notifications' }).closest('div[id], section, .mantine-Card-root') as HTMLElement;
+    expect(notifications).toHaveTextContent('push check');
+    expect(notifications).toHaveTextContent('reminders');
+    expect(notifications).toHaveTextContent('quiet hours');
+    expect(screen.getByRole('heading', { level: 2, name: 'Your view' })).toBeInTheDocument();
+    expect(screen.getByText('default view')).toBeInTheDocument();
+  });
+
+  it('can be linked to: the Notifications section has the id the prompt points at', () => {
+    const { container } = renderSettings();
+    expect(container.querySelector('#notifications')).not.toBeNull();
+  });
 });
 
 describe('Settings', () => {
