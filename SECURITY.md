@@ -17,6 +17,7 @@ Please report a vulnerability privately through GitHub's "Report a vulnerability
 
 - **Writes are replay-safe.** Every household write carries a client-made `mutationId`. It is stored in the same transaction as the write, with an 8-day expiry, so a retry (a flaky connection, a reload) returns the first answer and writes nothing, and a retried delete can never undo a later restore.
 - **Whose task it is.** A change to who has a task, when it is due or how it repeats, a delete, and a restore need the other person's say (a proposal) when the task is theirs or is for both. The server decides this from the stored task, never from the request. A task cannot be given to someone who is not in the household yet.
+- **Shopping conflicts.** Each item field has the client time it was last set; an older write never overwrites a newer one, and times more than 5 minutes ahead are clamped to server time. "Clear ticked" deletes an item only if it is still ticked and was not ticked again after the clearing phone saw it.
 - **Tombstones are final for edits.** An edit to a deleted task is refused (410); only a restore brings it back.
 
 ## Infrastructure
