@@ -38,13 +38,13 @@ export function ItemRow({ item, onTick, onDelete, onEdit }: ItemRowProps) {
   const [editing, setEditing] = useState(false);
   return (
     <li style={{ listStyle: 'none' }}>
-      <Group justify="space-between" wrap="nowrap" gap="xs" py={4}>
+      <Group justify="space-between" wrap="wrap" gap="xs" py={4}>
         <Checkbox
           size="md"
           checked={item.ticked}
           onChange={event => onTick(item, event.currentTarget.checked)}
           label={<span style={item.ticked ? { textDecoration: 'line-through' } : undefined}>{item.text}</span>}
-          style={{ overflowWrap: 'anywhere' }}
+          style={{ overflowWrap: 'anywhere', flex: '1 1 12rem', minWidth: 0 }}
         />
         <Group gap={4} wrap="nowrap">
           {item.quantity && <Text size="sm">{item.quantity}</Text>}

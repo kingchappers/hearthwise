@@ -49,6 +49,12 @@ describe('ItemRow', () => {
     return { entry, ...handlers };
   };
 
+  it('lets the buttons drop under a long name instead of squeezing it, as happens at the largest text size', () => {
+    renderRow({ text: 'A long name' });
+    const row = screen.getByRole('checkbox', { name: /A long name/ }).closest('li')!.firstElementChild as HTMLElement;
+    expect(row.style.getPropertyValue('--group-wrap')).toBe('wrap');
+  });
+
   it('shows the name and quantity, ticks and unticks with one tap, and deletes', async () => {
     const { entry, onTick, onDelete } = renderRow({ text: 'Milk', quantity: '2 litres' });
     expect(screen.getByText('2 litres')).toBeInTheDocument();
