@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../apiError';
+import { launchingError } from '../session';
 import { retryDelay, shouldRetry } from '../retryRules';
 
 const sessionEnded = (code: string): Error => Object.assign(new Error(code), { error: code });
@@ -18,6 +19,10 @@ describe('shouldRetry', () => {
     expect(shouldRetry(10, new ApiError(401, 'Unauthorized'))).toBe(true);
     expect(shouldRetry(10, sessionEnded('login_required'))).toBe(true);
     expect(shouldRetry(10, sessionEnded('missing_refresh_token'))).toBe(true);
+  });
+
+  it('retries for ever while the app is still launching and cannot send yet', () => {
+    for (const count of [0, 10, 1000]) expect(shouldRetry(count, launchingError())).toBe(true);
   });
 
   it('retries a server error three times and then stops', () => {

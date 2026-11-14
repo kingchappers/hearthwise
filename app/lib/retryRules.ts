@@ -1,5 +1,5 @@
 import { ApiError } from './apiError';
-import { isSessionEndedError } from './session';
+import { isLaunchingError, isSessionEndedError } from './session';
 
 const MAX_DELAY_MS = 60_000;
 const SERVER_ERROR_TRIES = 3;
@@ -11,6 +11,8 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
   // fetch rejects with a TypeError when the network fails, and the app's own 10-second limit ends a hung request with a TimeoutError.
   if (error instanceof TypeError) return true;
   if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) return true;
+  // Still launching: nothing can be sent yet, and the write waits.
+  if (isLaunchingError(error)) return true;
   // The sign-in lapsed (Auth0 could not renew it, or the server said 401): the write waits for the person to sign in again.
   if (isSessionEndedError(error)) return true;
   if (error instanceof ApiError) {

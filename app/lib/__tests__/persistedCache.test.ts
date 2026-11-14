@@ -5,7 +5,7 @@ import { ApiError } from '../apiError';
 import { itemMutationKeys, mutationKeys, registerMutations } from '../mutations';
 import {
   CACHE_SCHEMA_VERSION, cacheKey, clearStoredUser, createUserPersister, pendingWriteCount, readStoredUser, resumeHydratedMutations,
-  shouldDehydrateMutation, signOutCleanup, storeUser,
+  resetSigningOutForTests, shouldDehydrateMutation, signOutCleanup, storeUser,
 } from '../persistedCache';
 import type { AsyncStorageLike } from '../persistedCache';
 
@@ -45,6 +45,7 @@ beforeEach(() => {
   storage = new MemoryStorage();
   sent = [];
   window.localStorage.clear();
+  resetSigningOutForTests();
   onlineManager.setOnline(true);
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
@@ -193,6 +194,17 @@ describe('signing out', () => {
     expect(storage.map.has(cacheKey(ME))).toBe(false);
     expect(readStoredUser()).toBeUndefined();
     expect(pendingWriteCount(client)).toBe(0);
+  });
+});
+
+describe('after signing out has begun', () => {
+  it('does not store the person again, so a layout that is still mounted cannot undo the sign-out', async () => {
+    const client = newClient();
+    storeUser(ME);
+    const { seal } = createUserPersister(ME, storage);
+    await signOutCleanup({ client, userId: ME, seal, storage });
+    storeUser(ME);
+    expect(readStoredUser()).toBeUndefined();
   });
 });
 

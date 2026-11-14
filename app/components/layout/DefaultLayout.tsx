@@ -15,6 +15,7 @@ import { UpdateNotice } from './UpdateNotice';
 import { RegisterMutations } from './RegisterMutations';
 import { useHousehold } from '~/lib/household';
 import { peekInviteToken } from '~/lib/inviteToken';
+import { useHouseholdRuntime } from '~/lib/householdRuntime';
 import { clearUserCache, readStoredUser, storeUser } from '~/lib/persistedCache';
 import { isSessionEndedError, useSessionEnded } from '~/lib/session';
 import { clearSignInErrorFromAddress, consumeSignInStarted, readSignInError } from '~/lib/signInError';
@@ -175,12 +176,17 @@ function MainContent({ session, signInError, children }: { session: SessionState
 function LayoutShell({ children }: { children: React.ReactNode }) {
   const session = useSessionState();
   const { isAuthenticated, user, launching } = useAuth();
+  const { runtime } = useHouseholdRuntime();
   // Remember who is signed in, so their saved cache can be opened at the next launch before sign-in has finished.
   useEffect(() => {
     if (!isAuthenticated || !user?.sub) return;
     // Someone else was signed in here before: their saved lists and waiting writes are deleted, not left on the device.
     const previous = readStoredUser();
-    if (previous && previous !== user.sub) void clearUserCache(previous).catch(error => console.error('Could not clear the previous person\'s cache:', error));
+    if (previous && previous !== user.sub) {
+      // Sealed first, so a save already under way for them cannot land after the delete and bring their cache back.
+      runtime.seal();
+      void clearUserCache(previous).catch(error => console.error('Could not clear the previous person\'s cache:', error));
+    }
     storeUser(user.sub);
   }, [isAuthenticated, user?.sub]);
   const signInError = useSignInError();

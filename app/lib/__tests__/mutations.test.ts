@@ -157,6 +157,28 @@ describe('when a write fails', () => {
   });
 });
 
+describe('a write the server keeps failing', () => {
+  it('is retried three times, then dropped and reported, never silently', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    request.mockRejectedValue(new ApiError(503, 'Unavailable'));
+    const done = expect(run('edit', { taskId: 't1', title: 'x' })).rejects.toBeInstanceOf(ApiError);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await done;
+    expect(request).toHaveBeenCalledTimes(4);
+    expect(report.mock.calls.at(-1)![0]).toMatch(/couldn't save.*try again/i);
+    vi.useRealTimers();
+  });
+
+  it('says nothing while it is still being retried', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    request.mockRejectedValue(new ApiError(503, 'Unavailable'));
+    void run('edit', { taskId: 't1', title: 'x' }).catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(report).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+});
+
 describe('planCreate', () => {
   const input = { id: 't9', title: 'Bins', repeat: { type: 'none' as const } };
 

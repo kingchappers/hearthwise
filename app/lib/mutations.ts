@@ -158,15 +158,17 @@ const ITEM_RUNNERS: { [K in ItemMutationKind]: (vars: ItemMutationVars[K], reque
   itemRestore: (v, request) => send(request, 'POST', '/api/hh/restore', { mutationId: v.mutationId, clientAt: v.at, entries: v.itemIds.map(id => ({ kind: 'item', id })) }),
 };
 
-// What to tell the person when the server refused a write. A network failure, a server error or a lapsed sign-in says nothing here:
-// those are retried (retryRules.ts). A write dropped because someone else is now signed in says nothing either.
+// What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
+// error that is still being retried says nothing (retryRules.ts); one that has used up its tries, or that the server refused, does.
+// A write dropped because someone else is now signed in says nothing.
 export function describeFailure(error: unknown): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
   if (error.code === 'wrong_user') return undefined;
   if (error.status === 409) return 'This changed on another phone. Please check it and try again.';
   if (error.status === 410) return 'That was deleted on another phone.';
   if (error.status === 403 && error.code === 'proposal_required') return 'That change needs their say. Ask them instead.';
-  if (error.status === 401 || error.status >= 500) return undefined;
+  if (error.status === 401) return undefined;
+  if (error.status >= 500) return "We couldn't save that change. Try again.";
   return "We couldn't save that change.";
 }
 

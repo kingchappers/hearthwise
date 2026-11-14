@@ -43,7 +43,15 @@ export function subscribeStoredUser(listener: () => void): () => void {
   return () => userListeners.delete(listener);
 }
 
+// Set once a sign-out has begun. A layout that is still mounted must not store the person again while the sign-out finishes.
+let signingOut = false;
+
+export function resetSigningOutForTests(): void {
+  signingOut = false;
+}
+
 export function storeUser(userId: string): void {
+  if (signingOut) return;
   try {
     if (window.localStorage.getItem(USER_KEY) === userId) return;
     window.localStorage.setItem(USER_KEY, userId);
@@ -121,6 +129,7 @@ export async function clearUserCache(userId: string, storage: AsyncStorageLike =
 // Everything a person leaves behind when they sign out: later saves are sealed off, the writes and lists are dropped from memory,
 // the saved entry is deleted and the device forgets who it was.
 export async function signOutCleanup(options: { client: QueryClient; userId: string; seal: () => void; storage?: AsyncStorageLike }): Promise<void> {
+  signingOut = true;
   options.seal();
   try {
     options.client.getMutationCache().clear();

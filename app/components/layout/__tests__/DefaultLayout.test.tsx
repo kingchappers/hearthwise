@@ -21,7 +21,10 @@ vi.mock('@auth0/auth0-react', () => ({
 }));
 const household = vi.hoisted(() => ({ current: { status: 'ready', refetch: () => {} } as { status: string; refetch: () => void } }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => household.current }));
+const order = vi.hoisted(() => [] as string[]);
+const seal = vi.hoisted(() => vi.fn());
 const clearUserCache = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('~/lib/householdRuntime', () => ({ useHouseholdRuntime: () => ({ runtime: { seal }, restored: true, cacheUserId: 'auth0|previous' }) }));
 vi.mock('~/lib/persistedCache', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/persistedCache')>()), clearUserCache }));
 vi.mock('../RegisterMutations', () => ({ RegisterMutations: () => null }));
 vi.mock('../PendingWritesBanner', () => ({ PendingWritesBanner: () => null }));
@@ -258,9 +261,15 @@ describe('a different person signing in', () => {
   it('deletes the previous person\'s saved cache, so nothing of theirs stays on the device', async () => {
     window.localStorage.setItem('hearthwise-user', 'auth0|previous');
     clearUserCache.mockClear();
+    seal.mockClear();
+    order.length = 0;
+    seal.mockImplementation(() => { order.push('seal'); });
+    clearUserCache.mockImplementation(async () => { order.push('clear'); });
     auth.user = { sub: 'auth0|new' };
     renderLayout();
     expect(clearUserCache).toHaveBeenCalledWith('auth0|previous');
+    // Sealed first: a save already under way for the previous person would otherwise land after the delete and bring the cache back.
+    expect(order).toEqual(['seal', 'clear']);
     expect(window.localStorage.getItem('hearthwise-user')).toBe('auth0|new');
   });
 

@@ -103,7 +103,7 @@ describe('AuthProvider at a launch with no signal', () => {
     let getToken: () => Promise<string | undefined> = async () => undefined;
     function Capture() { getToken = useAuth().getToken; return null; }
     render(<MantineProvider env="test"><AuthProvider><Capture /></AuthProvider></MantineProvider>);
-    await expect(getToken()).rejects.toMatchObject({ error: 'login_required' });
+    await expect(getToken()).rejects.toMatchObject({ error: 'signing_in' });
   });
 
   it('still shows the error when nobody has signed in on this device', async () => {

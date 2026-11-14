@@ -7,6 +7,18 @@ type Listener = () => void;
 const listeners = new Set<Listener>();
 let sessionEnded = false;
 
+// While the app is still launching (the saved lists are showing, sign-in has not finished) a request cannot be sent: there is no
+// token yet. That is not a signed-out person, so it must not look like an ended session, and a write waiting to be sent is retried.
+export const LAUNCHING_CODE = 'signing_in';
+
+export function launchingError(): Error {
+  return Object.assign(new Error('Signing in'), { error: LAUNCHING_CODE });
+}
+
+export function isLaunchingError(error: unknown): boolean {
+  return error instanceof Error && (error as Error & { error?: unknown }).error === LAUNCHING_CODE;
+}
+
 export function isSessionEndedError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const code = (error as Error & { error?: unknown }).error;

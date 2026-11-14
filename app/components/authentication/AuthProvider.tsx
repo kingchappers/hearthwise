@@ -4,6 +4,7 @@ import { Center, Loader, Text } from '@mantine/core';
 import { LocalAuthContext } from '~/lib/auth';
 import type { AuthState } from '~/lib/auth';
 import { clearStoredUser, readStoredUser } from '~/lib/persistedCache';
+import { launchingError } from '~/lib/session';
 import { getRuntimeConfig, peekRuntimeConfig } from '~/lib/runtimeConfig';
 import type { RuntimeConfig } from '~/lib/runtimeConfig';
 import { LocalAuthProvider } from './LocalAuthProvider';
@@ -35,7 +36,7 @@ function launchingState(userId: string): AuthState {
     user: { sub: userId },
     login: () => undefined,
     logout: endSessionOnThisDevice,
-    getToken: () => Promise.reject(Object.assign(new Error('Signing in'), { error: 'login_required' })),
+    getToken: () => Promise.reject(launchingError()),
   };
 }
 
