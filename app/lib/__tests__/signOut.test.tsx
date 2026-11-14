@@ -5,12 +5,15 @@ import { MantineProvider } from '@mantine/core';
 import { MutationObserver, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const calls = vi.hoisted(() => [] as string[]);
+const cleanup = vi.hoisted(() => ({ fails: false }));
+const show = vi.hoisted(() => vi.fn());
+vi.mock('@mantine/notifications', () => ({ notifications: { show } }));
 const logout = vi.hoisted(() => vi.fn());
 vi.mock('~/lib/auth', () => ({ useAuth: () => ({ logout }) }));
 vi.mock('~/lib/householdRuntime', () => ({ useHouseholdRuntime: () => ({ runtime: { seal: vi.fn() }, restored: true, cacheUserId: 'auth0|me' }) }));
 vi.mock('~/lib/persistedCache', async importOriginal => ({
   ...(await importOriginal<typeof import('~/lib/persistedCache')>()),
-  signOutCleanup: vi.fn(async () => { calls.push('cleanup'); }),
+  signOutCleanup: vi.fn(async () => { if (cleanup.fails) throw new Error('disk full'); calls.push('cleanup'); }),
 }));
 
 import { cancelSignOut, requestSignOut } from '../signOut';
@@ -23,6 +26,8 @@ const renderDialog = () => render(<MantineProvider env="test"><QueryClientProvid
 beforeEach(() => {
   client = new QueryClient();
   calls.length = 0;
+  cleanup.fails = false;
+  show.mockClear();
   logout.mockReset().mockImplementation(async () => { calls.push('logout'); });
   cancelSignOut();
 });
@@ -33,6 +38,15 @@ describe('signing out', () => {
     act(() => requestSignOut());
     await waitFor(() => expect(calls).toEqual(['cleanup', 'logout']));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('signs out anyway when clearing the saved copy fails, and says so', async () => {
+    cleanup.fails = true;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderDialog();
+    act(() => requestSignOut());
+    await waitFor(() => expect(calls).toEqual(['logout']));
+    expect(show).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/could not clear/i) }));
   });
 
   it('asks first when changes are waiting, and says how many would be lost', async () => {

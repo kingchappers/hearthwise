@@ -3,7 +3,7 @@ import { Auth0Provider } from '@auth0/auth0-react';
 import { Center, Loader, Text } from '@mantine/core';
 import { LocalAuthContext } from '~/lib/auth';
 import type { AuthState } from '~/lib/auth';
-import { readStoredUser } from '~/lib/persistedCache';
+import { clearStoredUser, readStoredUser } from '~/lib/persistedCache';
 import { getRuntimeConfig, peekRuntimeConfig } from '~/lib/runtimeConfig';
 import type { RuntimeConfig } from '~/lib/runtimeConfig';
 import { LocalAuthProvider } from './LocalAuthProvider';
@@ -12,6 +12,20 @@ type Loaded = { status: 'loading' } | { status: 'error' } | { status: 'ready'; c
 
 // What a person who signed in before sees while the app is still working out whether they still are: their saved lists, with
 // writes waiting. Nothing can be sent yet, because a token is exactly what is missing.
+// Signing out before the real provider has loaded cannot ask Auth0 to log out (there may be no signal), so it ends the session on this
+// device: the Auth0 cache (which holds the refresh token) and the stored person go, and the page reloads signed out.
+function endSessionOnThisDevice(): void {
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith('@@auth0spajs@@')) window.localStorage.removeItem(key);
+    }
+  } catch (error) {
+    console.error('Could not clear the Auth0 cache:', error);
+  }
+  clearStoredUser();
+  window.location.assign('/');
+}
+
 function launchingState(userId: string): AuthState {
   return {
     mode: 'auth0',
@@ -20,7 +34,7 @@ function launchingState(userId: string): AuthState {
     launching: true,
     user: { sub: userId },
     login: () => undefined,
-    logout: () => undefined,
+    logout: endSessionOnThisDevice,
     getToken: () => Promise.reject(Object.assign(new Error('Signing in'), { error: 'login_required' })),
   };
 }

@@ -60,6 +60,27 @@ function AuthProbe() {
   return <p data-testid="auth">{`${auth.isAuthenticated}|${auth.launching}|${auth.user?.sub}`}</p>;
 }
 
+describe('signing out while still launching', () => {
+  it('ends the session on this device: the Auth0 cache and the stored user go, and the page reloads signed out', async () => {
+    storeUser('auth0|me');
+    window.localStorage.setItem('@@auth0spajs@@::cid::aud::openid', '{"body":{"refresh_token":"x"}}');
+    window.localStorage.setItem('unrelated', 'keep');
+    mockGetRuntimeConfig.mockReturnValue(new Promise(() => undefined));
+    const assign = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', { value: { ...original, assign }, writable: true, configurable: true });
+    let logout: () => void | Promise<void> = () => undefined;
+    function Capture() { logout = useAuth().logout; return null; }
+    render(<MantineProvider env="test"><AuthProvider><Capture /></AuthProvider></MantineProvider>);
+    await logout();
+    expect(window.localStorage.getItem('@@auth0spajs@@::cid::aud::openid')).toBeNull();
+    expect(window.localStorage.getItem('hearthwise-user')).toBeNull();
+    expect(window.localStorage.getItem('unrelated')).toBe('keep');
+    expect(assign).toHaveBeenCalledWith('/');
+    Object.defineProperty(window, 'location', { value: original, writable: true, configurable: true });
+  });
+});
+
 describe('AuthProvider at a launch with no signal', () => {
   it('renders the app for a person who signed in before, while the config cannot be loaded, instead of an error', async () => {
     storeUser('auth0|me');

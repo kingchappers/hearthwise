@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '~/lib/auth';
 import { useHouseholdRuntime } from '~/lib/householdRuntime';
@@ -17,9 +18,16 @@ export function SignOutDialog() {
 
   async function signOut(): Promise<void> {
     cancelSignOut();
-    if (cacheUserId) await signOutCleanup({ client, userId: cacheUserId, seal: runtime.seal });
-    else clearStoredUser();
-    await logout();
+    // Signing out always happens. If the saved copy cannot be cleared the person is told, rather than left signed in.
+    try {
+      if (cacheUserId) await signOutCleanup({ client, userId: cacheUserId, seal: runtime.seal });
+      else clearStoredUser();
+    } catch (error) {
+      console.error('Could not clear the saved copy on sign-out:', error);
+      notifications.show({ color: 'honey', message: 'You are signed out, but we could not clear the saved copy on this device. Clear this site\'s data in your browser settings.' });
+    } finally {
+      await logout();
+    }
   }
 
   useEffect(() => {
