@@ -5,12 +5,14 @@ import { MantineProvider } from '@mantine/core';
 import { MemoryRouter, useLocation } from 'react-router';
 import { clearSessionEnded, markSessionEnded } from '~/lib/session';
 import { markSignInStarted } from '~/lib/signInError';
+import { LocalAuthContext } from '~/lib/auth';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 
 const auth = vi.hoisted(() => ({
   isAuthenticated: true,
   isLoading: false,
   error: undefined as (Error & { error?: string }) | undefined,
+  user: undefined as { sub: string } | undefined,
   loginWithRedirect: vi.fn(),
 }));
 vi.mock('@auth0/auth0-react', () => ({
@@ -19,7 +21,14 @@ vi.mock('@auth0/auth0-react', () => ({
 }));
 const household = vi.hoisted(() => ({ current: { status: 'ready', refetch: () => {} } as { status: string; refetch: () => void } }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => household.current }));
+const order = vi.hoisted(() => [] as string[]);
+const seal = vi.hoisted(() => vi.fn());
+const clearUserCache = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('~/lib/householdRuntime', () => ({ useHouseholdRuntime: () => ({ runtime: { seal }, restored: true, cacheUserId: 'auth0|previous' }) }));
+vi.mock('~/lib/persistedCache', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/persistedCache')>()), clearUserCache }));
 vi.mock('../RegisterMutations', () => ({ RegisterMutations: () => null }));
+vi.mock('../PendingWritesBanner', () => ({ PendingWritesBanner: () => null }));
+vi.mock('../SignOutDialog', () => ({ SignOutDialog: () => null }));
 vi.mock('../../authentication/Authentication', () => ({ default: () => null }));
 vi.mock('../../authentication/AuthProvider', () => ({ AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
@@ -45,6 +54,7 @@ beforeEach(() => {
   auth.isAuthenticated = true;
   auth.isLoading = false;
   auth.error = undefined;
+  auth.user = undefined;
   auth.loginWithRedirect.mockClear();
   window.sessionStorage.clear();
   window.localStorage.clear();
@@ -231,6 +241,67 @@ function renderAt(url: string) {
     </MantineProvider>,
   );
 }
+
+describe('remembering who is signed in', () => {
+  it('keeps the signed-in person\'s id on the device, so their saved cache opens at the next launch', () => {
+    auth.user = { sub: 'auth0|me' };
+    renderLayout();
+    expect(window.localStorage.getItem('hearthwise-user')).toBe('auth0|me');
+  });
+
+  it('keeps nothing for someone who is not signed in', () => {
+    auth.isAuthenticated = false;
+    auth.user = { sub: 'auth0|me' };
+    renderLayout();
+    expect(window.localStorage.getItem('hearthwise-user')).toBeNull();
+  });
+});
+
+describe('a different person signing in', () => {
+  it('deletes the previous person\'s saved cache, so nothing of theirs stays on the device', async () => {
+    window.localStorage.setItem('hearthwise-user', 'auth0|previous');
+    clearUserCache.mockClear();
+    seal.mockClear();
+    order.length = 0;
+    seal.mockImplementation(() => { order.push('seal'); });
+    clearUserCache.mockImplementation(async () => { order.push('clear'); });
+    auth.user = { sub: 'auth0|new' };
+    renderLayout();
+    expect(clearUserCache).toHaveBeenCalledWith('auth0|previous');
+    // Sealed first: a save already under way for the previous person would otherwise land after the delete and bring the cache back.
+    expect(order).toEqual(['seal', 'clear']);
+    expect(window.localStorage.getItem('hearthwise-user')).toBe('auth0|new');
+  });
+
+  it('leaves the cache alone when the same person signs in again', () => {
+    window.localStorage.setItem('hearthwise-user', 'auth0|me');
+    clearUserCache.mockClear();
+    auth.user = { sub: 'auth0|me' };
+    renderLayout();
+    expect(clearUserCache).not.toHaveBeenCalled();
+  });
+});
+
+describe('launching before sign-in has finished', () => {
+  it('shows the saved lists with a small Signing in note', () => {
+    render(
+      <MantineProvider>
+        <MemoryRouter>
+          <LocalAuthContext.Provider value={{ mode: 'auth0', isAuthenticated: true, isLoading: false, launching: true, user: { sub: 'auth0|me' }, login: vi.fn(), logout: vi.fn(), getToken: async () => undefined }}>
+            <DefaultLayout><p>cached list</p></DefaultLayout>
+          </LocalAuthContext.Provider>
+        </MemoryRouter>
+      </MantineProvider>,
+    );
+    expect(screen.getByText('cached list')).toBeInTheDocument();
+    expect(screen.getByText('Signing in…')).toBeInTheDocument();
+  });
+
+  it('shows no note once signed in', () => {
+    renderLayout();
+    expect(screen.queryByText('Signing in…')).not.toBeInTheDocument();
+  });
+});
 
 describe('the household gate', () => {
   it('sends a signed-in person with no household and no invite to /welcome', () => {

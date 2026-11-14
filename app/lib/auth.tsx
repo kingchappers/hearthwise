@@ -16,6 +16,8 @@ export interface AuthState {
   isLoading: boolean;
   error?: Error;
   user?: AuthUser;
+  // True at a launch before sign-in has finished, for someone who signed in before: the saved lists show, and writes wait.
+  launching?: boolean;
   login(): void | Promise<void>;
   logout(): void | Promise<void>;
   // A bearer token for Auth0; undefined in local mode, where the session cookie travels by itself.

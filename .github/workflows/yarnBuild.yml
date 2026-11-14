@@ -82,9 +82,26 @@ jobs:
           tofu -chdir="$dir" validate
         done
 
+  offline_spike:
+    name: Offline spike (browser tests)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      with:
+        node-version: 24.x
+        cache: 'yarn'
+    - run: yarn install
+
+    # Chromium only: the spike proves that the persisted cache and queued writes survive a reload, a cold launch with no signal and
+    # a weak connection. It runs against a stub API and needs no secrets.
+    - run: yarn playwright install --with-deps chromium
+    - run: yarn test:e2e
+
   deploy:
     name: Deploy
-    needs: build_package
+    needs: [build_package, offline_spike]
     # Only a push to main. Never a pull request.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
