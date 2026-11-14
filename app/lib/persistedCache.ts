@@ -122,8 +122,13 @@ export async function clearUserCache(userId: string, storage: AsyncStorageLike =
 // the saved entry is deleted and the device forgets who it was.
 export async function signOutCleanup(options: { client: QueryClient; userId: string; seal: () => void; storage?: AsyncStorageLike }): Promise<void> {
   options.seal();
-  options.client.getMutationCache().clear();
-  options.client.clear();
-  await clearUserCache(options.userId, options.storage);
-  clearStoredUser();
+  try {
+    options.client.getMutationCache().clear();
+    options.client.clear();
+    await clearUserCache(options.userId, options.storage);
+  } finally {
+    // The device forgets who it was even if the saved entry could not be deleted, so it is never left treated as signed in. The failure
+    // still reaches the caller, who tells the person.
+    clearStoredUser();
+  }
 }

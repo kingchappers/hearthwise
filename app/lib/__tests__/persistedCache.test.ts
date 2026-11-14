@@ -196,6 +196,17 @@ describe('signing out', () => {
   });
 });
 
+describe('signing out when the saved copy cannot be deleted', () => {
+  it('still forgets who was signed in, and still reports the failure', async () => {
+    const client = newClient();
+    storeUser(ME);
+    const failing: AsyncStorageLike = { getItem: async () => null, setItem: async () => undefined, removeItem: async () => { throw new Error('blocked'); } };
+    const { seal } = createUserPersister(ME, failing);
+    await expect(signOutCleanup({ client, userId: ME, seal, storage: failing })).rejects.toThrow('blocked');
+    expect(readStoredUser()).toBeUndefined();
+  });
+});
+
 describe('401 and the same person', () => {
   it('keeps a write after a 401 and sends it once the sign-in is renewed', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
