@@ -14,6 +14,11 @@ import { planSave } from '~/lib/taskChanges';
 import type { SaveStep, TaskChanges } from '~/lib/taskChanges';
 import { undoAutoClose } from '~/lib/undoDuration';
 
+const completedCycleOf = (result: unknown): number | undefined => {
+  const cycle = (result as { cycleSeq?: unknown } | null)?.cycleSeq;
+  return typeof cycle === 'number' ? cycle : undefined;
+};
+
 export interface TaskActions {
   me: { userId: string; displayName: string };
   members: { userId: string; displayName: string }[];
@@ -97,11 +102,16 @@ export function useTaskActions(): TaskActions {
     complete: task => {
       const vars = common();
       const day = dayInZone(vars.at, timezone);
-      const cycleSeq = task.cycleSeq;
-      complete.mutate({ ...vars, taskId: task.id, cycleSeq, nextDueOn: nextDueOn(task.repeat, task.dueOn, day) });
+      // The cycle to undo is the one the server says it completed. It differs from the tapped one when this phone's copy was behind
+      // (the server completes the current cycle). Until the answer arrives, the tapped cycle is the best guess.
+      let completedCycle = task.cycleSeq;
+      complete.mutate(
+        { ...vars, taskId: task.id, cycleSeq: task.cycleSeq, nextDueOn: nextDueOn(task.repeat, task.dueOn, day) },
+        { onSuccess: result => { completedCycle = completedCycleOf(result) ?? completedCycle; } },
+      );
       toast(`Done: ${task.title}`, {
         label: 'Undo',
-        run: () => uncomplete.mutate({ ...common(), taskId: task.id, cycleSeq, previous: { dueOn: task.dueOn, checklistState: task.checklistState } }),
+        run: () => uncomplete.mutate({ ...common(), taskId: task.id, cycleSeq: completedCycle, previous: { dueOn: task.dueOn, checklistState: task.checklistState } }),
       });
     },
 
