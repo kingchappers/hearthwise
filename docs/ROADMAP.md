@@ -9,7 +9,7 @@ Each step is its own pull request, in this order. Design: [`designs/phase-1-foun
 3. **Tasks** (built): model, repeat rules, completions, proposals, "I did this today", views, task recycle bin.
 4. **Shopping list** (built): list, item recycle bin, "clear ticked".
 5. **Offline** (built): persistence spike, service worker, persisted query cache, persisted paused mutations.
-6. **Notifications:** "Let them know", held pushes, opt-in digest and due nudges, settings.
+6. **Notifications** (built): "Let them know", held pushes, opt-in digest and due nudges, settings.
 7. **Finish:** accessibility pass, wording review, PWA install and iPhone push check, deployment docs.
 
 ## Later phases
