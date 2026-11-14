@@ -63,3 +63,7 @@ terraform.rc
 
 # A plan as JSON holds variable values, including the Auth0 ones
 plan.json
+
+# Playwright
+/test-results/
+/playwright-report/
