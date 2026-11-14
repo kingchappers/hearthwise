@@ -61,7 +61,7 @@ describe('Let them know on a task', () => {
     const res = await call(U1, 'POST', '/api/hh/tasks', task({ notify: true, clientAt: AT }));
     expect(res.status).toBe(201);
     expect(sent.map(s => s.endpoint)).toEqual([`https://fcm.googleapis.com/fcm/send/${U2}`]);
-    expect(sent[0].payload).toMatchObject({ title: 'Sam added a task', body: 'Hoover' });
+    expect(sent[0].payload).toMatchObject({ title: 'Sam added a task', body: 'Hoover', url: expect.stringMatching(/^\/tasks\/[0-9a-f-]{36}$/) });
     expect(sent[0].payload.tag).toMatch(/^notify-/);
   });
 
@@ -129,7 +129,7 @@ describe('Let them know on the shopping list', () => {
     const id = uuid();
     await call(U1, 'PUT', `/api/hh/items/${id}`, mut({ text: 'Milk', textAt: AT }));
     await call(U1, 'PUT', `/api/hh/items/${id}`, mut({ ticked: true, tickedAt: AT, notify: true, clientAt: AT }));
-    expect(sent[0].payload).toMatchObject({ title: 'Sam ticked off an item', body: 'Milk' });
+    expect(sent[0].payload).toMatchObject({ title: 'Sam ticked off an item', body: 'Milk', url: '/shopping' });
   });
 
   it('sends one combined push for a batch', async () => {

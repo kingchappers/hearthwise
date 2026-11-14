@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { currentEnvironment, pushSupport, subscribeToPush, unsubscribeFromPush, urlBase64ToUint8Array } from '../push';
+import { currentEnvironment, hasPushSubscription, pushSupport, subscribeToPush, unsubscribeFromPush, urlBase64ToUint8Array } from '../push';
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
 const DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36';
@@ -86,5 +86,16 @@ describe('subscribeToPush', () => {
     await unsubscribeFromPush(request);
     expect(subscription.unsubscribe).toHaveBeenCalled();
     expect(request.mock.calls[0][1].method).toBe('DELETE');
+  });
+});
+
+describe('hasPushSubscription', () => {
+  it('is true only when the browser holds one, and false when it cannot say', async () => {
+    vi.stubGlobal('navigator', { serviceWorker: { ready: Promise.resolve({ pushManager: { getSubscription: async () => ({}) } }) } });
+    expect(await hasPushSubscription()).toBe(true);
+    vi.stubGlobal('navigator', { serviceWorker: { ready: Promise.resolve({ pushManager: { getSubscription: async () => null } }) } });
+    expect(await hasPushSubscription()).toBe(false);
+    vi.stubGlobal('navigator', { serviceWorker: { ready: Promise.reject(new Error('no worker')) } });
+    expect(await hasPushSubscription()).toBe(false);
   });
 });

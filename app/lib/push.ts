@@ -56,3 +56,12 @@ export async function unsubscribeFromPush(request: Request): Promise<void> {
   await subscription.unsubscribe();
   await request('/api/push/subscriptions', { method: 'DELETE', body: JSON.stringify({ endpoint }) });
 }
+
+// Whether this browser already holds a subscription, so the setting can say so when the page opens.
+export async function hasPushSubscription(): Promise<boolean> {
+  try {
+    return (await (await registration()).pushManager.getSubscription()) !== null;
+  } catch {
+    return false;
+  }
+}

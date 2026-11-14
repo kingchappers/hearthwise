@@ -21,6 +21,8 @@ export interface NotifyEvent {
   title: string;
   body: string;
   mutationId: string;
+  // The page the notification opens: a path in the app.
+  url?: string;
   // Set for a completion, so undoing it can take the held push back: "<taskId>#<cycleSeq>".
   ref?: string;
 }
@@ -50,7 +52,7 @@ async function send(input: NotifyInput): Promise<void> {
   const { store, sender, ctx, event, serverNow } = input;
   const recipient = otherMemberId(ctx);
   if (!sender || recipient === undefined) return;
-  const payload: PushPayload = { title: event.title, body: event.body, tag: `notify-${event.mutationId}` };
+  const payload: PushPayload = { title: event.title, body: event.body, tag: `notify-${event.mutationId}`, ...(event.url === undefined ? {} : { url: event.url }) };
   const member = ctx.members.find(candidate => candidate.userId === recipient);
   const quiet = member?.settings.quietHours ?? null;
   const hour = localMoment(new Date(serverNow), ctx.household.timezone).hour;
@@ -59,6 +61,7 @@ async function send(input: NotifyInput): Promise<void> {
     await store.put({
       ...heldKey(ctx.householdId, recipient, releaseAt, payload.tag),
       recipient, title: payload.title, body: payload.body, tag: payload.tag, releaseAt,
+      ...(payload.url === undefined ? {} : { url: payload.url }),
       ...(event.ref === undefined ? {} : { ref: event.ref }),
       expiresAt: Math.floor(releaseAt / 1000) + HELD_LIFE_SECONDS,
     });

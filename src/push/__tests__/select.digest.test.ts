@@ -31,6 +31,7 @@ describe('digestFor', () => {
     expect(digest.body).not.toContain('Task 5');
     expect(digest.body).not.toContain('Task 6');
     expect(digest.tag).toBe('digest-2026-11-13');
+    expect(digest.url).toBe('/');
   });
 
   it('uses the effective assignee: an agreed swap moves the task', () => {
@@ -63,6 +64,7 @@ describe('nudgesFor', () => {
     const tasks = [task('1', 'a', '2026-11-13'), task('2', 'either', '2026-11-13'), task('3', 'b', '2026-11-13'), task('4', 'a', '2026-11-10')];
     const nudges = nudgesFor(member(on(8)), tasks, roster, { date: '2026-11-13', hour: 9 });
     expect(nudges.map(n => n.tag).sort()).toEqual(['nudge-1-2026-11-13', 'nudge-2-2026-11-13']);
+    expect(nudges.map(n => n.url).sort()).toEqual(['/tasks/1', '/tasks/2']);
   });
 
   it('is none when nudges are off or the hour is outside the window', () => {

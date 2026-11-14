@@ -7,6 +7,7 @@ import { DidThisToday } from '~/components/tasks/DidThisToday';
 import { TaskHistory } from '~/components/tasks/TaskHistory';
 import { TaskSheet } from '~/components/tasks/TaskSheet';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
+import { LetThemKnow } from '~/components/shared/LetThemKnow';
 import { useTaskActions } from '~/hooks/useTaskActions';
 import { useTaskHistory } from '~/lib/history';
 import { pageTitle } from '~/lib/pageTitle';
@@ -56,6 +57,7 @@ function TaskContent() {
         {theirs && <Button variant="default" onClick={() => actions.swap(task)}>Swap this time</Button>}
         <Button variant="default" onClick={() => actions.remove(task)}>{deleteLabel}</Button>
       </Group>
+      <LetThemKnow />
       {task.checklist.length > 0 && (
         <section>
           <Title order={2} size="h5" mb="xs">Checklist</Title>

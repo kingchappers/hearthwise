@@ -29,7 +29,7 @@ const postTask: TaskHandler = async (event, ctx) => {
   const input = parseCreateTask(body);
   if (!input.ok) return invalid(input.field);
   const outcome = await createTask(getStore(), ctx, input.value);
-  await notifyAfter(ctx, body, outcome.fresh, events.taskAdded(ctx.member.displayName, outcome.result.task.title, input.value.mutationId));
+  await notifyAfter(ctx, body, outcome.fresh, events.taskAdded(ctx.member.displayName, outcome.result.task.title, input.value.mutationId, outcome.result.task.id));
   return written(outcome, 201);
 };
 
@@ -39,7 +39,7 @@ const patchTaskRoute: TaskHandler = async (event, ctx, params) => {
   const input = parsePatchTask(body);
   if (!input.ok) return invalid(input.field);
   const outcome = await patchTask(getStore(), ctx, params.id, input.value);
-  await notifyAfter(ctx, body, outcome.fresh, events.taskChanged(ctx.member.displayName, outcome.result.task.title, input.value.mutationId));
+  await notifyAfter(ctx, body, outcome.fresh, events.taskChanged(ctx.member.displayName, outcome.result.task.title, input.value.mutationId, outcome.result.task.id));
   return written(outcome, 200);
 };
 

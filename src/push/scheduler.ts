@@ -56,7 +56,9 @@ async function releaseHeld(store: Store, sender: PushSender, ctx: HouseholdConte
     }
     if (Number(item.expiresAt) * 1000 < nowMs) continue;
     if (!ctx.members.some(member => member.userId === item.recipient)) continue;
-    await deliver(store, sender, String(item.recipient), { title: String(item.title), body: String(item.body), tag: String(item.tag) });
+    await deliver(store, sender, String(item.recipient), {
+      title: String(item.title), body: String(item.body), tag: String(item.tag), ...(typeof item.url === 'string' ? { url: item.url } : {}),
+    });
   }
 }
 

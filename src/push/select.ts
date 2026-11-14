@@ -46,6 +46,7 @@ export interface PushMessage {
   title: string;
   body: string;
   tag: string;
+  url: string;
 }
 
 // The chosen hour and up to two after, never past local midnight: a late hour is not sent again the next day.
@@ -72,7 +73,7 @@ export function digestFor(member: Recipient, tasks: Task[], roster: Roster, mome
   const due = tasks.filter(task => isOpen(task) && task.dueOn !== undefined && task.dueOn <= moment.date && isTheirs(task, member, roster));
   if (due.length === 0) return undefined;
   const title = due.length === 1 ? '1 thing due' : `${due.length} things due`;
-  return { title, body: listTitles(due), tag: `digest-${moment.date}` };
+  return { title, body: listTitles(due), tag: `digest-${moment.date}`, url: '/' };
 }
 
 // One push for each task of theirs that is due today.
@@ -80,5 +81,5 @@ export function nudgesFor(member: Recipient, tasks: Task[], roster: Roster, mome
   if (!member.settings.dueNudges.on || !inWindow(member.settings.dueNudges.hour, moment.hour)) return [];
   return tasks
     .filter(task => isOpen(task) && task.dueOn === moment.date && isTheirs(task, member, roster))
-    .map(task => ({ title: 'Due today', body: task.title, tag: `nudge-${task.id}-${moment.date}` }));
+    .map(task => ({ title: 'Due today', body: task.title, tag: `nudge-${task.id}-${moment.date}`, url: `/tasks/${task.id}` }));
 }
