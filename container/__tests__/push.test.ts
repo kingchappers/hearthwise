@@ -7,7 +7,7 @@ vi.mock('web-push', () => ({ default: { sendNotification, WebPushError: FakeWebP
 import { createContainerSender } from '../push';
 
 const vapid = { publicKey: 'pub', privateKey: 'priv', subject: 'mailto:admin@localhost' };
-const sub = { endpoint: 'https://push.example/1', p256dh: 'p', auth: 'a', createdAt: 1 };
+const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/1', p256dh: 'p', auth: 'a', createdAt: 1 };
 const payload = { title: 'T', body: 'B', tag: 'x' };
 beforeEach(() => { sendNotification.mockReset(); });
 
