@@ -75,9 +75,10 @@ describe('Let them know on a task', () => {
     const created = task();
     const id = created.id as string;
     await call(U1, 'POST', '/api/hh/tasks', created);
-    expect((await call(U1, 'PATCH', `/api/hh/tasks/${id}`, mut({ repeat: { value: { type: 'after', days: 1 }, baseRuleVersion: 99 }, notify: true, clientAt: AT }))).status).toBe(409);
-    await call(U1, 'DELETE', `/api/hh/tasks/${id}`, mut({ baseRuleVersion: 1 }));
-    expect((await call(U1, 'PATCH', `/api/hh/tasks/${id}`, mut({ title: { value: 'x', at: AT }, notify: true, clientAt: AT }))).status).toBe(410);
+    await getStore().patch({ PK: hhPk(householdId), SK: `TASK#${id}` }, { cycleSeq: 3 });
+    expect((await call(U1, 'POST', `/api/hh/tasks/${id}/complete`, mut({ cycleSeq: 2, completedAt: AT, notify: true, clientAt: AT }))).status).toBe(409);
+    expect((await call(U1, 'DELETE', `/api/hh/tasks/${id}`, mut({ baseRuleVersion: 1 }))).status).toBe(200);
+    expect((await call(U1, 'POST', `/api/hh/tasks/${id}/complete`, mut({ cycleSeq: 3, completedAt: AT, notify: true, clientAt: AT }))).status).toBe(410);
     expect(sent).toEqual([]);
   });
 
