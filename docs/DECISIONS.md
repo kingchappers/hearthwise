@@ -105,3 +105,18 @@ Decisions the spec was silent or inconsistent about; the plan is `docs/superpowe
 | Item type name | `ShoppingItem` | `Item` is already the Store's type |
 | Item mutations "registered in `mutations.ts`" | A separate set beside the task ones (`itemMutationKeys`), same file and scope | The task overlay and its types stay as they were |
 | Restoring an item | Either member may; it removes the deleted marks and moves `updatedAt` on, nothing else (items have no rule version) | Per the spec's recycle-bin rule |
+
+## Step 5: offline (2026-11-14)
+
+The spike (`e2e/offline/`, Chromium) passed: TanStack Query's built-in persistence holds, so Alternative K (a custom write queue) was not needed. WebKit was not available to test.
+
+| Spec says | Built | Why |
+|---|---|---|
+| After a restore, mark every pending mutation paused with the mutation cache's `dispatch` | `mutation.continue()` on each restored pending mutation, in order; the household scope makes the rest wait | `Mutation#dispatch` is a private field in the installed TanStack (5.107.1); `continue()` is public and the spike shows it works |
+| A 401 puts the mutation back in the paused state | A 401, Auth0's `login_required` and similar are retried with the same backoff (at most a minute) | Same reason; the write stays pending and saved, and the next retry sends it with the renewed token |
+| Persist the cache and writes per user | Also: every entry records whose it is, a write is bound to its owner (dropped if someone else is signed in), and **the persister is sealed before the cache is deleted on sign-out** | The spike found that a save already in flight lands after the delete and brings the cache, with the waiting writes, back |
+| Clear the cache on sign-out | Also: a different person signing in deletes the previous person's saved cache | Security review: nothing of the previous person should stay on the device |
+| Step 2's household hooks move into the registry | They stay as they are | Each needs the server's answer before the screen moves on (creating a household, accepting an invite), so they cannot be queued offline |
+| `@tanstack/react-query` | Raised to ^5.107.1 | It was 5.102.8 with its own nested `query-core` while the persist packages used 5.107.1: hydration crossed two copies of TanStack's classes |
+| Playwright in CI | A job without AWS credentials, with no artifact upload (a repo guard bans `upload-artifact`); `deploy` needs it | The spike is the safety net for the offline design |
+| An older `schemaVersion` replays its writes then drops its data | The persister's restore returns the entry with its lists removed; the app invalidates everything after a restore | Keeps the writes without a second code path |
