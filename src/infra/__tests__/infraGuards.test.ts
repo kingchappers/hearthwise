@@ -211,6 +211,13 @@ describe('push keys and the scheduler (infra)', () => {
 describe('the CI workflow', () => {
   const workflow = readFileSync(join(INFRA, '..', '.github', 'workflows', 'yarnBuild.yml'), 'utf8');
 
+  it('gives the public push key to every step that builds the app, so /config.json can offer push', () => {
+    const builds = workflow.split('\n    - name: ').filter(step => /^(Build app with Auth0 config|Build the Lambda bundles)/.test(step));
+    expect(builds).toHaveLength(2);
+    for (const step of builds) expect(step).toContain('VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}');
+    expect(workflow).not.toMatch(/VAPID_PRIVATE/);
+  });
+
   it('never runs two deploys at the same time, and never cancels one that has started', () => {
     const deploy = workflow.slice(workflow.indexOf('\n  deploy:'));
     expect(deploy).toMatch(/concurrency:\s*\n\s+group: deploy\s*\n\s+cancel-in-progress: false/);
