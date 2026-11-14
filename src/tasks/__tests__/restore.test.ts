@@ -111,9 +111,9 @@ describe('restoreEntries', () => {
     expect((await raw(b.id)).deletedAt).toBeDefined();
   });
 
-  it('says not found for an unknown id and invalid for an item (items arrive in step 4)', async () => {
+  it('says not found for an unknown task or item id', async () => {
     const { result } = await restoreEntries(store, ctx1, { entries: [{ kind: 'task', id: uuid() }, { kind: 'item', id: uuid() }], mutationId: uuid() }, NOW);
-    expect(result.results.map(entry => entry.status)).toEqual(['not_found', 'invalid']);
+    expect(result.results.map(entry => entry.status)).toEqual(['not_found', 'not_found']);
   });
 
   it('gives a restored done to-do its 30-day expiry back, counted from when it was done', async () => {

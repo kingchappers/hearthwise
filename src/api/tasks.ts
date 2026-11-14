@@ -1,48 +1,18 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { withHousehold } from '../household/guard';
 import type { HouseholdContext } from '../household/types';
-import { parseCompleteBody, parseCreateTask, parseDeleteBody, parseMutationBody, parsePatchTask, parseProposalBody, parseRestoreBody, parseUuid } from '../shared/taskValidation';
+import { parseCompleteBody, parseCreateTask, parseDeleteBody, parseMutationBody, parsePatchTask, parseProposalBody, parseRestoreBody } from '../shared/taskValidation';
 import { getStore } from '../store';
 import { completeCycle, undoCompletion } from '../tasks/completions';
 import { taskHistory } from '../tasks/history';
 import { acceptProposal, createProposal, declineProposal, listProposals, withdrawProposal } from '../tasks/proposals';
 import { restoreEntries } from '../tasks/restore';
 import { createTask, deleteTask, listTasks, patchTask } from '../tasks/tasks';
-import { TaskError } from '../tasks/types';
-import { SECURITY_HEADERS } from './constants';
 import { err, invalid, noStore, ok, parseJsonObject } from './http';
 import type { Router } from './router';
 import type { ApiResponse } from './types';
-
-type Params = Record<string, string>;
-type TaskHandler = (event: APIGatewayProxyEventV2, ctx: HouseholdContext, params: Params) => Promise<ApiResponse>;
-
-// A refusal from the task domain becomes { error: code, ...extra } with its status. Anything else is a real failure.
-function respondTo(error: unknown): ApiResponse {
-  if (error instanceof TaskError) return err(error.status, error.code, error.extra);
-  throw error;
-}
-
-// Runs a handler, turning a domain refusal into its response. The id parameters are checked first: one that is not a UUID can only
-// be a task or proposal that does not exist, so it is answered 404 before any key is built from it.
-function guarded(ids: string[], handler: TaskHandler): TaskHandler {
-  return async (event, ctx, params) => {
-    for (const name of ids) {
-      if (!parseUuid(params[name], name).ok) return err(404, 'not_found');
-    }
-    try {
-      return await handler(event, ctx, params);
-    } catch (error) {
-      return respondTo(error);
-    }
-  };
-}
-
-const created = (body: object): ApiResponse => ({ statusCode: 201, headers: SECURITY_HEADERS, body: JSON.stringify(body) });
-
-// For a write that may be a replay: 201 (or 200) for the first call, 200 for a repeat of it.
-const written = (outcome: { fresh: boolean; result: object }, status: 200 | 201): ApiResponse =>
-  (status === 201 && outcome.fresh ? created(outcome.result) : ok(outcome.result));
+import { guarded, written } from './respond';
+import type { TaskHandler } from './respond';
 
 async function getTasks(_event: APIGatewayProxyEventV2, ctx: HouseholdContext): Promise<ApiResponse> {
   const store = getStore();
