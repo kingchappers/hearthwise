@@ -1,4 +1,5 @@
-import { Button, Card, Input, Radio, SegmentedControl, Stack, Switch, Text, Title, useMantineColorScheme } from '@mantine/core';
+import { Anchor, Button, Card, Input, Radio, SegmentedControl, Stack, Switch, Text, Title, useMantineColorScheme } from '@mantine/core';
+import { Link } from 'react-router';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { InviteLink } from '~/components/household/InviteLink';
 import { Members } from '~/components/household/Members';
@@ -50,6 +51,14 @@ function SettingsContent() {
         <Stack gap="sm" align="flex-start">
           <Text size="sm">{SESSION_LIFETIME_TEXT}</Text>
           <Button variant="default" onClick={() => void logout()}>Sign out</Button>
+        </Stack>
+      </Card>
+
+      <Card withBorder>
+        <Title order={2} size="h4" mb="sm">Deleted</Title>
+        <Stack gap="sm" align="flex-start">
+          <Text size="sm">Deleted tasks stay for 30 days, and can be restored.</Text>
+          <Anchor component={Link} to="/deleted">See deleted tasks</Anchor>
         </Stack>
       </Card>
 

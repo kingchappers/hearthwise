@@ -18,9 +18,21 @@ function event(method: string, path: string, body?: unknown, query?: Record<stri
   } as unknown as APIGatewayProxyEventV2;
 }
 
-async function call(userId: string, method: string, path: string, body?: unknown, query?: Record<string, string>) {
+// Every write carries a mutation id. `call` adds one unless the body already has one (or is not an object), so each test
+// reads as before; `callRaw` sends exactly what it is given, for the tests about the id itself.
+let sequence = 0;
+const nextMutationId = (): string => `00000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}`;
+
+async function callRaw(userId: string, method: string, path: string, body?: unknown, query?: Record<string, string>) {
   const res = await router.dispatch(event(method, path, body, query), userId);
   return { status: res.statusCode, json: res.body ? JSON.parse(res.body) : undefined };
+}
+
+async function call(userId: string, method: string, path: string, body?: unknown, query?: Record<string, string>) {
+  const isWrite = method !== 'GET';
+  const plain = body === undefined || (typeof body === 'object' && body !== null && !Array.isArray(body));
+  const withId = isWrite && plain && !(body && 'mutationId' in (body as object)) ? { ...(body as object | undefined), mutationId: nextMutationId() } : body;
+  return callRaw(userId, method, path, withId, query);
 }
 
 const create = { name: 'Home', displayName: 'Sam', timezone: 'Europe/London' };
@@ -67,7 +79,7 @@ describe('POST /api/households', () => {
     expect(res.json).toEqual({ error: 'invalid', field: 'body' });
   });
 
-  it('accepts an optional mutation id that is a UUID', async () => {
+  it('accepts a mutation id that is a UUID', async () => {
     const res = await call('auth0|u1', 'POST', '/api/households', { ...create, mutationId: '0190a2b4-7c3e-7f10-9a11-2b3c4d5e6f70' });
     expect(res.status).toBe(201);
   });
@@ -180,7 +192,7 @@ describe('invites', () => {
     vi.stubEnv('APP_ORIGIN', 'https://hearthwise.scgrid.xyz/');
     expect((await call('auth0|a', 'POST', '/api/hh/invites')).json.link).toMatch(/^https:\/\/hearthwise\.scgrid\.xyz\/join#/);
     vi.unstubAllEnvs();
-    const local = { ...event('POST', '/api/hh/invites'), headers: { host: 'localhost:8080' } } as APIGatewayProxyEventV2;
+    const local = { ...event('POST', '/api/hh/invites', { mutationId: nextMutationId() }), headers: { host: 'localhost:8080' } } as APIGatewayProxyEventV2;
     expect(JSON.parse((await router.dispatch(local, 'auth0|a')).body).link).toMatch(/^http:\/\/localhost:8080\/join#/);
   });
 
@@ -327,3 +339,31 @@ describe('DELETE /api/hh/members/{userId}', () => {
   });
 });
 
+
+describe('the mutation id on household writes', () => {
+  it('is required: every write route answers 400 naming mutationId without one', async () => {
+    await call('auth0|u1', 'POST', '/api/households', create);
+    const hash = 'a'.repeat(64);
+    const cases: [string, string, unknown][] = [
+      ['POST', '/api/households', create],
+      ['PATCH', '/api/hh/members/me', { displayName: 'Samuel' }],
+      ['POST', '/api/hh/invites', {}],
+      ['DELETE', `/api/hh/invites/${hash}`, {}],
+      ['DELETE', '/api/hh/members/auth0%7Cu2', {}],
+      ['POST', '/api/invites/accept', { token: 'A'.repeat(43), displayName: 'Bea' }],
+    ];
+    for (const [method, path, body] of cases) {
+      expect(await callRaw('auth0|u1', method, path, body), `${method} ${path}`).toEqual({ status: 400, json: { error: 'invalid', field: 'mutationId' } });
+    }
+  });
+
+  it('must be a UUID', async () => {
+    await call('auth0|u1', 'POST', '/api/households', create);
+    expect(await callRaw('auth0|u1', 'POST', '/api/hh/invites', { mutationId: 'nope' })).toEqual({ status: 400, json: { error: 'invalid', field: 'mutationId' } });
+  });
+
+  it('is accepted with a body-less write that carries only the id', async () => {
+    await call('auth0|u1', 'POST', '/api/households', create);
+    expect((await callRaw('auth0|u1', 'POST', '/api/hh/invites', { mutationId: nextMutationId() })).status).toBe(201);
+  });
+});

@@ -35,6 +35,11 @@ describe('Settings', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
   });
 
+  it('links to the Deleted page', () => {
+    renderSettings();
+    expect(screen.getByRole('link', { name: 'See deleted tasks' })).toHaveAttribute('href', '/deleted');
+  });
+
   it('says how long you stay signed in, and signs out from a button', async () => {
     renderSettings();
     expect(screen.getByText(SESSION_LIFETIME_TEXT)).toBeInTheDocument();

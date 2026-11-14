@@ -19,6 +19,7 @@ vi.mock('@auth0/auth0-react', () => ({
 }));
 const household = vi.hoisted(() => ({ current: { status: 'ready', refetch: () => {} } as { status: string; refetch: () => void } }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => household.current }));
+vi.mock('../RegisterMutations', () => ({ RegisterMutations: () => null }));
 vi.mock('../../authentication/Authentication', () => ({ default: () => null }));
 vi.mock('../../authentication/AuthProvider', () => ({ AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 

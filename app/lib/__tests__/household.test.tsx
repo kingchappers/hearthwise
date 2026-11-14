@@ -14,6 +14,8 @@ function wrapper({ children }: { children: React.ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const HOUSEHOLD = {
   household: { name: 'Home', timezone: 'Europe/London', createdBy: 'a', createdAt: '2026-11-13T00:00:00Z', memberCount: 1 },
   members: [{ userId: 'a', displayName: 'Ann', joinedAt: '2026-11-13T00:00:00Z' }],
@@ -61,6 +63,15 @@ describe('useHousehold', () => {
 });
 
 describe('the household mutations', () => {
+  it('send a fresh mutation id each time', async () => {
+    request.mockResolvedValue({ householdId: 'h' });
+    const { result } = renderHook(() => useCreateHousehold(), { wrapper });
+    await result.current.mutateAsync({ name: 'A', displayName: 'B', timezone: 'UTC' });
+    await result.current.mutateAsync({ name: 'A', displayName: 'B', timezone: 'UTC' });
+    const ids = request.mock.calls.map(call => JSON.parse(call[1].body).mutationId);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
   it('create posts the typed values', async () => {
     request.mockResolvedValue({ householdId: 'h' });
     const { result } = renderHook(() => useCreateHousehold(), { wrapper });
@@ -68,7 +79,7 @@ describe('the household mutations', () => {
     const [path, init] = request.mock.calls[0];
     expect(path).toBe('/api/households');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual({ name: 'Home', displayName: 'Ann', timezone: 'Europe/London' });
+    expect(JSON.parse(init.body)).toEqual({ name: 'Home', displayName: 'Ann', timezone: 'Europe/London', mutationId: expect.stringMatching(UUID) });
   });
 
   it('accept posts the token, the name and the move confirmation', async () => {
@@ -77,7 +88,7 @@ describe('the household mutations', () => {
     await result.current.mutateAsync({ token: 'T'.repeat(43), displayName: 'Bea', confirmMove: true });
     const [path, init] = request.mock.calls[0];
     expect(path).toBe('/api/invites/accept');
-    expect(JSON.parse(init.body)).toEqual({ token: 'T'.repeat(43), displayName: 'Bea', confirmMove: true });
+    expect(JSON.parse(init.body)).toEqual({ token: 'T'.repeat(43), displayName: 'Bea', confirmMove: true, mutationId: expect.stringMatching(UUID) });
   });
 
   it('create-invite returns the link once', async () => {
@@ -85,21 +96,30 @@ describe('the household mutations', () => {
     const { result } = renderHook(() => useCreateInvite(), { wrapper });
     const created = await result.current.mutateAsync();
     expect(created.link).toBe('https://x/join#t');
-    expect(request.mock.calls[0][0]).toBe('/api/hh/invites');
+    const [path, init] = request.mock.calls[0];
+    expect(path).toBe('/api/hh/invites');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ mutationId: expect.stringMatching(UUID) });
   });
 
   it('revoke deletes the invite by its hash', async () => {
     request.mockResolvedValue(null);
     const { result } = renderHook(() => useRevokeInvite(), { wrapper });
     await result.current.mutateAsync('f'.repeat(64));
-    expect(request).toHaveBeenCalledWith(`/api/hh/invites/${'f'.repeat(64)}`, { method: 'DELETE' });
+    const [path, init] = request.mock.calls[0];
+    expect(path).toBe(`/api/hh/invites/${'f'.repeat(64)}`);
+    expect(init.method).toBe('DELETE');
+    expect(JSON.parse(init.body)).toEqual({ mutationId: expect.stringMatching(UUID) });
   });
 
   it('remove encodes the member id', async () => {
     request.mockResolvedValue(null);
     const { result } = renderHook(() => useRemoveMember(), { wrapper });
     await result.current.mutateAsync('auth0|abc');
-    expect(request).toHaveBeenCalledWith('/api/hh/members/auth0%7Cabc', { method: 'DELETE' });
+    const [path, init] = request.mock.calls[0];
+    expect(path).toBe('/api/hh/members/auth0%7Cabc');
+    expect(init.method).toBe('DELETE');
+    expect(JSON.parse(init.body)).toEqual({ mutationId: expect.stringMatching(UUID) });
   });
 
   it('update-me patches /members/me', async () => {
@@ -109,7 +129,7 @@ describe('the household mutations', () => {
     const [path, init] = request.mock.calls[0];
     expect(path).toBe('/api/hh/members/me');
     expect(init.method).toBe('PATCH');
-    expect(JSON.parse(init.body)).toEqual({ displayName: 'Ann B' });
+    expect(JSON.parse(init.body)).toEqual({ displayName: 'Ann B', mutationId: expect.stringMatching(UUID) });
   });
 });
 

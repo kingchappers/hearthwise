@@ -28,7 +28,8 @@ export interface CreatedInvite {
 export const HOUSEHOLD_KEY = ['household'] as const;
 const INVITES_KEY = ['household', 'invites'] as const;
 
-const json = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) });
+// Every household write carries a fresh mutation id, so the server can tell a retry from a new write.
+const write = (method: string, body: object = {}): RequestInit => ({ method, body: JSON.stringify({ ...body, mutationId: crypto.randomUUID() }) });
 const isNoHousehold = (error: unknown): boolean => error instanceof ApiError && error.status === 403 && error.code === 'no_household';
 
 export type HouseholdState = (
@@ -63,7 +64,7 @@ export function useCreateHousehold() {
   const refresh = useRefreshHousehold();
   return useMutation({
     mutationFn: async (input: { name: string; displayName: string; timezone: string }) =>
-      await request('/api/households', json('POST', input)) as { householdId: string },
+      await request('/api/households', write('POST', input)) as { householdId: string },
     onSuccess: refresh,
   });
 }
@@ -73,7 +74,7 @@ export function useAcceptInvite() {
   const refresh = useRefreshHousehold();
   return useMutation({
     mutationFn: async (input: { token: string; displayName: string; confirmMove?: boolean }) =>
-      await request('/api/invites/accept', json('POST', input)) as { householdId: string },
+      await request('/api/invites/accept', write('POST', input)) as { householdId: string },
     onSuccess: refresh,
   });
 }
@@ -90,7 +91,7 @@ export function useCreateInvite() {
   const { request } = useProtectedApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async () => await request('/api/hh/invites', { method: 'POST' }) as CreatedInvite,
+    mutationFn: async () => await request('/api/hh/invites', write('POST')) as CreatedInvite,
     onSuccess: () => client.invalidateQueries({ queryKey: INVITES_KEY }),
   });
 }
@@ -99,7 +100,7 @@ export function useRevokeInvite() {
   const { request } = useProtectedApi();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (hash: string) => { await request(`/api/hh/invites/${hash}`, { method: 'DELETE' }); },
+    mutationFn: async (hash: string) => { await request(`/api/hh/invites/${hash}`, write('DELETE')); },
     onSuccess: () => client.invalidateQueries({ queryKey: INVITES_KEY }),
   });
 }
@@ -108,7 +109,7 @@ export function useRemoveMember() {
   const { request } = useProtectedApi();
   const refresh = useRefreshHousehold();
   return useMutation({
-    mutationFn: async (userId: string) => { await request(`/api/hh/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }); },
+    mutationFn: async (userId: string) => { await request(`/api/hh/members/${encodeURIComponent(userId)}`, write('DELETE')); },
     onSuccess: refresh,
   });
 }
@@ -118,7 +119,7 @@ export function useUpdateMe() {
   const refresh = useRefreshHousehold();
   return useMutation({
     mutationFn: async (patch: { displayName?: string; settings?: MemberSettingsPatch }) =>
-      await request('/api/hh/members/me', json('PATCH', patch)) as { me: Member },
+      await request('/api/hh/members/me', write('PATCH', patch)) as { me: Member },
     onSuccess: refresh,
   });
 }
