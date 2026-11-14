@@ -3,8 +3,8 @@ import { MutationObserver, QueryClient } from '@tanstack/react-query';
 import type { Task } from '../../../src/tasks/types';
 import { ApiError } from '../apiError';
 import type { TasksData } from '../overlay';
-import { mutationKeys, planCreate, registerMutations } from '../mutations';
-import type { MutationKind } from '../mutations';
+import { itemMutationKeys, mutationKeys, planCreate, registerMutations } from '../mutations';
+import type { ItemMutationKind, MutationKind } from '../mutations';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ME = 'auth0|me';
@@ -172,5 +172,52 @@ describe('planCreate', () => {
 
   it('is one create when both is only either, in a one-member household', () => {
     expect(planCreate({ ...input, assignee: 'both' }, { userId: ME, members: [{ userId: ME }] })).toHaveLength(1);
+  });
+});
+
+describe('the item mutations', () => {
+  const runItem = (kind: ItemMutationKind, variables: Record<string, unknown>) =>
+    new MutationObserver(client, { mutationKey: itemMutationKeys[kind] }).mutate({ mutationId: 'a'.repeat(8) + '-0000-4000-8000-000000000001', at: 1_800_000_000_000, by: ME, ...variables } as never);
+
+  it('are registered with the household scope too', () => {
+    for (const kind of ['itemAdd', 'itemEdit', 'itemTick', 'itemDelete', 'itemClear', 'itemRestore'] as ItemMutationKind[]) {
+      const defaults = client.getMutationDefaults(itemMutationKeys[kind]);
+      expect(defaults.mutationFn, kind).toBeTypeOf('function');
+      expect(defaults.scope, kind).toEqual({ id: 'household' });
+    }
+  });
+
+  it('add puts the item with its text and quantity times', async () => {
+    await runItem('itemAdd', { item: { id: 'i9', text: 'Milk', quantity: '2' } });
+    expect(call()[0]).toBe('/api/hh/items/i9');
+    expect(call()[1].method).toBe('PUT');
+    expect(body()).toMatchObject({ text: 'Milk', textAt: 1_800_000_000_000, quantity: '2', quantityAt: 1_800_000_000_000 });
+  });
+
+  it('edit and tick put only what changed, each with its time', async () => {
+    await runItem('itemEdit', { itemId: 'i1', text: 'Oat milk' });
+    expect(body()).toMatchObject({ text: 'Oat milk', textAt: 1_800_000_000_000 });
+    expect(body().quantity).toBeUndefined();
+    await runItem('itemTick', { itemId: 'i1', done: true });
+    expect(body()).toMatchObject({ ticked: true, tickedAt: 1_800_000_000_000 });
+    expect(body().text).toBeUndefined();
+  });
+
+  it('delete deletes the item', async () => {
+    await runItem('itemDelete', { itemId: 'i1' });
+    expect(call()[0]).toBe('/api/hh/items/i1');
+    expect(call()[1].method).toBe('DELETE');
+  });
+
+  it('clear sends one batch with each item\'s ticked time', async () => {
+    await runItem('itemClear', { entries: [{ id: 'a', ifTickedAt: 300 }, { id: 'b', ifTickedAt: 400 }] });
+    expect(call()[0]).toBe('/api/hh/items/batch');
+    expect(body().writes).toEqual([{ id: 'a', delete: true, ifTickedAt: 300 }, { id: 'b', delete: true, ifTickedAt: 400 }]);
+  });
+
+  it('restore posts one entry per item', async () => {
+    await runItem('itemRestore', { itemIds: ['a', 'b'] });
+    expect(call()[0]).toBe('/api/hh/restore');
+    expect(body().entries).toEqual([{ kind: 'item', id: 'a' }, { kind: 'item', id: 'b' }]);
   });
 });

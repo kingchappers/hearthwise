@@ -28,6 +28,10 @@ describe('registerApiRoutes', () => {
       { method: 'POST', template: '/api/hh/proposals/{id}/decline' },
       { method: 'POST', template: '/api/hh/proposals/{id}/withdraw' },
       { method: 'POST', template: '/api/hh/restore' },
+      { method: 'GET', template: '/api/hh/items' },
+      { method: 'PUT', template: '/api/hh/items/{id}' },
+      { method: 'DELETE', template: '/api/hh/items/{id}' },
+      { method: 'POST', template: '/api/hh/items/batch' },
     ]);
   });
 });

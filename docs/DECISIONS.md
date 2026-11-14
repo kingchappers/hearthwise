@@ -94,3 +94,14 @@ Decisions the spec was silent or inconsistent about; the plan is `docs/superpowe
 | Step 2's write routes | Now require a `mutationId` (400 otherwise); they are not wrapped in write records | Their own conditions already make them idempotent; the id is there for step 5's replay |
 | Household hooks in `app/lib/household.ts` | Still use `useMutation` without a registered key (allowed by a guard test); step 5 moves them into `app/lib/mutations.ts` | Persisting them belongs with the rest of the offline work |
 | Time zone for "deleted on" on the Deleted page | The browser's | Keeps the page independent of the household query |
+
+## Step 4: shopping list (2026-11-14)
+
+| Spec says | Built | Why |
+|---|---|---|
+| `PUT /api/hh/items/:id` "create or update" | A `PUT` to a missing id creates the item and needs `text` with `textAt` (400 `text` otherwise); it answers 200 for a create too | One route for both, as the table says |
+| Batch "up to 100 item writes, including conditional deletes" | `{ writes: [put fields with id \| { id, delete: true, ifTickedAt? }], mutationId }`, answering `{ results: [{ id, status }] }` with `created`, `applied`, `noop`, `gone`, `skipped` or `invalid` | The spec gives no wire shape. A bad entry is `invalid` and does not fail the batch |
+| An item's ticked state | Defaults to unticked with no ticked time (read as 0 by "clear ticked") | A new item has never been ticked |
+| Item type name | `ShoppingItem` | `Item` is already the Store's type |
+| Item mutations "registered in `mutations.ts`" | A separate set beside the task ones (`itemMutationKeys`), same file and scope | The task overlay and its types stay as they were |
+| Restoring an item | Either member may; it removes the deleted marks and moves `updatedAt` on, nothing else (items have no rule version) | Per the spec's recycle-bin rule |

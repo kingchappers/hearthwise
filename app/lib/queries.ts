@@ -19,6 +19,8 @@ export function noteMutationSettled(): void {
   settledCount += 1;
 }
 
+export const currentSettledCount = (): number => settledCount;
+
 export interface TasksState {
   status: 'loading' | 'ready' | 'error';
   tasks: Task[];

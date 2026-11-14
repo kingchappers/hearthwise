@@ -9,11 +9,15 @@ import { ME, THEM, TODAY, makeActions, task } from '~/components/tasks/__tests__
 
 const state = vi.hoisted(() => ({
   tasks: { status: 'ready', tasks: [] as Task[], proposals: [], today: '2026-11-13', refetch: vi.fn() },
+  items: { status: 'ready', items: [] as object[], refetch: vi.fn() },
   actions: undefined as unknown,
+  itemActions: undefined as unknown,
 }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
+vi.mock('~/lib/items', () => ({ useItems: () => state.items }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
+vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => state.itemActions }));
 
 import Deleted, { meta } from '../deleted';
 
@@ -23,7 +27,28 @@ const actions = () => state.actions as ReturnType<typeof makeActions>;
 
 beforeEach(() => {
   state.tasks = { status: 'ready', tasks: [], proposals: [], today: TODAY, refetch: vi.fn() };
+  state.items = { status: 'ready', items: [], refetch: vi.fn() };
   state.actions = makeActions();
+  state.itemActions = { restore: vi.fn() };
+});
+
+describe('the Deleted page: shopping', () => {
+  it('groups tasks and shopping, and restores an item with one tap', async () => {
+    const milk = { id: 'i1', text: 'Milk', ticked: false, fieldTimes: {}, updatedAt: 1, deletedAt: NOV_12, deletedBy: THEM.userId };
+    state.tasks.tasks = [task({ title: 'Hoover', deletedAt: NOV_12, deletedBy: ME.userId })];
+    state.items.items = [milk];
+    renderPage();
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['Tasks', 'Shopping']);
+    await userEvent.click(screen.getByRole('button', { name: 'Restore: Milk' }));
+    expect((state.itemActions as { restore: ReturnType<typeof vi.fn> }).restore).toHaveBeenCalledWith(milk);
+    expect(screen.getByText(/Deleted by Alex, .*12 Nov/)).toBeInTheDocument();
+  });
+
+  it('shows only the group that has something', () => {
+    state.items.items = [{ id: 'i1', text: 'Milk', ticked: false, fieldTimes: {}, updatedAt: 1, deletedAt: NOV_12, deletedBy: ME.userId }];
+    renderPage();
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['Shopping']);
+  });
 });
 
 describe('the Deleted page', () => {

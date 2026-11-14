@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Hearthwise is a shared household app for two adults: chores, to-dos and a shopping list, with one set of data and per-person views. React SPA + Auth0 (or built-in login) + AWS Lambda, or a self-hosted container on SQLite. Infrastructure is OpenTofu.
 
-**Status: phase 1, step 3 (tasks).** The Store, auth, API shell, container, infrastructure, brand, households, invites, and chores and to-dos with proposals exist. The shopping list, offline use and notifications arrive in steps 4 to 7. The approved design is `docs/designs/phase-1-foundation.md`; `docs/ROADMAP.md` lists the steps.
+**Status: phase 1, step 4 (shopping list).** The Store, auth, API shell, container, infrastructure, brand, households, invites, chores and to-dos with proposals, and the shopping list exist. Offline use and notifications arrive in steps 5 to 7. The approved design is `docs/designs/phase-1-foundation.md`; `docs/ROADMAP.md` lists the steps.
 
 Hearthwise began as a copy of the scaffolding of a sibling app, Hoardwise, and shares an AWS account with it. Nothing here may point at the sibling's resources: see "Shared AWS account" below.
 
@@ -33,6 +33,7 @@ yarn store-cli        # Build and run the store command line tool (backup, reset
 - **Auth** (`src/auth/`): `AUTH_MODE` picks `auth0` (AWS default) or `local` (container default). Local login has one account per email; after first-run setup the only way to make one is an invite link (`signup-with-invite`).
 - **Households** (`src/household/`, routes in `src/api/households.ts`): households, members, invites. **Every household route is wrapped in `withHousehold`** (`guard.ts`), which reads the caller's membership and hands the handler a `HouseholdContext`; the household id never comes from the request. Request fields are checked with the validators in `src/shared/validation.ts`.
 - **Tasks** (`src/tasks/`, routes in `src/api/tasks.ts`): `tasks.ts` (create, edit, delete, list), `completions.ts` (complete, undo), `ownership.ts` (who a task belongs to and what needs the other person's say), `proposals.ts`, `restore.ts`, `history.ts`. Dates and repeat rules are pure and shared: `src/shared/schedule.ts`; request validation: `src/shared/taskValidation.ts`. **Every write route carries a `mutationId` and runs through `withWriteRecord`** (`src/api/writeRecord.ts`): the write and its `MUT#` record are one transaction, so a retry is answered from the record and writes nothing. Read the record first (`replayOf`), then the task.
+- **Shopping** (`src/shopping/`, routes in `src/api/items.ts`): `apply.ts` is the pure write rule (field timestamps, tombstones, clear-ticked), `items.ts` the domain (single writes inside `withWriteRecord`; a batch is one transaction per entry plus one record). Restore of an item is in `src/tasks/restore.ts`. The app reuses it: `app/lib/itemOverlay.ts` applies the same rule to pending writes, and item mutations (`itemMutationKeys`) are registered beside the task ones.
 - **Security events** (`src/security/events.ts`): `emitSecurityEvent` logs and publishes to SNS (`ALERT_TOPIC_ARN`); ids and event types only, never emails or names.
 - **Auth0 tenant:** `docs/AUTH0.md`; the first-login Action is `infra/auth0/first-login.js`.
 - **Static Lambda** (`src/static/`): serves the SPA and falls back to `index.html`.

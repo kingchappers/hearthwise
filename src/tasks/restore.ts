@@ -3,7 +3,7 @@ import type { WriteOutcome } from '../api/writeRecord';
 import type { HouseholdContext } from '../household/types';
 import { ConditionFailedError } from '../store';
 import type { Store } from '../store';
-import { taskKey } from './keys';
+import { itemKey, taskKey } from './keys';
 import { needsProposal, otherMemberId } from './ownership';
 import { restoreChange, toTask } from './record';
 
@@ -14,6 +14,25 @@ export interface RestoreResult {
   status: RestoreStatus;
   // Who to ask, when the task is theirs and a restore needs a proposal.
   toUserId?: string;
+}
+
+// Either member may restore any shopping item. The update applies only to the deletion it saw, so restoring twice does nothing.
+async function restoreItem(store: Store, householdId: string, id: string, nowMs: number): Promise<RestoreStatus> {
+  const item = await store.get(itemKey(householdId, id), { consistent: true });
+  if (!item) return 'not_found';
+  if (item.deletedAt === undefined) return 'noop';
+  try {
+    await store.transact([{
+      update: itemKey(householdId, id),
+      set: { updatedAt: Math.max(nowMs, Number(item.updatedAt) + 1) },
+      remove: ['deletedAt', 'deletedBy', 'expiresAt'],
+      ifEquals: { deletedAt: item.deletedAt },
+    }]);
+    return 'restored';
+  } catch (error) {
+    if (!(error instanceof ConditionFailedError)) throw error;
+    return 'noop';
+  }
 }
 
 // Each entry is its own transaction, applied only to the deletion it saw, so restoring twice does nothing and a restore can never
@@ -27,9 +46,8 @@ export async function restoreEntries(
 
   const results: RestoreResult[] = [];
   for (const entry of input.entries) {
-    // Shopping items arrive in step 4.
     if (entry.kind === 'item') {
-      results.push({ id: entry.id, status: 'invalid' });
+      results.push({ id: entry.id, status: await restoreItem(store, householdId, entry.id, nowMs) });
       continue;
     }
     const item = await store.get(taskKey(householdId, entry.id), { consistent: true });

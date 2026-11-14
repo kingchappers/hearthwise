@@ -141,6 +141,11 @@ async function main() {
     headers: { ...hostHeader, ...forwarded, 'Content-Type': 'application/json', Origin: publicOrigin, ...extra },
   });
 
+  const send = (method, path, payload, extra = {}) => request(base, path, {
+    method, body: JSON.stringify(payload),
+    headers: { ...hostHeader, ...forwarded, 'Content-Type': 'application/json', Origin: publicOrigin, ...extra },
+  });
+
   if (tls) {
     caCertificate = await waitFor(() => {
       const pem = docker('exec', name, 'cat', CADDY_ROOT);
@@ -267,6 +272,24 @@ async function main() {
   step('the history lists both people on the cycle', taskHistory.completions?.[0]?.by?.length === 2, JSON.stringify(taskHistory));
   const replay = await post(`/api/hh/tasks/${taskId}/complete`, { cycleSeq: 1, completedAt: Date.now(), mutationId: randomUUID() }, ONE);
   step('a second tap by the same person changes nothing', replay.status === 200 && JSON.parse(replay.body).task.cycleSeq === 2, replay.body);
+
+  // Shopping: an item is added, ticked from both sessions (the newer tick wins), cleared with the ticked time, and restored.
+  const milkId = randomUUID();
+  const tickedAt = Date.now();
+  const addedItem = await send('PUT', `/api/hh/items/${milkId}`, { text: 'Milk', textAt: tickedAt - 1000, mutationId: randomUUID() }, ONE);
+  step('adding an item answers 200', addedItem.status === 200, `${addedItem.status} ${addedItem.body}`);
+  await send('PUT', `/api/hh/items/${milkId}`, { ticked: true, tickedAt, mutationId: randomUUID() }, ONE);
+  await send('PUT', `/api/hh/items/${milkId}`, { ticked: false, tickedAt: tickedAt - 500, mutationId: randomUUID() }, TWO);
+  const itemList = JSON.parse((await get('/api/hh/items', TWO)).body);
+  step('an older untick from the other session does not override a newer tick', itemList.items.length === 1 && itemList.items[0].ticked === true, JSON.stringify(itemList.items));
+  const cleared = await send('POST', '/api/hh/items/batch', { writes: [{ id: milkId, delete: true, ifTickedAt: tickedAt }], mutationId: randomUUID() }, ONE);
+  step('clear ticked removes the ticked item', JSON.parse(cleared.body).results?.[0]?.status === 'applied', cleared.body);
+  const goneEdit = await send('PUT', `/api/hh/items/${milkId}`, { text: 'Zombie', textAt: Date.now(), mutationId: randomUUID() }, TWO);
+  step('an edit to a deleted item answers 410', goneEdit.status === 410, String(goneEdit.status));
+  const restoredItem = await post('/api/hh/restore', { entries: [{ kind: 'item', id: milkId }], mutationId: randomUUID() }, TWO);
+  step('the other person can restore it', JSON.parse(restoredItem.body).results?.[0]?.status === 'restored', restoredItem.body);
+  const finalList = JSON.parse((await get('/api/hh/items', ONE)).body);
+  step('the restored item is back in both lists, as it was', finalList.items[0]?.text === 'Milk' && finalList.items[0]?.deletedAt === undefined, JSON.stringify(finalList.items));
 
   // Sends a request with a forged X-Forwarded-For to an API route that answers 401, waits for the app to log exactly one
   // new "Request:" line for it, and returns that line's sourceIp.
