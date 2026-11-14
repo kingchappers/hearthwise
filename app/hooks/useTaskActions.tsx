@@ -6,6 +6,7 @@ import type { Caller, OwnedAction } from '../../src/tasks/ownership';
 import type { Change, Proposal, Task } from '../../src/tasks/types';
 import { ToastAction } from '~/components/layout/ToastAction';
 import { useHousehold } from '~/lib/household';
+import { notifyFields } from '~/lib/letThemKnow';
 import { planCreate, useHouseholdMutation } from '~/lib/mutations';
 import type { NewTask } from '~/lib/mutations';
 import { usePreferences } from '~/lib/preferences';
@@ -65,7 +66,7 @@ export function useTaskActions(): TaskActions {
   const timezone = data?.household.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const otherName = members.find(member => member.userId === otherMemberId(caller))?.displayName ?? 'them';
 
-  const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by: me.userId });
+  const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by: me.userId, ...notifyFields() });
 
   function toast(text: string, undo?: { label: string; run: () => void }): void {
     const id = crypto.randomUUID();

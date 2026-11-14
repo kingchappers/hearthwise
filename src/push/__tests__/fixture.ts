@@ -29,7 +29,7 @@ export async function twoMemberHousehold(settings: { u1?: Partial<MemberSettings
   await store.put({ PK: hhPk(householdId), SK: memberSk(U2), displayName: 'Alex', settings: { ...DEFAULT_SETTINGS, ...settings.u2 }, joinedAt: '2026-11-13T11:00:00.000Z' });
   await store.put({ ...membershipKey(U2), householdId });
   if (settings.u1) await store.patch({ PK: hhPk(householdId), SK: memberSk(U1) }, { settings: { ...DEFAULT_SETTINGS, ...settings.u1 } });
-  for (const user of [U1, U2]) await saveSubscription(store, user, { endpoint: `https://push.example/${user}`, p256dh: 'p', auth: 'a', createdAt: NOW });
+  for (const user of [U1, U2]) await saveSubscription(store, user, { endpoint: `https://fcm.googleapis.com/fcm/send/${user}`, p256dh: 'p', auth: 'a', createdAt: NOW });
   return { store, ctx1: (await loadContext(store, U1))!, ctx2: (await loadContext(store, U2))!, householdId };
 }
 

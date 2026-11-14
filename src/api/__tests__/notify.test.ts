@@ -52,7 +52,7 @@ beforeEach(async () => {
   householdId = (await call(U1, 'POST', '/api/households', mut({ name: 'Home', displayName: 'Sam', timezone: 'Europe/London' }))).json.householdId;
   await getStore().put({ PK: hhPk(householdId), SK: memberSk(U2), displayName: 'Alex', settings: DEFAULT_SETTINGS, joinedAt: '2026-11-13T11:00:00.000Z' });
   await getStore().put({ ...membershipKey(U2), householdId });
-  for (const user of [U1, U2]) await saveSubscription(getStore(), user, { endpoint: `https://push.example/${user}`, p256dh: 'p', auth: 'a', createdAt: NOW });
+  for (const user of [U1, U2]) await saveSubscription(getStore(), user, { endpoint: `https://fcm.googleapis.com/fcm/send/${user}`, p256dh: 'p', auth: 'a', createdAt: NOW });
 });
 afterEach(() => { setStore(undefined); setSender(undefined); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -60,7 +60,7 @@ describe('Let them know on a task', () => {
   it('sends the other member one push before the response returns, and never the person who made the change', async () => {
     const res = await call(U1, 'POST', '/api/hh/tasks', task({ notify: true, clientAt: AT }));
     expect(res.status).toBe(201);
-    expect(sent.map(s => s.endpoint)).toEqual([`https://push.example/${U2}`]);
+    expect(sent.map(s => s.endpoint)).toEqual([`https://fcm.googleapis.com/fcm/send/${U2}`]);
     expect(sent[0].payload).toMatchObject({ title: 'Sam added a task', body: 'Hoover' });
     expect(sent[0].payload.tag).toMatch(/^notify-/);
   });

@@ -23,11 +23,13 @@ export const mutationKeys: { [K in MutationKind]: readonly ['household', K] } = 
   propose: ['household', 'propose'], accept: ['household', 'accept'], decline: ['household', 'decline'], withdraw: ['household', 'withdraw'],
 };
 
-// What every mutation carries: its id (the server's write record key), the client time of the action, and who made it.
+// What every mutation carries: its id (the server's write record key), the client time of the action, who made it, and whether they
+// ticked "Let them know" for it.
 interface Common {
   mutationId: string;
   at: number;
   by: string;
+  notify?: boolean;
 }
 
 export interface NewTask {
@@ -77,6 +79,16 @@ type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
 
 const send = (request: Request, method: string, path: string, body: object): Promise<unknown> =>
   request(path, { method, body: JSON.stringify(body) });
+
+// A write that asked to let the other person know carries `notify: true` in its body. The server sends nothing otherwise, and ignores it
+// on a write it does not announce.
+function withNotify(request: Request, notify: boolean | undefined): Request {
+  if (notify !== true) return request;
+  return (endpoint, options) => {
+    if (typeof options?.body !== 'string') return request(endpoint, options);
+    return request(endpoint, { ...options, body: JSON.stringify({ ...(JSON.parse(options.body) as object), notify: true }) });
+  };
+}
 
 // The caller's tasks with every earlier pending write applied, but not the write now running (it names itself by its mutation id).
 type GetData = (exceptMutationId?: string) => TasksData;
@@ -221,7 +233,7 @@ export function registerMutations(
       mutationFn: guarded(guard, (variables: MutationVars[typeof kind]) => {
         const data = getData(variables.mutationId);
         const run = RUNNERS[kind] as Runner<MutationKind>;
-        return run(variables, request, taskId => data.tasks.find(task => task.id === taskId));
+        return run(variables, withNotify(request, variables.notify), taskId => data.tasks.find(task => task.id === taskId));
       }),
       onError: (error: unknown, variables: MutationVars[typeof kind]) => {
         const message = describeFailure(error);
@@ -240,7 +252,7 @@ export function registerMutations(
     client.setMutationDefaults(itemMutationKeys[kind], {
       ...OFFLINE_DEFAULTS,
       scope: { id: 'household' },
-      mutationFn: guarded(guard, (variables: ItemMutationVars[typeof kind]) => (ITEM_RUNNERS[kind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, request)),
+      mutationFn: guarded(guard, (variables: ItemMutationVars[typeof kind]) => (ITEM_RUNNERS[kind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, withNotify(request, variables.notify))),
       onError: (error: unknown) => {
         const message = describeFailure(error);
         if (message) report(message);

@@ -22,7 +22,7 @@ describe('notifyOther', () => {
   it('sends the other member one push, never the person who made the change', async () => {
     const { sender, input } = await setup();
     await notifyOther(input());
-    expect(sender.sent.map(s => s.endpoint)).toEqual([`https://push.example/${U2}`]);
+    expect(sender.sent.map(s => s.endpoint)).toEqual([`https://fcm.googleapis.com/fcm/send/${U2}`]);
     expect(sender.sent[0].payload).toMatchObject({ title: 'Alex did Hoover', body: 'Hoover is done', tag: 'notify-m1' });
   });
 

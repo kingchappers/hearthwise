@@ -1,32 +1,12 @@
+import { isPushEndpoint } from './pushEndpoint';
 import { bad, good, isObject, unknownKey } from './validation';
 import type { Parsed } from './validation';
 
 const MAX_ENDPOINT = 2000;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 
-// The server calls this address, so it must be a real push service and nothing a caller can aim at the server's own network:
-// https only, the default port, no credentials, and a host that is (or is under) a known push service. Hosts that are IP
-// literals never match.
-const PUSH_HOSTS = [
-  'fcm.googleapis.com',
-  'push.services.mozilla.com',
-  'push.apple.com',
-  'notify.windows.com',
-];
-
-function isPushHost(hostname: string): boolean {
-  return PUSH_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`));
-}
-
 function parseEndpoint(value: unknown): Parsed<string> {
-  if (typeof value !== 'string' || value.length > MAX_ENDPOINT) return bad('endpoint');
-  try {
-    const url = new URL(value);
-    const plain = url.protocol === 'https:' && url.port === '' && url.username === '' && url.password === '';
-    return plain && isPushHost(url.hostname) ? good(value) : bad('endpoint');
-  } catch {
-    return bad('endpoint');
-  }
+  return typeof value === 'string' && value.length <= MAX_ENDPOINT && isPushEndpoint(value) ? good(value) : bad('endpoint');
 }
 
 const key = (value: unknown, min: number, max: number, field: string): Parsed<string> =>
@@ -51,6 +31,7 @@ export function parseSubscribeBody(body: Record<string, unknown>): Parsed<{ endp
 export function parseUnsubscribeBody(body: Record<string, unknown>): Parsed<{ endpoint: string }> {
   const extra = unknownKey(body, ['endpoint'], '');
   if (extra) return bad(extra);
-  const endpoint = parseEndpoint(body.endpoint);
-  return endpoint.ok ? good({ endpoint: endpoint.value }) : endpoint;
+  // Any address a device was saved under can be taken away, whatever the rules were when it was saved.
+  const { endpoint } = body;
+  return typeof endpoint === 'string' && endpoint.length >= 1 && endpoint.length <= MAX_ENDPOINT ? good({ endpoint }) : bad('endpoint');
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
-import { listSubscribedUsers, loadSubscriptions } from '../../push/subscriptions';
+import { listSubscribedUsers, loadSubscriptions, saveSubscription } from '../../push/subscriptions';
 import { getStore, setStore } from '../../store';
 import { MemoryStore } from '../../store/memory';
 import { registerPushRoutes } from '../push';
@@ -85,6 +85,12 @@ describe('unsubscribing', () => {
     expect((await call('DELETE', { endpoint: URL_OK })).status).toBe(204);
     expect(await loadSubscriptions(getStore(), 'auth0|u1')).toEqual([]);
     expect((await call('DELETE', { endpoint: URL_OK })).status).toBe(204);
+  });
+
+  it('removes a stored device whatever its address, so nothing is left that cannot be taken away', async () => {
+    await saveSubscription(getStore(), 'auth0|u1', { endpoint: 'https://old.example/legacy', p256dh: 'p', auth: 'a', createdAt: 1 });
+    expect((await call('DELETE', { endpoint: 'https://old.example/legacy' })).status).toBe(204);
+    expect(await loadSubscriptions(getStore(), 'auth0|u1')).toEqual([]);
   });
 
   it('cannot remove somebody else\'s device', async () => {

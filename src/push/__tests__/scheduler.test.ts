@@ -17,7 +17,7 @@ describe('digest', () => {
     const sender = fakeSender();
     await Promise.all([runSchedule(store, sender, at('2026-11-13T19:00:00Z')), runSchedule(store, sender, at('2026-11-13T19:00:00Z'))]);
     expect(sender.sent.filter(s => s.payload.tag === 'digest-2026-11-13')).toHaveLength(1);
-    expect(sender.sent[0].endpoint).toBe(`https://push.example/${U1}`);
+    expect(sender.sent[0].endpoint).toBe(`https://fcm.googleapis.com/fcm/send/${U1}`);
   });
 
   it('is sent once in a day: a second run in the window sends nothing', async () => {
@@ -125,7 +125,7 @@ describe('held pushes', () => {
 describe('a held push for someone who has left the household', () => {
   it('is deleted and never sent to them', async () => {
     const { store, householdId } = await twoMemberHousehold();
-    await saveSubscription(store, 'auth0|gone', { endpoint: 'https://push.example/gone', p256dh: 'p', auth: 'a', createdAt: NOW });
+    await saveSubscription(store, 'auth0|gone', { endpoint: 'https://fcm.googleapis.com/fcm/send/gone', p256dh: 'p', auth: 'a', createdAt: NOW });
     await store.put({
       ...heldKey(householdId, 'auth0|gone', 1, 'notify-m9'), recipient: 'auth0|gone', title: 'Sam added milk', body: 'milk', tag: 'notify-m9',
       releaseAt: NOW - 1000, expiresAt: Math.floor(NOW / 1000) + 3600,
@@ -145,7 +145,7 @@ describe('who gets what (CUJ 8)', () => {
     const sender = fakeSender();
     await runSchedule(store, sender, at('2026-11-13T19:00:00Z'));
     expect(sender.sent).toHaveLength(1);
-    expect(sender.sent[0]).toMatchObject({ endpoint: `https://push.example/${U1}`, payload: { tag: 'digest-2026-11-13' } });
+    expect(sender.sent[0]).toMatchObject({ endpoint: `https://fcm.googleapis.com/fcm/send/${U1}`, payload: { tag: 'digest-2026-11-13' } });
   });
 });
 
