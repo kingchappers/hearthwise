@@ -12,6 +12,7 @@ import type { CalendarMutationVars } from './mutations';
 import type { PendingMutation } from './overlay';
 import { displayTitle, usePlan } from './plan';
 import { currentSettledCount, useTasks } from './queries';
+import { useNow } from './useNow';
 
 export { CALENDAR_KEY };
 
@@ -51,6 +52,7 @@ export function useCalendar(): CalendarState {
   const { request } = useProtectedApi();
   const client = useQueryClient();
   const household = useHousehold();
+  const now = useNow();
 
   const query = useQuery({
     queryKey: CALENDAR_KEY,
@@ -87,7 +89,7 @@ export function useCalendar(): CalendarState {
     me: household.data?.me.userId ?? '',
     members: household.data?.members ?? [],
     timezone,
-    today: dayInZone(Date.now(), timezone),
+    today: dayInZone(now, timezone),
     unsaved: calendarPending.length,
     unsavedIds,
     dataUpdatedAt: query.dataUpdatedAt || undefined,

@@ -105,6 +105,13 @@ describe('DefaultLayout navigation', () => {
     expect(within(tabBar).getByRole('link', { name: 'Money' })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('keeps Plan current on the calendar page under it', () => {
+    renderLayout(<p>page</p>, '/plan/calendar');
+    const tabBar = screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(tabBar).getByRole('link', { name: 'Plan' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabBar).getByRole('link', { name: 'Today' })).not.toHaveAttribute('aria-current');
+  });
+
   it('keeps Today current only on the home page', () => {
     renderLayout(<p>page</p>, '/settings');
     const tabBar = screen.getByRole('navigation', { name: 'Primary' });
