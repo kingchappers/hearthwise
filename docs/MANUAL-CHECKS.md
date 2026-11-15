@@ -41,8 +41,24 @@ Record the date, the app version and the result of each line in the pull request
 - [ ] Check that no screen relies on colour alone: the low-energy mark, "On the list", "Not adding" and "Not scaled" all say it in words.
 - [ ] The month-later check (the success measure): after a month, the whiteboard is gone and neither person has to decide at 5pm what to eat. If not, note what is still missing.
 
+## Money (phase 3)
+
+Needs two real phones, one signed in as each person.
+
+- [ ] Record a real loan and a real shared expense from each phone, then compare the total on the Money page with a hand count of the same entries. They match to the penny.
+- [ ] Agree an entry on the other phone, and ask for a check on another. The waiting entry becomes agreed or stays waiting as expected, and only agreed entries count in the total.
+- [ ] Record a repayment against a loan on the other phone. The loan's "paid back" progress moves, and paying back more than is left is allowed and still counted.
+- [ ] Change an agreed entry (the amount, then only its description) and delete another. A change to the amount waits for the other person; a description edit does not. Deleted entries show on the Deleted page and can be restored.
+- [ ] Use Money in airplane mode: the last copy shows, an entry added offline says it is not saved yet, and it appears once on the other phone when the signal returns.
+- [ ] Add the same payment from both phones at about the same time. The hint about a matching entry shows, and nothing is lost or doubled by one add.
+- [ ] Check that no screen relies on colour alone: waiting, agreed, declined, "Needs another look" and settled all say it in words.
+- [ ] Six tabs at the largest text size (go/no-go): at 360px wide with the largest text size in Settings, all six tab labels (Today, Plan, Recipes, Shopping, Money, Settings) can be read and hit with a thumb, and none is cut off or overlaps. If they do not fit, say so: the design allows moving a tab into a menu.
+- [ ] Look at the signed-out page at 360px wide and the largest text size. In an automated look the page was about 9px wider than the screen. It was not the tab bar and the cause was not traced; check whether the page scrolls sideways and note what is wider than the screen.
+- [ ] The month-later check (the success measure): after a month, both people have put in their shared expenses and loans, the total matched a hand count, and neither person tracks the balance anywhere else. If not, note what is still missing.
+
 ## Reading and touch
 
 - [ ] Every screen at the largest text size and with reduce motion on (Settings): nothing is cut off, no two controls overlap, and every button is easy to hit with a thumb.
 - [ ] No screen uses the words overdue, missed or streak.
 - [ ] Phase 2 screens (Plan, Recipes, the cooking view, the add review): the same, and none says forgot, skipped, incomplete, missing or unplanned.
+- [ ] Phase 3 screens (Money, an entry, the add sheet): the same, and none says owe, owed, debt, unpaid or behind.
