@@ -338,7 +338,7 @@ describe('the meal mutations', () => {
   beforeEach(() => { window.localStorage.clear(); });
 
   it('are registered with the household scope too', () => {
-    for (const kind of ['recipeAdd', 'recipeEdit', 'recipeDelete', 'recipeRestore'] as MealMutationKind[]) {
+    for (const kind of ['recipeAdd', 'recipeEdit', 'recipeDelete', 'recipeRestore', 'planSet'] as MealMutationKind[]) {
       const defaults = client.getMutationDefaults(mealMutationKeys[kind]);
       expect(defaults.mutationFn, kind).toBeTypeOf('function');
       expect(defaults.scope, kind).toEqual({ id: 'household' });
@@ -373,6 +373,22 @@ describe('the meal mutations', () => {
     await runMeal('recipeRestore', { recipeIds: ['a', 'b'] });
     expect(call()[0]).toBe('/api/hh/restore');
     expect(body().entries).toEqual([{ kind: 'recipe', id: 'a' }, { kind: 'recipe', id: 'b' }]);
+  });
+
+  it('planSet puts the meal and its time to the day, and clears it with null', async () => {
+    await runMeal('planSet', { day: '2026-11-16', meal: { recipeId: 'r1', title: 'Chilli', servings: 4 } });
+    expect(call()[0]).toBe('/api/hh/plan/2026-11-16');
+    expect(call()[1].method).toBe('PUT');
+    expect(body()).toEqual({ mutationId: 'a'.repeat(8) + '-0000-4000-8000-000000000001', clientAt: AT, meal: { recipeId: 'r1', title: 'Chilli', servings: 4 }, mealAt: AT });
+    await runMeal('planSet', { day: '2026-11-16', meal: null });
+    expect(body().meal).toBeNull();
+  });
+
+  it('planSet refreshes the plan, and not the recipes', async () => {
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await runMeal('planSet', { day: '2026-11-16', meal: null });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['plan'] });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['recipes'] });
   });
 
   it('refresh the recipes when a write settles', async () => {

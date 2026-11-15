@@ -14,6 +14,7 @@ import { ITEMS_KEY } from './items';
 import { noteMutationSettled, TASKS_KEY } from './queries';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
 import type { RecipeChanges } from './recipeFields';
+import { PLAN_KEY } from './planKeys';
 import { RECIPES_KEY } from './recipeKeys';
 import { retryDelay, shouldRetry } from './retryRules';
 
@@ -79,10 +80,12 @@ export interface ItemMutationVars {
   itemRestore: Common & { itemIds: string[] };
 }
 
-export type MealMutationKind = 'recipeAdd' | 'recipeEdit' | 'recipeDelete' | 'recipeRestore';
+export type RecipeMutationKind = 'recipeAdd' | 'recipeEdit' | 'recipeDelete' | 'recipeRestore';
+export type MealMutationKind = RecipeMutationKind | 'planSet';
 
 export const mealMutationKeys: { [K in MealMutationKind]: readonly ['household', K] } = {
   recipeAdd: ['household', 'recipeAdd'], recipeEdit: ['household', 'recipeEdit'], recipeDelete: ['household', 'recipeDelete'], recipeRestore: ['household', 'recipeRestore'],
+  planSet: ['household', 'planSet'],
 };
 
 export interface NewRecipe {
@@ -103,6 +106,8 @@ export interface MealMutationVars {
   recipeEdit: Common & { recipeId: string; changes: RecipeChanges };
   recipeDelete: Common & { recipeId: string };
   recipeRestore: Common & { recipeIds: string[] };
+  // A dinner on a plan day, or null to clear the day.
+  planSet: Common & { day: string; meal: { recipeId?: string; title: string; servings?: number } | null };
 }
 
 type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
@@ -218,6 +223,7 @@ const MEAL_RUNNERS: { [K in MealMutationKind]: (vars: MealMutationVars[K], reque
   recipeEdit: (v, request) => send(request, 'PUT', `/api/hh/recipes/${v.recipeId}`, recipeBody(v.changes, v.mutationId, v.at)),
   recipeDelete: (v, request) => send(request, 'DELETE', `/api/hh/recipes/${v.recipeId}`, { mutationId: v.mutationId, clientAt: v.at }),
   recipeRestore: (v, request) => send(request, 'POST', '/api/hh/restore', { mutationId: v.mutationId, clientAt: v.at, entries: v.recipeIds.map(id => ({ kind: 'recipe', id })) }),
+  planSet: (v, request) => send(request, 'PUT', `/api/hh/plan/${v.day}`, { mutationId: v.mutationId, clientAt: v.at, meal: v.meal, mealAt: v.at }),
 };
 
 // What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
@@ -279,7 +285,8 @@ interface MutationSet {
   keys: Record<string, readonly ['household', string]>;
   // Runs one kind. `variables.mutationId` names the write now running.
   run: (kind: string, variables: never, request: Request) => Promise<unknown>;
-  invalidate: QueryKey[];
+  // What to refresh when a write of this kind settles.
+  invalidate: (kind: string) => QueryKey[];
   onError: (kind: string, error: unknown, variables: never) => void;
   onSuccess?: (kind: string, variables: never) => void;
 }
@@ -296,7 +303,7 @@ function registerSet(client: QueryClient, request: Request, guard: OwnerGuard | 
       onError: (error: unknown, variables: Common) => set.onError(kind, error, variables as never),
       onSettled: () => {
         noteMutationSettled();
-        for (const queryKey of set.invalidate) void client.invalidateQueries({ queryKey });
+        for (const queryKey of set.invalidate(kind)) void client.invalidateQueries({ queryKey });
       },
     });
   }
@@ -312,7 +319,7 @@ export function registerMutations(
       const run = RUNNERS[kind as MutationKind] as Runner<MutationKind>;
       return run(variables, send, taskId => data.tasks.find(task => task.id === taskId));
     },
-    invalidate: [TASKS_KEY],
+    invalidate: () => [TASKS_KEY],
     onError: (kind, error, variables: MutationVars[MutationKind]) => {
       const message = describeFailure(error);
       if (!message) return;
@@ -326,7 +333,7 @@ export function registerMutations(
     keys: itemMutationKeys,
     run: (kind, variables: ItemMutationVars[ItemMutationKind], send) =>
       (ITEM_RUNNERS[kind as ItemMutationKind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, send),
-    invalidate: [ITEMS_KEY],
+    invalidate: () => [ITEMS_KEY],
     onError: (_kind, error) => {
       const message = describeFailure(error);
       if (message) report(message);
@@ -337,7 +344,7 @@ export function registerMutations(
     keys: mealMutationKeys,
     run: (kind, variables: MealMutationVars[MealMutationKind], send) =>
       (MEAL_RUNNERS[kind as MealMutationKind] as (vars: MealMutationVars[MealMutationKind], request: Request) => Promise<unknown>)(variables, send),
-    invalidate: [RECIPES_KEY],
+    invalidate: kind => (kind === 'planSet' ? [PLAN_KEY] : [RECIPES_KEY]),
     // Registered here, not in a component, so they still run after a reload replays a saved write.
     onSuccess: (kind, variables: MealMutationVars[MealMutationKind]) => {
       if (kind === 'recipeAdd') {
