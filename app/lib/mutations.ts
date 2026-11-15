@@ -2,7 +2,8 @@
 // writes run one at a time, in order. Components use `useMutation({ mutationKey })` and nothing else, so step 5 can persist and replay
 // them from this one place. A household write defined anywhere else would be lost on a reload.
 import { MutationObserver, useMutation } from '@tanstack/react-query';
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient, QueryKey } from '@tanstack/react-query';
+import type { MealType } from '../../src/meals/types';
 import type { Repeat } from '../../src/shared/schedule';
 import { needsProposal } from '../../src/tasks/ownership';
 import type { Caller } from '../../src/tasks/ownership';
@@ -11,6 +12,9 @@ import { ApiError } from './apiError';
 import type { TasksData } from './overlay';
 import { ITEMS_KEY } from './items';
 import { noteMutationSettled, TASKS_KEY } from './queries';
+import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
+import type { RecipeChanges } from './recipeFields';
+import { RECIPES_KEY } from './recipeKeys';
 import { retryDelay, shouldRetry } from './retryRules';
 
 export type MutationKind =
@@ -73,6 +77,32 @@ export interface ItemMutationVars {
   // Each ticked item with the time it was ticked, as this phone saw it: the server keeps one that was changed since.
   itemClear: Common & { entries: { id: string; ifTickedAt: number }[] };
   itemRestore: Common & { itemIds: string[] };
+}
+
+export type MealMutationKind = 'recipeAdd' | 'recipeEdit' | 'recipeDelete' | 'recipeRestore';
+
+export const mealMutationKeys: { [K in MealMutationKind]: readonly ['household', K] } = {
+  recipeAdd: ['household', 'recipeAdd'], recipeEdit: ['household', 'recipeEdit'], recipeDelete: ['household', 'recipeDelete'], recipeRestore: ['household', 'recipeRestore'],
+};
+
+export interface NewRecipe {
+  id: string;
+  title: string;
+  mealType?: MealType;
+  servings?: number;
+  minutes?: number;
+  lowEnergy?: boolean;
+  nutrition?: string;
+  ingredients?: string[];
+  steps?: string[];
+}
+
+export interface MealMutationVars {
+  recipeAdd: Common & { recipe: NewRecipe };
+  // Only the fields the person changed.
+  recipeEdit: Common & { recipeId: string; changes: RecipeChanges };
+  recipeDelete: Common & { recipeId: string };
+  recipeRestore: Common & { recipeIds: string[] };
 }
 
 type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
@@ -170,12 +200,34 @@ const ITEM_RUNNERS: { [K in ItemMutationKind]: (vars: ItemMutationVars[K], reque
   itemRestore: (v, request) => send(request, 'POST', '/api/hh/restore', { mutationId: v.mutationId, clientAt: v.at, entries: v.itemIds.map(id => ({ kind: 'item', id })) }),
 };
 
+const RECIPE_FIELDS = ['title', 'mealType', 'servings', 'minutes', 'lowEnergy', 'nutrition', 'ingredients', 'steps'] as const;
+
+// Each field that is set goes with its own time. `minutes: null` and an empty `nutrition` are sent, because they clear their fields.
+function recipeBody(fields: RecipeChanges & { title?: string }, mutationId: string, at: number): Record<string, unknown> {
+  const body: Record<string, unknown> = { mutationId, clientAt: at };
+  for (const field of RECIPE_FIELDS) {
+    if (fields[field] === undefined) continue;
+    body[field] = fields[field];
+    body[`${field}At`] = at;
+  }
+  return body;
+}
+
+const MEAL_RUNNERS: { [K in MealMutationKind]: (vars: MealMutationVars[K], request: Request) => Promise<unknown> } = {
+  recipeAdd: (v, request) => send(request, 'PUT', `/api/hh/recipes/${v.recipe.id}`, recipeBody(v.recipe, v.mutationId, v.at)),
+  recipeEdit: (v, request) => send(request, 'PUT', `/api/hh/recipes/${v.recipeId}`, recipeBody(v.changes, v.mutationId, v.at)),
+  recipeDelete: (v, request) => send(request, 'DELETE', `/api/hh/recipes/${v.recipeId}`, { mutationId: v.mutationId, clientAt: v.at }),
+  recipeRestore: (v, request) => send(request, 'POST', '/api/hh/restore', { mutationId: v.mutationId, clientAt: v.at, entries: v.recipeIds.map(id => ({ kind: 'recipe', id })) }),
+};
+
 // What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
 // error that is still being retried says nothing (retryRules.ts); one that has used up its tries, or that the server refused, does.
 // A write dropped because someone else is now signed in says nothing.
-export function describeFailure(error: unknown): string | undefined {
+export function describeFailure(error: unknown, kind?: string): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
   if (error.code === 'wrong_user') return undefined;
+  if (error.code === 'recipe_limit') return 'This household has reached 200 recipes.';
+  if (error.status === 400 && (kind === 'recipeAdd' || kind === 'recipeEdit')) return "That recipe couldn't be saved. Please check its length.";
   if (error.status === 409) return 'This changed on another phone. Please check it and try again.';
   if (error.status === 410) return 'That was deleted on another phone.';
   if (error.status === 403 && error.code === 'proposal_required') return 'That change needs their say. Ask them instead.';
@@ -223,46 +275,90 @@ function guarded<V, R>(guard: OwnerGuard | undefined, run: (variables: V) => Pro
 // retried by the shared rules, and backed off by them.
 const OFFLINE_DEFAULTS = { networkMode: 'online' as const, retry: shouldRetry, retryDelay };
 
+interface MutationSet {
+  keys: Record<string, readonly ['household', string]>;
+  // Runs one kind. `variables.mutationId` names the write now running.
+  run: (kind: string, variables: never, request: Request) => Promise<unknown>;
+  invalidate: QueryKey[];
+  onError: (kind: string, error: unknown, variables: never) => void;
+  onSuccess?: (kind: string, variables: never) => void;
+}
+
+// Registers every kind of one set the same way: household scope, the offline defaults, the owner guard, and a refresh of the set's own
+// queries when a write settles.
+function registerSet(client: QueryClient, request: Request, guard: OwnerGuard | undefined, set: MutationSet): void {
+  for (const kind of Object.keys(set.keys)) {
+    client.setMutationDefaults(set.keys[kind], {
+      ...OFFLINE_DEFAULTS,
+      scope: { id: 'household' },
+      mutationFn: guarded(guard, (variables: Common) => set.run(kind, variables as never, withNotify(request, variables.notify))),
+      onSuccess: (_data: unknown, variables: Common) => set.onSuccess?.(kind, variables as never),
+      onError: (error: unknown, variables: Common) => set.onError(kind, error, variables as never),
+      onSettled: () => {
+        noteMutationSettled();
+        for (const queryKey of set.invalidate) void client.invalidateQueries({ queryKey });
+      },
+    });
+  }
+}
+
 export function registerMutations(
   client: QueryClient, request: Request, getData: GetData, report: (message: string, options?: { ask?: () => void }) => void, guard?: OwnerGuard,
 ): void {
-  for (const kind of Object.keys(mutationKeys) as MutationKind[]) {
-    client.setMutationDefaults(mutationKeys[kind], {
-      ...OFFLINE_DEFAULTS,
-      scope: { id: 'household' },
-      mutationFn: guarded(guard, (variables: MutationVars[typeof kind]) => {
-        const data = getData(variables.mutationId);
-        const run = RUNNERS[kind] as Runner<MutationKind>;
-        return run(variables, withNotify(request, variables.notify), taskId => data.tasks.find(task => task.id === taskId));
-      }),
-      onError: (error: unknown, variables: MutationVars[typeof kind]) => {
-        const message = describeFailure(error);
-        if (!message) return;
-        const proposalRequired = error instanceof ApiError && error.code === 'proposal_required';
-        const ask = proposalRequired ? askInstead(client, kind, variables) : undefined;
-        report(message, ask ? { ask } : undefined);
-      },
-      onSettled: () => {
-        noteMutationSettled();
-        void client.invalidateQueries({ queryKey: TASKS_KEY });
-      },
-    });
-  }
-  for (const kind of Object.keys(itemMutationKeys) as ItemMutationKind[]) {
-    client.setMutationDefaults(itemMutationKeys[kind], {
-      ...OFFLINE_DEFAULTS,
-      scope: { id: 'household' },
-      mutationFn: guarded(guard, (variables: ItemMutationVars[typeof kind]) => (ITEM_RUNNERS[kind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, withNotify(request, variables.notify))),
-      onError: (error: unknown) => {
-        const message = describeFailure(error);
-        if (message) report(message);
-      },
-      onSettled: () => {
-        noteMutationSettled();
-        void client.invalidateQueries({ queryKey: ITEMS_KEY });
-      },
-    });
-  }
+  registerSet(client, request, guard, {
+    keys: mutationKeys,
+    run: (kind, variables: MutationVars[MutationKind], send) => {
+      const data = getData(variables.mutationId);
+      const run = RUNNERS[kind as MutationKind] as Runner<MutationKind>;
+      return run(variables, send, taskId => data.tasks.find(task => task.id === taskId));
+    },
+    invalidate: [TASKS_KEY],
+    onError: (kind, error, variables: MutationVars[MutationKind]) => {
+      const message = describeFailure(error);
+      if (!message) return;
+      const proposalRequired = error instanceof ApiError && error.code === 'proposal_required';
+      const ask = proposalRequired ? askInstead(client, kind as MutationKind, variables) : undefined;
+      report(message, ask ? { ask } : undefined);
+    },
+  });
+
+  registerSet(client, request, guard, {
+    keys: itemMutationKeys,
+    run: (kind, variables: ItemMutationVars[ItemMutationKind], send) =>
+      (ITEM_RUNNERS[kind as ItemMutationKind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, send),
+    invalidate: [ITEMS_KEY],
+    onError: (_kind, error) => {
+      const message = describeFailure(error);
+      if (message) report(message);
+    },
+  });
+
+  registerSet(client, request, guard, {
+    keys: mealMutationKeys,
+    run: (kind, variables: MealMutationVars[MealMutationKind], send) =>
+      (MEAL_RUNNERS[kind as MealMutationKind] as (vars: MealMutationVars[MealMutationKind], request: Request) => Promise<unknown>)(variables, send),
+    invalidate: [RECIPES_KEY],
+    // Registered here, not in a component, so they still run after a reload replays a saved write.
+    onSuccess: (kind, variables: MealMutationVars[MealMutationKind]) => {
+      if (kind === 'recipeAdd') {
+        const { recipe, by } = variables as MealMutationVars['recipeAdd'];
+        removeDraft(by, NEW_DRAFT);
+        removeDraft(by, recipe.id);
+      } else if (kind === 'recipeEdit') {
+        const { recipeId, by } = variables as MealMutationVars['recipeEdit'];
+        removeDraft(by, recipeId);
+      }
+    },
+    onError: (kind, error, variables: MealMutationVars[MealMutationKind]) => {
+      const message = describeFailure(error, kind);
+      if (!message) return;
+      report(message);
+      const refused = error instanceof ApiError && (error.status === 400 || error.status === 409 || error.status === 410);
+      if (!refused) return;
+      if (kind === 'recipeAdd') markRefused(variables.by, (variables as MealMutationVars['recipeAdd']).recipe.id, message);
+      else if (kind === 'recipeEdit') markRefused(variables.by, (variables as MealMutationVars['recipeEdit']).recipeId, message);
+    },
+  });
 }
 
 // The one way a component runs a household mutation: by key. Its function is the registered default.
@@ -272,6 +368,10 @@ export function useHouseholdMutation<K extends MutationKind>(kind: K) {
 
 export function useItemMutation<K extends ItemMutationKind>(kind: K) {
   return useMutation<unknown, Error, ItemMutationVars[K]>({ mutationKey: itemMutationKeys[kind] });
+}
+
+export function useMealMutation<K extends MealMutationKind>(kind: K) {
+  return useMutation<unknown, Error, MealMutationVars[K]>({ mutationKey: mealMutationKeys[kind] });
 }
 
 export type PlannedMutation =

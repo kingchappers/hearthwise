@@ -3,9 +3,11 @@ import { MutationObserver, QueryClient } from '@tanstack/react-query';
 import type { Task } from '../../../src/tasks/types';
 import { ApiError } from '../apiError';
 import type { TasksData } from '../overlay';
-import { itemMutationKeys, mutationKeys, planCreate, registerMutations } from '../mutations';
+import { describeFailure, itemMutationKeys, mealMutationKeys, mutationKeys, planCreate, registerMutations } from '../mutations';
+import { readDraft, saveDraft } from '../recipeDraft';
+import { EMPTY_FIELDS } from '../recipeFields';
 import { retryDelay, shouldRetry } from '../retryRules';
-import type { ItemMutationKind, MutationKind } from '../mutations';
+import type { ItemMutationKind, MealMutationKind, MutationKind } from '../mutations';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ME = 'auth0|me';
@@ -250,7 +252,7 @@ describe('the item mutations', () => {
 
 describe('what every household mutation carries for offline use', () => {
   it('is online-only, retried by the shared rules, and backed off by them', () => {
-    for (const key of [...Object.values(mutationKeys), ...Object.values(itemMutationKeys)]) {
+    for (const key of [...Object.values(mutationKeys), ...Object.values(itemMutationKeys), ...Object.values(mealMutationKeys)]) {
       const defaults = client.getMutationDefaults(key);
       expect(defaults.networkMode, key.join('/')).toBe('online');
       expect(defaults.retry, key.join('/')).toBe(shouldRetry);
@@ -325,5 +327,104 @@ describe('Let them know', () => {
   it('leaves a write with no body alone', async () => {
     await run('uncomplete', { taskId: 't1', cycleSeq: 3, previous: { checklistState: {} }, notify: true });
     expect(call()[1].method).toBe('DELETE');
+  });
+});
+
+describe('the meal mutations', () => {
+  const AT = 1_800_000_000_000;
+  const runMeal = (kind: MealMutationKind, variables: Record<string, unknown>) =>
+    new MutationObserver(client, { mutationKey: mealMutationKeys[kind] }).mutate({ mutationId: 'a'.repeat(8) + '-0000-4000-8000-000000000001', at: AT, by: ME, ...variables } as never);
+
+  beforeEach(() => { window.localStorage.clear(); });
+
+  it('are registered with the household scope too', () => {
+    for (const kind of ['recipeAdd', 'recipeEdit', 'recipeDelete', 'recipeRestore'] as MealMutationKind[]) {
+      const defaults = client.getMutationDefaults(mealMutationKeys[kind]);
+      expect(defaults.mutationFn, kind).toBeTypeOf('function');
+      expect(defaults.scope, kind).toEqual({ id: 'household' });
+    }
+  });
+
+  it('add puts the recipe with its title, and each other field it was given, each with its time', async () => {
+    await runMeal('recipeAdd', { recipe: { id: 'r9', title: 'Chilli', servings: 4, ingredients: ['2 onions'], lowEnergy: true } });
+    expect(call()[0]).toBe('/api/hh/recipes/r9');
+    expect(call()[1].method).toBe('PUT');
+    expect(body()).toEqual({
+      mutationId: 'a'.repeat(8) + '-0000-4000-8000-000000000001', clientAt: AT, title: 'Chilli', titleAt: AT, servings: 4, servingsAt: AT,
+      ingredients: ['2 onions'], ingredientsAt: AT, lowEnergy: true, lowEnergyAt: AT,
+    });
+  });
+
+  it('edit puts only the changed fields, and sends null and an empty note to clear', async () => {
+    await runMeal('recipeEdit', { recipeId: 'r1', changes: { title: 'Chili', minutes: null, nutrition: '' } });
+    expect(call()[0]).toBe('/api/hh/recipes/r1');
+    expect(body()).toMatchObject({ title: 'Chili', titleAt: AT, minutes: null, minutesAt: AT, nutrition: '', nutritionAt: AT });
+    expect(body().steps).toBeUndefined();
+    expect(body().servings).toBeUndefined();
+  });
+
+  it('delete deletes the recipe', async () => {
+    await runMeal('recipeDelete', { recipeId: 'r1' });
+    expect(call()[0]).toBe('/api/hh/recipes/r1');
+    expect(call()[1].method).toBe('DELETE');
+  });
+
+  it('restore posts one entry per recipe', async () => {
+    await runMeal('recipeRestore', { recipeIds: ['a', 'b'] });
+    expect(call()[0]).toBe('/api/hh/restore');
+    expect(body().entries).toEqual([{ kind: 'recipe', id: 'a' }, { kind: 'recipe', id: 'b' }]);
+  });
+
+  it('refresh the recipes when a write settles', async () => {
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await runMeal('recipeDelete', { recipeId: 'r1' });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['recipes'] });
+  });
+
+  it('remove the draft when an add or an edit is accepted, even one made after a reload', async () => {
+    saveDraft(ME, 'new', { recipeId: 'r9', base: EMPTY_FIELDS, fields: EMPTY_FIELDS });
+    saveDraft(ME, 'r9', { recipeId: 'r9', base: EMPTY_FIELDS, fields: EMPTY_FIELDS });
+    await runMeal('recipeAdd', { recipe: { id: 'r9', title: 'Chilli' } });
+    expect(readDraft(ME, 'new')).toBeUndefined();
+    expect(readDraft(ME, 'r9')).toBeUndefined();
+
+    saveDraft(ME, 'r1', { recipeId: 'r1', base: EMPTY_FIELDS, fields: EMPTY_FIELDS });
+    await runMeal('recipeEdit', { recipeId: 'r1', changes: { title: 'x' } });
+    expect(readDraft(ME, 'r1')).toBeUndefined();
+  });
+
+  it('keep the draft, with the cause, when the server refuses the save', async () => {
+    saveDraft(ME, 'r1', { recipeId: 'r1', base: EMPTY_FIELDS, fields: EMPTY_FIELDS });
+    request.mockRejectedValueOnce(new ApiError(400, 'Bad Request', 'invalid'));
+    await expect(runMeal('recipeEdit', { recipeId: 'r1', changes: { title: 'x' } })).rejects.toBeInstanceOf(ApiError);
+    expect(readDraft(ME, 'r1')?.refused).toBe("That recipe couldn't be saved. Please check its length.");
+    expect(report.mock.calls.at(-1)![0]).toBe("That recipe couldn't be saved. Please check its length.");
+  });
+
+  it('keep the draft of a new recipe when the limit is reached, and say so', async () => {
+    saveDraft(ME, 'new', { recipeId: 'r9', base: EMPTY_FIELDS, fields: EMPTY_FIELDS });
+    request.mockRejectedValueOnce(new ApiError(409, 'Conflict', 'recipe_limit'));
+    await expect(runMeal('recipeAdd', { recipe: { id: 'r9', title: 'Chilli' } })).rejects.toBeInstanceOf(ApiError);
+    expect(readDraft(ME, 'new')?.refused).toBe('This household has reached 200 recipes.');
+  });
+
+  it('keep the draft when the recipe was deleted meanwhile (410)', async () => {
+    saveDraft(ME, 'r1', { recipeId: 'r1', base: EMPTY_FIELDS, fields: EMPTY_FIELDS });
+    request.mockRejectedValueOnce(new ApiError(410, 'Gone', 'gone'));
+    await expect(runMeal('recipeEdit', { recipeId: 'r1', changes: { title: 'x' } })).rejects.toBeInstanceOf(ApiError);
+    expect(readDraft(ME, 'r1')?.refused).toBe('That was deleted on another phone.');
+  });
+});
+
+describe('describeFailure', () => {
+  it('says the household has reached 200 recipes before the generic 409 text', () => {
+    expect(describeFailure(new ApiError(409, 'Conflict', 'recipe_limit'), 'recipeAdd')).toBe('This household has reached 200 recipes.');
+  });
+
+  it('asks for the recipe\'s length to be checked on a 400 for an add or an edit, and is unchanged for an item', () => {
+    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'), 'recipeAdd')).toBe("That recipe couldn't be saved. Please check its length.");
+    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'), 'recipeEdit')).toBe("That recipe couldn't be saved. Please check its length.");
+    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'), 'itemEdit')).toBe("We couldn't save that change.");
+    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'))).toBe("We couldn't save that change.");
   });
 });
