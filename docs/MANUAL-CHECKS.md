@@ -53,7 +53,7 @@ Needs two real phones, one signed in as each person.
 - [ ] Add the same payment from both phones at about the same time. The hint about a matching entry shows, and nothing is lost or doubled by one add.
 - [ ] Check that no screen relies on colour alone: waiting, agreed, declined, "Needs another look" and settled all say it in words.
 - [ ] Six tabs at the largest text size (go/no-go): at 360px wide with the largest text size in Settings, all six tab labels (Today, Plan, Recipes, Shopping, Money, Settings) can be read and hit with a thumb, and none is cut off or overlaps. If they do not fit, say so: the design allows moving a tab into a menu.
-- [ ] Look at the signed-out page at 360px wide and the largest text size. In an automated look the page was about 9px wider than the screen. It was not the tab bar and the cause was not traced; check whether the page scrolls sideways and note what is wider than the screen.
+- [ ] Look at the signed-out page at 360px wide and the largest text size: it does not scroll sideways. (An automated look found it 9px too wide because the large Hearthwise name did not fit beside its mark; that is fixed, so this confirms it on a real phone. Other pages were not traced.)
 - [ ] The month-later check (the success measure): after a month, both people have put in their shared expenses and loans, the total matched a hand count, and neither person tracks the balance anywhere else. If not, note what is still missing.
 
 ## Reading and touch

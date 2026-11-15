@@ -218,3 +218,4 @@ The design is `docs/designs/phase-3-money-tracker.md`. The author decided the pr
 | The tool prints the total and each loan's progress | It also prints the member and entry counts, and lists each agreed, live loan with its progress (not capped at the amount, as `loanProgress` is). The tool is read-only | A check against a hand count needs to see what was read |
 | The e2e case registers a `moneyAdd` kind | The spike's stub keeps each mutation id once for `PUT /api/hh/money/{id}`, as it does for recipes and plan days; no app code is used | Same shape as the existing cases |
 | Six tabs fit at 360 px and the largest text size (go/no-go) | Still not checked on a device: it is a line in `docs/MANUAL-CHECKS.md` | No phone in this environment |
+| Not in the spec | The signed-out page's logo is 48px high, not 64px | At 360px wide and the largest text size, the 64px lockup (mark and name side by side) was 9px wider than the screen, so the page scrolled sideways |
