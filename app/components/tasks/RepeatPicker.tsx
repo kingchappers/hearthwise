@@ -31,9 +31,11 @@ export interface RepeatPickerProps {
   value: Repeat;
   today: string;
   onChange: (repeat: Repeat) => void;
+  // A repeat counted from when the task is done. An event is never done, so the calendar leaves it out.
+  allowAfter?: boolean;
 }
 
-export function RepeatPicker({ value, today, onChange }: RepeatPickerProps) {
+export function RepeatPicker({ value, today, onChange, allowAfter = true }: RepeatPickerProps) {
   const kind = kindOf(value);
   const number = (raw: string | number): number => (typeof raw === 'number' ? raw : Number(raw) || 1);
 
@@ -41,7 +43,7 @@ export function RepeatPicker({ value, today, onChange }: RepeatPickerProps) {
     <Stack gap="xs">
       <NativeSelect
         label="Repeat"
-        data={KINDS}
+        data={allowAfter ? KINDS : KINDS.filter(kind => kind.value !== 'after')}
         value={kind}
         onChange={event => onChange(starting(event.currentTarget.value as Kind, today))}
       />
