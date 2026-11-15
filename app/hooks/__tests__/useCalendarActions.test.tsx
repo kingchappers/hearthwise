@@ -81,6 +81,17 @@ describe('useCalendarActions', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('restores the same deletion once, however many times it is tapped', () => {
+    const { result } = renderHook(() => useCalendarActions());
+    const gone = event({ deletedAt: 5, deletedBy: 'u-alex' });
+    result.current.restore(gone);
+    result.current.restore(gone);
+    expect(calls).toHaveLength(1);
+    expect(show).toHaveBeenCalledTimes(1);
+    result.current.restore(event({ deletedAt: 9, deletedBy: 'u-alex' }));
+    expect(calls).toHaveLength(2);
+  });
+
   it('knows who the person is', () => {
     const { result } = renderHook(() => useCalendarActions());
     expect(result.current.me).toBe('u-sam');

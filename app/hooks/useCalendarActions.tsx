@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { notifications } from '@mantine/notifications';
 import type { EventKind, EventView, People, Reminder, Schedule } from '../../src/calendar/types';
 import { useHousehold } from '~/lib/household';
@@ -38,6 +39,8 @@ export function useCalendarActions(): CalendarActions {
   const reminders = useCalendarMutation('setReminders');
   const restore = useCalendarMutation('eventRestore');
 
+  // The deletions already asked to be restored, so a second tap before the list changes is not a second request.
+  const restored = useRef(new Set<string>());
   const me = household.data?.me.userId ?? '';
   const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by: me, ...notifyFields() });
   const toast = (message: string): void => { notifications.show({ id: crypto.randomUUID(), autoClose: 5000, message }); };
@@ -73,6 +76,9 @@ export function useCalendarActions(): CalendarActions {
 
     restore: event => {
       if (event.deletedAt === undefined) return;
+      const key = `${event.id}#${event.deletedAt}`;
+      if (restored.current.has(key)) return;
+      restored.current.add(key);
       restore.mutate({ ...common(), entries: [{ id: event.id, deletedAt: event.deletedAt }] });
       toast(`Restored: ${event.title}`);
     },

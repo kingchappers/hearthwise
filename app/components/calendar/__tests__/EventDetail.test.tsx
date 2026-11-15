@@ -33,6 +33,12 @@ describe('EventDetail', () => {
     expect(screen.getByText('Every day, until Thu 31 Dec')).toBeInTheDocument();
   });
 
+  it('hides Skip this day once 50 days are skipped, so it never goes past the server\'s limit', () => {
+    const days = Array.from({ length: 50 }, (_, index) => `day-${index}`);
+    renderDetail(event({ repeat: { type: 'fixed', every: 1, unit: 'day', startOn: TODAY }, skipOn: days }));
+    expect(screen.queryByRole('button', { name: 'Skip this day' })).not.toBeInTheDocument();
+  });
+
   it('says it is a block, and that it is private', () => {
     renderDetail(event({ kind: 'block', private: true, who: SAM }));
     expect(screen.getByText('Block')).toBeInTheDocument();
@@ -69,6 +75,17 @@ describe('EventDetail', () => {
     renderDetail(event({ repeat: { type: 'fixed', every: 1, unit: 'day', startOn: TODAY } }), { unsaved: true });
     expect(screen.getByText('Not saved yet')).toBeInTheDocument();
     for (const name of ['Edit', 'Skip this day', 'Delete']) expect(screen.getByRole('button', { name })).toBeDisabled();
+  });
+
+  it('acts once on a double tap of Delete or Skip this day', async () => {
+    const repeating = event({ repeat: { type: 'fixed', every: 1, unit: 'day', startOn: TODAY } });
+    const first = renderDetail(repeating);
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Delete' }));
+    expect(first.actions.remove).toHaveBeenCalledTimes(1);
+    first.unmount();
+    const second = renderDetail(repeating);
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Skip this day' }));
+    expect(second.actions.skipDay).toHaveBeenCalledTimes(1);
   });
 
   it('renders nothing when no event is selected', () => {
