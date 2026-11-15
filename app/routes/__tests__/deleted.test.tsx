@@ -10,12 +10,16 @@ import { ME, THEM, TODAY, makeActions, task } from '~/components/tasks/__tests__
 const state = vi.hoisted(() => ({
   tasks: { status: 'ready', tasks: [] as Task[], proposals: [], today: '2026-11-13', refetch: vi.fn() },
   items: { status: 'ready', items: [] as object[], refetch: vi.fn() },
+  recipes: { status: 'ready', recipes: [] as object[], dataUpdatedAt: 1, refetch: vi.fn() },
   actions: undefined as unknown,
   itemActions: undefined as unknown,
+  recipeActions: undefined as unknown,
 }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
 vi.mock('~/lib/items', () => ({ useItems: () => state.items }));
+vi.mock('~/lib/recipes', () => ({ useRecipes: () => state.recipes }));
+vi.mock('~/hooks/useRecipeActions', () => ({ useRecipeActions: () => state.recipeActions }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => state.itemActions }));
 
@@ -30,6 +34,35 @@ beforeEach(() => {
   state.items = { status: 'ready', items: [], refetch: vi.fn() };
   state.actions = makeActions();
   state.itemActions = { restore: vi.fn() };
+  state.recipes = { status: 'ready', recipes: [], dataUpdatedAt: 1, refetch: vi.fn() };
+  state.recipeActions = { restore: vi.fn() };
+});
+
+describe('the Deleted page: recipes', () => {
+  const chilli = { id: 'r1', title: 'Chilli', mealType: 'dinner', servings: 2, lowEnergy: false, ingredients: [], steps: [], fieldTimes: {}, createdBy: 'u', updatedAt: 1, updatedBy: 'u', deletedAt: NOV_12, deletedBy: THEM.userId };
+
+  it('lists a Recipes group after Tasks and Shopping, and restores a recipe with one tap', async () => {
+    state.tasks.tasks = [task({ title: 'Hoover', deletedAt: NOV_12, deletedBy: ME.userId })];
+    state.items.items = [{ id: 'i1', text: 'Milk', ticked: false, fieldTimes: {}, updatedAt: 1, deletedAt: NOV_12, deletedBy: ME.userId }];
+    state.recipes.recipes = [chilli, { ...chilli, id: 'r2', title: 'Soup', deletedAt: undefined }];
+    renderPage();
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['Tasks', 'Shopping', 'Recipes']);
+    expect(screen.queryByText('Soup')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Restore: Chilli' }));
+    expect((state.recipeActions as { restore: ReturnType<typeof vi.fn> }).restore).toHaveBeenCalledWith(chilli);
+    expect(screen.getByText(/Deleted by Alex, .*12 Nov/)).toBeInTheDocument();
+  });
+
+  it('does not say nothing has been deleted when only a recipe is', () => {
+    state.recipes.recipes = [chilli];
+    renderPage();
+    expect(screen.queryByText('Nothing has been deleted.')).not.toBeInTheDocument();
+  });
+
+  it('explains how long deleted things stay', () => {
+    renderPage();
+    expect(screen.getByText('Deleted tasks, shopping items and recipes stay here for 30 days.')).toBeInTheDocument();
+  });
 });
 
 describe('the Deleted page: shopping', () => {
