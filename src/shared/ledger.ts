@@ -40,7 +40,7 @@ function countedPayments(entries: readonly MoneyEntry[], loan: MoneyEntry): Mone
 // Not capped at the loan's amount: the page shows progress up to the amount, and the total counts every payment anyway.
 export function loanProgress(entries: readonly MoneyEntry[], loanId: string): number {
   const loan = entries.find(entry => entry.id === loanId && entry.kind === 'loan');
-  if (!loan) return 0;
+  if (!loan || !isCounted(loan)) return 0;
   return countedPayments(entries, loan).reduce((sum, payment) => sum + payment.amountPence, 0);
 }
 

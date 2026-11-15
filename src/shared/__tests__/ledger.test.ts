@@ -89,6 +89,11 @@ describe('loanProgress', () => {
   it('is the full sum even above the loan amount', () => {
     expect(loanProgress([rent, payment(3500, { loanId: 'rent' }), payment(2000, { loanId: 'rent' })], 'rent')).toBe(5500);
   });
+  it('is zero when the loan itself does not count', () => {
+    const pay = payment(2000, { loanId: 'rent' });
+    expect(loanProgress([{ ...rent, status: 'waiting' }, pay], 'rent')).toBe(0);
+    expect(loanProgress([{ ...rent, deletedAt: 3 }, pay], 'rent')).toBe(0);
+  });
   it('is zero for a loan that is not there', () => {
     expect(loanProgress([], 'missing')).toBe(0);
   });
