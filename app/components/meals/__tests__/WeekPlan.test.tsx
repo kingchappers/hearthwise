@@ -81,6 +81,16 @@ describe('WeekPlan', () => {
     expect(within(row(/Mon 16 Nov/)).getByText('Stored')).toBeInTheDocument();
   });
 
+  it('has an Add to shopping list button when it is given a way to open the review, and not otherwise', async () => {
+    const first = renderPlan([]);
+    expect(screen.queryByRole('button', { name: 'Add to shopping list' })).not.toBeInTheDocument();
+    first.unmount();
+    const onAddToList = vi.fn();
+    render(<MantineProvider env="test"><WeekPlan days={[]} recipes={[]} checkedAt={undefined} today={TODAY} onOpen={vi.fn()} onAddToList={onAddToList} /></MantineProvider>);
+    await userEvent.click(screen.getByRole('button', { name: 'Add to shopping list' }));
+    expect(onAddToList).toHaveBeenCalled();
+  });
+
   it('opens the day that was tapped', async () => {
     const { onOpen } = renderPlan([]);
     await userEvent.click(row(/Tue 17 Nov/));

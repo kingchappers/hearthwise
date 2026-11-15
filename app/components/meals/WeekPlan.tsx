@@ -1,4 +1,4 @@
-import { Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { Button, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import type { PlanDay, Recipe } from '../../../src/meals/types';
 import { weekStart } from '../../../src/shared/schedule';
 import { weekDays } from '~/lib/plan';
@@ -11,15 +11,18 @@ export interface WeekPlanProps {
   checkedAt: number | undefined;
   today: string;
   onOpen: (day: string) => void;
+  // Opens the add-to-shopping-list review.
+  onAddToList?: () => void;
 }
 
 const WEEKS = 5;
 
 // The current week and the next four, Monday to Sunday. Earlier days of this week appear and can be changed.
-export function WeekPlan({ days, recipes, checkedAt, today, onOpen }: WeekPlanProps) {
+export function WeekPlan({ days, recipes, checkedAt, today, onOpen, onAddToList }: WeekPlanProps) {
   const start = weekStart(today);
   return (
     <Stack gap="md">
+      {onAddToList && <Group><Button onClick={onAddToList}>Add to shopping list</Button></Group>}
       {Array.from({ length: WEEKS }, (_, week) => {
         const monday = weekDays(start, WEEKS * 7)[week * 7];
         return (

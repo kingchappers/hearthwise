@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Button, Group, Loader, Stack, Title } from '@mantine/core';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { LoadError } from '~/components/layout/LoadError';
+import { AddToListSheet } from '~/components/meals/AddToListSheet';
 import { DaySheet } from '~/components/meals/DaySheet';
 import { EasyPicks } from '~/components/meals/EasyPicks';
 import { WeekPlan } from '~/components/meals/WeekPlan';
 import { LetThemKnow } from '~/components/shared/LetThemKnow';
+import { useItemActions } from '~/hooks/useItemActions';
 import { usePlanActions } from '~/hooks/usePlanActions';
 import { useHousehold } from '~/lib/household';
+import { useItems } from '~/lib/items';
 import { pageTitle } from '~/lib/pageTitle';
 import { usePlan } from '~/lib/plan';
 import type { Route } from './+types/plan';
@@ -18,6 +21,9 @@ function PlanContent() {
   const plan = usePlan();
   const household = useHousehold();
   const actions = usePlanActions();
+  const items = useItems();
+  const itemActions = useItemActions();
+  const [reviewing, setReviewing] = useState(false);
   const [openDay, setOpenDay] = useState<string | undefined>(undefined);
   const [easy, setEasy] = useState(false);
 
@@ -32,7 +38,7 @@ function PlanContent() {
         <Button variant="default" onClick={() => setEasy(true)}>Pick something easy</Button>
       </Group>
       <LetThemKnow />
-      <WeekPlan days={plan.days} recipes={plan.recipes} checkedAt={plan.recipesCheckedAt} today={plan.today} onOpen={setOpenDay} />
+      <WeekPlan days={plan.days} recipes={plan.recipes} checkedAt={plan.recipesCheckedAt} today={plan.today} onOpen={setOpenDay} onAddToList={() => setReviewing(true)} />
       <DaySheet
         day={openDay}
         plan={plan.days.find(day => day.day === openDay)}
@@ -42,6 +48,17 @@ function PlanContent() {
         onClose={() => setOpenDay(undefined)}
         onSet={actions.set}
         onClear={actions.clear}
+      />
+      <AddToListSheet
+        opened={reviewing}
+        onClose={() => setReviewing(false)}
+        onAdd={itemActions.addFromPlan}
+        userId={household.data?.me.userId ?? ''}
+        plan={plan.days}
+        today={plan.today}
+        recipes={plan.recipes}
+        checkedAt={plan.recipesCheckedAt}
+        shoppingItems={items.items}
       />
       <EasyPicks
         opened={easy}

@@ -39,13 +39,16 @@ export function ItemRow({ item, onTick, onDelete, onEdit }: ItemRowProps) {
   return (
     <li style={{ listStyle: 'none' }}>
       <Group justify="space-between" wrap="nowrap" gap="xs" py={4}>
-        <Checkbox
-          size="md"
-          checked={item.ticked}
-          onChange={event => onTick(item, event.currentTarget.checked)}
-          label={<span style={item.ticked ? { textDecoration: 'line-through' } : undefined}>{item.text}</span>}
-          style={{ overflowWrap: 'anywhere' }}
-        />
+        <Stack gap={0} miw={0}>
+          <Checkbox
+            size="md"
+            checked={item.ticked}
+            onChange={event => onTick(item, event.currentTarget.checked)}
+            label={<span style={item.ticked ? { textDecoration: 'line-through' } : undefined}>{item.text}</span>}
+            style={{ overflowWrap: 'anywhere' }}
+          />
+          {item.forRecipes && <Text size="sm" ml={32}>{`for ${item.forRecipes}`}</Text>}
+        </Stack>
         <Group gap={4} wrap="nowrap">
           {item.quantity && <Text size="sm">{item.quantity}</Text>}
           <Button variant="subtle" aria-label={`Edit: ${item.text}`} onClick={() => setEditing(true)}>Edit</Button>

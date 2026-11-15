@@ -1,6 +1,7 @@
 import { notifications } from '@mantine/notifications';
 import type { ShoppingItem } from '../../src/shopping/types';
 import { ToastAction } from '~/components/layout/ToastAction';
+import type { AddToListInput } from '~/components/meals/AddToListSheet';
 import { useHousehold } from '~/lib/household';
 import { notifyFields } from '~/lib/letThemKnow';
 import { useItemMutation } from '~/lib/mutations';
@@ -14,6 +15,8 @@ export interface ItemActions {
   remove(item: ShoppingItem): void;
   clearTicked(items: ShoppingItem[]): void;
   restore(item: ShoppingItem): void;
+  // The shopping lines of the add-to-list review. It carries its own mutation id, made when the review opened.
+  addFromPlan(input: AddToListInput): void;
 }
 
 // Every shopping action the screens can take: each builds its mutation's variables (an id, the time of the tap, who made it) and runs
@@ -27,6 +30,7 @@ export function useItemActions(): ItemActions {
   const del = useItemMutation('itemDelete');
   const clear = useItemMutation('itemClear');
   const restore = useItemMutation('itemRestore');
+  const fromPlan = useItemMutation('itemsFromPlan');
 
   const by = household.data?.me.userId ?? '';
   const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by, ...notifyFields() });
@@ -71,6 +75,11 @@ export function useItemActions(): ItemActions {
     restore: item => {
       restore.mutate({ ...common(), itemIds: [item.id] });
       toast(`Restored: ${item.text}`);
+    },
+
+    addFromPlan: input => {
+      fromPlan.mutate({ ...common(), mutationId: input.mutationId, days: input.days, lines: input.lines });
+      toast(`Added ${input.lines.length} ${input.lines.length === 1 ? 'line' : 'lines'} to the shopping list`);
     },
   };
 }
