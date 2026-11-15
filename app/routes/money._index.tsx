@@ -10,7 +10,7 @@ import { LoanList } from '~/components/money/LoanList';
 import { TotalCard } from '~/components/money/TotalCard';
 import { WaitingList } from '~/components/money/WaitingList';
 import { LetThemKnow } from '~/components/shared/LetThemKnow';
-import { useMoneyActions } from '~/hooks/useMoneyActions';
+import { useChangeNotices, useMoneyActions } from '~/hooks/useMoneyActions';
 import { useHousehold } from '~/lib/household';
 import { sectionsFor, useMoney } from '~/lib/money';
 import { hiddenText } from '~/lib/moneyText';
@@ -26,6 +26,7 @@ function MoneyContent() {
   const [showSettled, setShowSettled] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MoneyEntry | undefined>();
+  useChangeNotices(money.entries, money.me);
 
   if (money.status === 'loading') return <Group justify="center" py="xl" role="status" aria-label="Loading money"><Loader /></Group>;
   if (money.status === 'error') return <LoadError thing="money" onRetry={money.refetch} />;

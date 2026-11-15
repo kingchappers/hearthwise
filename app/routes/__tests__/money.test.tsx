@@ -13,7 +13,7 @@ import type { MoneyState } from '~/lib/money';
 const state = vi.hoisted(() => ({ money: undefined as unknown, actions: undefined as unknown }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/money', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/money')>()), useMoney: () => state.money }));
-vi.mock('~/hooks/useMoneyActions', () => ({ useMoneyActions: () => state.actions }));
+vi.mock('~/hooks/useMoneyActions', () => ({ useMoneyActions: () => state.actions, useChangeNotices: vi.fn() }));
 vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
 vi.mock('~/lib/household', () => ({
   useHousehold: () => ({ status: 'ready', refetch: vi.fn(), data: { household: { timezone: 'UTC' }, members: [{ userId: 'u-sam', displayName: 'Sam' }, { userId: 'u-alex', displayName: 'Alex' }], me: { userId: 'u-sam', displayName: 'Sam', settings: {} } } }),

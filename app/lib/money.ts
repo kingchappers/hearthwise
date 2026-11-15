@@ -94,6 +94,15 @@ export function duplicatePayment(entries: MoneyEntry[], draft: { paidBy: string;
     && entry.paidBy === draft.paidBy && entry.amountPence === draft.amountPence && entry.on === draft.on);
 }
 
+// The entries whose request from `me` has gone with nothing changed: the other person kept things as they are, or it was taken back.
+// An agreed request moves the version or deletes the entry, so it is not one of these.
+export function declinedChanges(previous: MoneyEntry[], next: MoneyEntry[], me: string): MoneyEntry[] {
+  return next.filter(entry => {
+    const before = previous.find(candidate => candidate.id === entry.id);
+    return before?.pendingChange?.by === me && entry.pendingChange === undefined && entry.version === before.version && entry.deletedAt === undefined;
+  });
+}
+
 export interface MoneyState {
   status: 'loading' | 'ready' | 'error';
   // Every entry as the person sees it, deleted ones too, with every pending write laid over.

@@ -17,7 +17,7 @@ vi.mock('~/lib/mutations', async importOriginal => ({
   useMoneyMutation: (kind: string) => ({ mutate: (vars: Record<string, unknown>) => { calls.push({ kind, vars }); } }),
 }));
 
-import { useMoneyActions } from '../useMoneyActions';
+import { useChangeNotices, useMoneyActions } from '../useMoneyActions';
 
 const entry = (over: Partial<MoneyEntry> = {}): MoneyEntry => ({
   id: 'e1', kind: 'expense', paidBy: 'u-sam', amountPence: 6340, sharePence: 3170, description: 'Weekly shop', on: '2026-11-15', fieldTimes: {}, status: 'agreed',
@@ -100,5 +100,25 @@ describe('useMoneyActions', () => {
     const { result } = renderHook(() => useMoneyActions());
     result.current.restore(entry());
     expect(calls).toEqual([]);
+  });
+});
+
+describe('useChangeNotices', () => {
+  const asked = entry({ description: 'Weekly shop', pendingChange: { id: 'r', by: 'u-sam', at: 1, delete: true } });
+  const answered = (() => { const copy = { ...asked }; delete copy.pendingChange; return copy; })();
+
+  it('says Change not made when a request of mine is answered with no change, once', () => {
+    const { rerender } = renderHook(({ entries }) => useChangeNotices(entries, 'u-sam'), { initialProps: { entries: [asked] } });
+    expect(show).not.toHaveBeenCalled();
+    rerender({ entries: [answered] });
+    expect(show).toHaveBeenCalledTimes(1);
+    expect(show.mock.calls[0][0].message).toBe('Change not made: Weekly shop');
+    rerender({ entries: [answered] });
+    expect(show).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing on the first load', () => {
+    renderHook(() => useChangeNotices([answered], 'u-sam'));
+    expect(show).not.toHaveBeenCalled();
   });
 });

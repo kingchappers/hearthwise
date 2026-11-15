@@ -7,7 +7,7 @@ import { LoadError } from '~/components/layout/LoadError';
 import { AddSheet } from '~/components/money/AddSheet';
 import { EntryDetail } from '~/components/money/EntryDetail';
 import { LetThemKnow } from '~/components/shared/LetThemKnow';
-import { useMoneyActions } from '~/hooks/useMoneyActions';
+import { useChangeNotices, useMoneyActions } from '~/hooks/useMoneyActions';
 import { useHousehold } from '~/lib/household';
 import { useMoney } from '~/lib/money';
 import { pageTitle } from '~/lib/pageTitle';
@@ -22,6 +22,7 @@ function EntryContent() {
   const money = useMoney();
   const actions = useMoneyActions();
   const household = useHousehold();
+  useChangeNotices(money.entries, money.me);
   // Which way the sheet is open: for the whole entry, or only for its words and date.
   const [sheet, setSheet] = useState<'closed' | 'all' | 'words'>('closed');
 

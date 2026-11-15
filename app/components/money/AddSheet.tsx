@@ -71,7 +71,7 @@ function Content({ onClose, entry, wordsOnly = false, entries, people, today, ca
 
     if (!entry) {
       if (!result.money) return;
-      const description = form.kind === 'payment' && result.description === '' ? paymentDescription(loan?.description) : result.description;
+      const description = form.kind === 'payment' ? paymentDescription(loan?.description) : result.description;
       actions.add({ ...ids, kind: form.kind, description, on: form.on, money: result.money });
       onClose();
       return;

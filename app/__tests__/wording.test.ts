@@ -13,7 +13,7 @@ const MONEY_LIB = ['money', 'moneyKeys', 'moneyOverlay', 'moneyForm', 'moneyText
 // The fixed fragments of the design's Wording table, each of which must appear in what a person can read in the money files.
 const MONEY_PHRASES = [
   'to settle, from', 'All square', 'Waiting for', 'Not saved yet', 'wants to check this one', 'Change waiting for', 'paid back', 'Needs another look', 'Show settled',
-  'Everything is settled', 'No money entries yet. Add one when you share a cost or lend money.', 'Delete waiting for', 'Payments recorded against this loan will stay in the total.',
+  'Change not made', 'Everything is settled', 'No money entries yet. Add one when you share a cost or lend money.', 'Delete waiting for', 'Payments recorded against this loan will stay in the total.',
   'That entry changed. Please look at it again.', 'to agree to this change.', 'Adding or agreeing needs the two people this ledger is between.', 'This household has reached 2,000 entries.',
 ];
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];

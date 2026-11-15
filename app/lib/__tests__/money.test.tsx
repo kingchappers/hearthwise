@@ -15,7 +15,7 @@ vi.mock('../household', async importOriginal => ({
 import { MONEY_KEY } from '../moneyKeys';
 import { moneyMutationKeys } from '../moneyKeys';
 import { noteMutationSettled } from '../queries';
-import { duplicatePayment, ledgerPair, openLoansFor, sectionsFor, useMoney } from '../money';
+import { declinedChanges, duplicatePayment, ledgerPair, openLoansFor, sectionsFor, useMoney } from '../money';
 
 const SAM = 'u-sam';
 const ALEX = 'u-alex';
@@ -151,6 +151,30 @@ describe('duplicatePayment', () => {
   it('does not match the entry being edited', () => {
     const existing = payment();
     expect(duplicatePayment([existing], { paidBy: ALEX, amountPence: 2000, on: '2026-11-15' }, existing.id)).toBeUndefined();
+  });
+});
+
+describe('declinedChanges', () => {
+  const asked = (by: string) => entry({ pendingChange: { id: 'r', by, at: 1, delete: true } });
+
+  it('finds a request of mine that is gone with the entry unchanged: declined, or taken back', () => {
+    const before = asked(SAM);
+    const after = { ...before, pendingChange: undefined };
+    delete after.pendingChange;
+    expect(declinedChanges([before], [after], SAM)).toEqual([after]);
+  });
+
+  it('finds nothing when the request was agreed: the version moved, or the entry was deleted', () => {
+    const before = asked(SAM);
+    expect(declinedChanges([before], [{ ...before, pendingChange: undefined, version: before.version + 1 }], SAM)).toEqual([]);
+    expect(declinedChanges([before], [{ ...before, pendingChange: undefined, deletedAt: 5, deletedBy: ALEX }], SAM)).toEqual([]);
+  });
+
+  it('finds nothing for a request the other person made, a request still waiting, or an entry that is new', () => {
+    const theirs = asked(ALEX);
+    expect(declinedChanges([theirs], [{ ...theirs, pendingChange: undefined }], SAM)).toEqual([]);
+    expect(declinedChanges([asked(SAM)], [asked(SAM)], SAM)).toEqual([]);
+    expect(declinedChanges([], [entry()], SAM)).toEqual([]);
   });
 });
 

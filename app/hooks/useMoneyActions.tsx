@@ -1,7 +1,9 @@
+import { useEffect, useRef } from 'react';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router';
 import type { MoneyChange, MoneyEntry, MoneyKind } from '../../src/money/types';
 import { useHousehold } from '~/lib/household';
+import { declinedChanges } from '~/lib/money';
 import { notifyFields } from '~/lib/letThemKnow';
 import { useMoneyMutation } from '~/lib/mutations';
 
@@ -84,4 +86,18 @@ export function useMoneyActions(): MoneyActions {
       toast(`Restored: ${entry.description}. It waits for the other person to agree.`);
     },
   };
+}
+
+// Says "Change not made" when a request of mine ends with nothing changed. The server keeps no trace of a declined request, so this is
+// seen as the entry's request going away while its version stays the same.
+export function useChangeNotices(entries: MoneyEntry[], me: string): void {
+  const previous = useRef<MoneyEntry[] | undefined>(undefined);
+  useEffect(() => {
+    if (previous.current) {
+      for (const entry of declinedChanges(previous.current, entries, me)) {
+        notifications.show({ id: `change-not-made-${entry.id}-${entry.updatedAt}`, autoClose: 5000, message: `Change not made: ${entry.description}` });
+      }
+    }
+    previous.current = entries;
+  }, [entries, me]);
 }

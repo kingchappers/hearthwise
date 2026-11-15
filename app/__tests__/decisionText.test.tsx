@@ -29,7 +29,7 @@ vi.mock('~/lib/money', async importOriginal => ({
     total: { direction: 'square', pence: 0 }, loans: [], settled: new Set(), unsaved: 1, unsavedIds: new Set(), dataUpdatedAt: 1, refetch: vi.fn(),
   }),
 }));
-vi.mock('~/hooks/useMoneyActions', () => ({ useMoneyActions: () => ({ add: vi.fn(), edit: vi.fn(), respond: vi.fn(), askChange: vi.fn(), respondChange: vi.fn(), withdrawChange: vi.fn(), remove: vi.fn(), restore: vi.fn() }) }));
+vi.mock('~/hooks/useMoneyActions', () => ({ useChangeNotices: vi.fn(), useMoneyActions: () => ({ add: vi.fn(), edit: vi.fn(), respond: vi.fn(), askChange: vi.fn(), respondChange: vi.fn(), withdrawChange: vi.fn(), remove: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import { SignedOutPanel } from '~/components/layout/SignedOutPanel';
