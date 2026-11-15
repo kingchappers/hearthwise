@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../../../src/tasks/types';
-import { deletedTasks } from '../deleted';
+import type { MoneyEntry } from '../../../src/money/types';
+import { deletedEntries, deletedTasks } from '../deleted';
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   id, title: id, fieldTimes: {}, assignee: 'either', repeat: { type: 'none' }, cycleSeq: 1, ruleVersion: 1, checklist: [], checklistState: {},
@@ -15,5 +16,21 @@ describe('deletedTasks', () => {
 
   it('is empty when nothing is deleted', () => {
     expect(deletedTasks([task('a'), task('b')])).toEqual([]);
+  });
+});
+
+describe('deletedEntries', () => {
+  const money = (id: string, deletedAt?: number): MoneyEntry => ({
+    id, kind: 'loan', paidBy: 'u1', amountPence: 100, sharePence: 100, description: id, on: '2026-11-15', fieldTimes: {}, status: 'agreed', version: 1,
+    createdBy: 'u1', createdAt: 1, proposedBy: 'u1', updatedAt: 1, updatedBy: 'u1', ...(deletedAt === undefined ? {} : { deletedAt }),
+  });
+
+  it('gives the money entries that are deleted, newest deletion first', () => {
+    const rows = deletedEntries([], [], [], [money('live'), money('old', 100), money('new', 300)]);
+    expect(rows.money.map(row => row.id)).toEqual(['new', 'old']);
+  });
+
+  it('has no money group when none is given', () => {
+    expect(deletedEntries([], [], []).money).toEqual([]);
   });
 });
