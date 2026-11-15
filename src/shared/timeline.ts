@@ -121,7 +121,7 @@ interface Placed {
   endMs: number;
 }
 
-// "Now" is compared with the clock, not with the wall-clock text: across a clock change the minutes are the real ones. Yesterday's
+// "Now" is compared with the clock, not with the wall-clock text: start and end are turned into instants only for this comparison, so across a clock change the comparison uses real elapsed time (what is shown stays wall-clock). Yesterday's
 // items are read too, so something that started the evening before and runs past midnight is found.
 export function nowAndNext(inputs: TimelineInputs, nowMs: number, timeZone: string, viewer: string): NowAndNext {
   const today = dayInZone(nowMs, timeZone);
