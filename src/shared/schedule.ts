@@ -7,7 +7,7 @@ export type Repeat =
   | { type: 'after'; days: number }
   | { type: 'fixed'; every: number; unit: 'day' | 'week' | 'month'; weekdays?: Weekday[]; dayOfMonth?: number; startOn: string };
 
-type FixedRepeat = Extract<Repeat, { type: 'fixed' }>;
+export type FixedRepeat = Extract<Repeat, { type: 'fixed' }>;
 
 export const WEEKDAYS: readonly Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -50,7 +50,7 @@ export function weekStart(day: string): string {
 
 const daysInMonth = (year: number, month: number): number => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-function occursOn(rule: FixedRepeat, day: string): boolean {
+export function occursOn(rule: FixedRepeat, day: string): boolean {
   if (day < rule.startOn) return false;
   const number = dayNumber(day);
   const start = dayNumber(rule.startOn);
@@ -69,6 +69,26 @@ function occursOn(rule: FixedRepeat, day: string): boolean {
   const [startYear, startMonth, startDate] = rule.startOn.split('-').map(Number);
   if (((year * 12 + month) - (startYear * 12 + startMonth)) % rule.every !== 0) return false;
   return date === Math.min(rule.dayOfMonth ?? startDate, daysInMonth(year, month));
+}
+
+export const MAX_WINDOW_DAYS = 400;
+export const MAX_OCCURRENCES = 500;
+
+// The dates a `fixed` rule gives from `from` to `to`, both included, found by testing each day. The window is cut at 400 days and the
+// result at `limit` (never more than 500), and `truncated` says that either cut left something out, so a rule can never expand
+// without bound. Any other rule has no calendar of its own and gives nothing.
+export function occurrencesBetween(repeat: Repeat, from: string, to: string, limit: number): { dates: string[]; truncated: boolean } {
+  if (repeat.type !== 'fixed') return { dates: [], truncated: false };
+  const cap = Math.min(limit, MAX_OCCURRENCES);
+  const lastAllowed = addDays(from, MAX_WINDOW_DAYS - 1);
+  const last = to > lastAllowed ? lastAllowed : to;
+  const dates: string[] = [];
+  for (let day = from < repeat.startOn ? repeat.startOn : from; day <= last; day = addDays(day, 1)) {
+    if (!occursOn(repeat, day)) continue;
+    if (dates.length >= cap) return { dates, truncated: true };
+    dates.push(day);
+  }
+  return { dates, truncated: to > lastAllowed };
 }
 
 // The first date on or after `day` that the rule gives. An `after` rule or no rule has no calendar, so any day will do.
