@@ -62,17 +62,17 @@ beforeEach(() => {
 });
 
 describe('DefaultLayout navigation', () => {
-  it('has Today, Shopping and Settings in the tab bar, and nothing else', () => {
+  it('has Today, Recipes, Shopping and Settings in the tab bar, and nothing else', () => {
     renderLayout();
     const tabBar = screen.getByRole('navigation', { name: 'Primary' });
     const names = within(tabBar).getAllByRole('link').map(link => link.getAttribute('aria-label'));
-    expect(names).toEqual(['Today', 'Shopping', 'Settings']);
+    expect(names).toEqual(['Today', 'Recipes', 'Shopping', 'Settings']);
     expect(within(tabBar).queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('shows the same three destinations in the sidebar, each with its own address', () => {
+  it('shows the same destinations in the sidebar, each with its own address', () => {
     renderLayout();
-    const addresses: Record<string, string> = { Today: '/', Shopping: '/shopping', Settings: '/settings' };
+    const addresses: Record<string, string> = { Today: '/', Recipes: '/recipes', Shopping: '/shopping', Settings: '/settings' };
     for (const [name, href] of Object.entries(addresses)) {
       const links = screen.getAllByRole('link', { name });
       expect(links).toHaveLength(2);
@@ -90,6 +90,13 @@ describe('DefaultLayout navigation', () => {
     expect(today).not.toHaveAttribute('aria-current');
     expect((shopping.querySelector('span[aria-hidden]') as HTMLElement).style.background).toBe('currentcolor');
     expect((today.querySelector('span[aria-hidden]') as HTMLElement).style.background).toBe('transparent');
+  });
+
+  it('keeps Recipes current on the pages under it', () => {
+    renderLayout(<p>page</p>, '/recipes/r1/edit');
+    const tabBar = screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(tabBar).getByRole('link', { name: 'Recipes' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabBar).getByRole('link', { name: 'Today' })).not.toHaveAttribute('aria-current');
   });
 
   it('keeps Today current only on the home page', () => {

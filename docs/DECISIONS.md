@@ -145,3 +145,10 @@ The spike (`e2e/offline/`, Chromium) passed: TanStack Query's built-in persisten
 |---|---|---|
 | A restore of a recipe is not checked against the 200-recipe limit | A restore is held to the same 200 as a create, counting restores made earlier in the same request; past it the entry's status is `recipe_limit` and the recipe stays deleted | Security review: nothing on the server limits a restore to the 50 listed tombstones, so a cycle of delete, create and restore could take the live count, and the list, past Lambda's response limit |
 | A create with no title becomes `TaskError('title_required', 400)` | The same, with `{ field: 'title' }` as its extra, so the answer names the field as every other 400 does | Consistent with the item route's missing-text answer |
+
+## Phase 2, step 2: recipe library (2026-11-15)
+
+| Spec says | Built | Why |
+|---|---|---|
+| Measure a persisted-cache save with 200 typical recipes and record the time in the pull request | 200 recipes of about 1.7 KB each saved in 0.5 ms (354 KB) against in-memory storage in jsdom. The real IndexedDB write was not measured | The 50 ms threshold is for a mid-range phone, which a test cannot stand in for: measure on a real phone with the release checklist before deciding whether recipes need their own persisted key |
+| `markRefused` is called from the registered `onError` | It also reports the failure through the existing `report` toast, as the other sets do | A person who is not on the editor still hears that a queued save was refused |

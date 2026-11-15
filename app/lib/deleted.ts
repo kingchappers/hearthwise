@@ -1,3 +1,4 @@
+import type { Recipe } from '../../src/meals/types';
 import type { ShoppingItem } from '../../src/shopping/types';
 import type { Task } from '../../src/tasks/types';
 
@@ -6,10 +7,10 @@ export function deletedTasks(tasks: Task[]): Task[] {
   return tasks.filter(task => task.deletedAt !== undefined).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
 }
 
-// The Deleted page's two groups, each newest deletion first.
-export function deletedEntries(tasks: Task[], items: ShoppingItem[]): { tasks: Task[]; items: ShoppingItem[] } {
-  return {
-    tasks: deletedTasks(tasks),
-    items: items.filter(item => item.deletedAt !== undefined).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
-  };
+const newestFirst = <T extends { deletedAt?: number }>(rows: T[]): T[] =>
+  rows.filter(row => row.deletedAt !== undefined).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
+
+// The Deleted page's three groups, each newest deletion first.
+export function deletedEntries(tasks: Task[], items: ShoppingItem[], recipes: Recipe[]): { tasks: Task[]; items: ShoppingItem[]; recipes: Recipe[] } {
+  return { tasks: deletedTasks(tasks), items: newestFirst(items), recipes: newestFirst(recipes) };
 }

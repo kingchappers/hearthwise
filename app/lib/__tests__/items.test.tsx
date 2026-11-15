@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { MutationObserver, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Recipe } from '../../../src/meals/types';
 import type { ShoppingItem } from '../../../src/shopping/types';
 import type { Task } from '../../../src/tasks/types';
 import { deletedEntries } from '../deleted';
@@ -32,10 +33,20 @@ describe('deletedEntries', () => {
     createdBy: 'u', updatedAt: 1, ...(deletedAt === undefined ? {} : { deletedAt }),
   });
 
-  it('groups deleted tasks and deleted items, each newest first, leaving out what is not deleted', () => {
-    const groups = deletedEntries([task('t1', 100), task('t2', 300), task('t3')], [item({ id: 'i1', deletedAt: 200 }), item({ id: 'i2', deletedAt: 400 }), item({ id: 'i3' })]);
+  const recipe = (id: string, deletedAt?: number): Recipe => ({
+    id, title: id, mealType: 'dinner', servings: 2, lowEnergy: false, ingredients: [], steps: [], fieldTimes: {}, createdBy: 'u', updatedAt: 1, updatedBy: 'u',
+    ...(deletedAt === undefined ? {} : { deletedAt }),
+  });
+
+  it('groups deleted tasks, items and recipes, each newest first, leaving out what is not deleted', () => {
+    const groups = deletedEntries(
+      [task('t1', 100), task('t2', 300), task('t3')],
+      [item({ id: 'i1', deletedAt: 200 }), item({ id: 'i2', deletedAt: 400 }), item({ id: 'i3' })],
+      [recipe('r1', 500), recipe('r2', 700), recipe('r3', 600), recipe('r4')],
+    );
     expect(groups.tasks.map(entry => entry.id)).toEqual(['t2', 't1']);
     expect(groups.items.map(entry => entry.id)).toEqual(['i2', 'i1']);
+    expect(groups.recipes.map(entry => entry.id)).toEqual(['r2', 'r3', 'r1']);
   });
 });
 

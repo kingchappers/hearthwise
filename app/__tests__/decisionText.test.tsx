@@ -16,6 +16,8 @@ vi.mock('~/lib/household', () => ({
 }));
 vi.mock('~/lib/items', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/items')>()), useItems: () => ({ status: 'ready', items: [], refetch: vi.fn() }) }));
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => ({ add: vi.fn(), tick: vi.fn(), edit: vi.fn(), remove: vi.fn(), clearTicked: vi.fn(), restore: vi.fn() }) }));
+vi.mock('~/lib/recipes', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/recipes')>()), useRecipes: () => ({ status: 'ready', recipes: [], dataUpdatedAt: 1, refetch: vi.fn() }) }));
+vi.mock('~/hooks/useRecipeActions', () => ({ useRecipeActions: () => ({ add: vi.fn(), edit: vi.fn(), remove: vi.fn(), restore: vi.fn(), duplicate: vi.fn() }) }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => ({ status: 'ready', tasks: [], proposals: [], today: '2026-11-13', refetch: vi.fn() }) }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => ({ me: { userId: 'u1', displayName: 'Sam' }, members: [], caller: { userId: 'u1', members: [] }, today: '2026-11-13', needsAsk: () => false }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -93,7 +95,7 @@ describe('tasks', () => {
     expectReadable(screen.getByText('Deleted tasks stay for 30 days, and can be restored.'));
     unmount();
     renderIn(<Deleted />);
-    expectReadable(screen.getByText('Deleted tasks stay here for 30 days.'));
+    expectReadable(screen.getByText('Deleted tasks, shopping items and recipes stay here for 30 days.'));
     expectReadable(screen.getByText('Nothing has been deleted.'));
   });
 });
