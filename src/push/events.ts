@@ -23,3 +23,7 @@ export const itemsBatch = (actor: string, added: number, changed: number, mutati
     : `${total} ${total === 1 ? 'item' : 'items'} changed on the shopping list`;
   return base('item.batch', mutationId, `${actor} updated the shopping list`, body, '/shopping');
 };
+
+// A plan change. `dayLabel` is the weekday and day of the month ("Friday 20"); `title` is the dinner, or undefined when the day was cleared.
+export const planChanged = (actor: string, dayLabel: string, title: string | undefined, mutationId: string): NotifyEvent =>
+  base('plan.changed', mutationId, `${actor} changed the plan`, title === undefined ? `Cleared ${dayLabel}` : `${dayLabel}: ${title}`, '/plan');
