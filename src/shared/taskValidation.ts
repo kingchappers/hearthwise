@@ -157,7 +157,7 @@ export function parseCreateTask(body: Record<string, unknown>): Parsed<CreateTas
   return good(input);
 }
 
-function parseStamped<T>(body: Record<string, unknown>, field: string, parse: (value: unknown) => Parsed<T>): Parsed<{ value: T; at: number } | undefined> {
+export function parseStamped<T>(body: Record<string, unknown>, field: string, parse: (value: unknown) => Parsed<T>): Parsed<{ value: T; at: number } | undefined> {
   if (!(field in body)) return good(undefined);
   const value = parse(body[field]);
   if (!value.ok) return value;
