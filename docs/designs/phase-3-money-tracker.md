@@ -10,7 +10,7 @@
 
 Phase 3 adds a money tracker to Hearthwise for the two people in a household. It is built around loans. A loan shows its own progress ("£30.00 of £50.00 paid back"). Shared expenses are entries beside it. One total across all entries says who pays whom and how much, or "All square".
 
-The two people enter everything by hand, in pounds, at whatever time suits each of them. Repayments are bank transfers made outside the app, and the app records them. A new entry that gives the other person something to pay does not count until that person agrees. The feature uses the household, write-record, offline-queue and notification machinery that phases 1 and 2 built (see [`phase-1-foundation.md`](phase-1-foundation.md) and [`phase-2-meal-plan.md`](phase-2-meal-plan.md)). It does not touch Hoardwise, the author's separate budgeting app. The roadmap is [`../ROADMAP.md`](../ROADMAP.md).
+The two people enter everything by hand, in pounds, at whatever time suits each of them. Repayments are bank transfers made outside the app, and the app records them. A new entry with a share for the other person to pay does not count until that person agrees. The feature uses the household, write-record, offline-queue and notification machinery that phases 1 and 2 built (see [`phase-1-foundation.md`](phase-1-foundation.md) and [`phase-2-meal-plan.md`](phase-2-meal-plan.md)). It does not touch Hoardwise, the author's separate budgeting app. The roadmap is [`../ROADMAP.md`](../ROADMAP.md).
 
 ### How this design was made
 
@@ -58,7 +58,7 @@ The tracker is for two adults who are autistic, ADHD or audhd (the author's requ
 *   **G2.** Record shared expenses with a split chosen per entry: equal, a fixed share, one person covers it all, or a percentage.
 *   **G3.** Record payments, each optionally naming the loan it repays.
 *   **G4.** Show one total across all entries, with the wording in "Wording".
-*   **G5.** A new entry that gives the other person something to pay waits for their agreement before it counts.
+*   **G5.** A new entry with a positive share waits for the other person's agreement before it counts. This includes an entry where the other person is the payer, so each person confirms every figure that involves them. An entry with a zero share counts at once and shows "No agreement needed".
 *   **G6.** After an entry is agreed, a change to its money, or a delete, needs the other person's agreement. A change to its description or date does not.
 *   **G7.** Hide settled entries from the main lists, and show them again on request.
 *   **G8.** Show on each entry who added it, who agreed to it and when it last changed.
@@ -85,7 +85,7 @@ Decisions the author has not yet reviewed, listed roughly by the cost of changin
 *   **An agreement is final unless the proposer agrees to a change.** If the responder agrees by mistake, the proposer can decline any change request. There is no further route. This follows the author's rule, and the manual checks ask whether it causes trouble.
 *   **A new partner.** If a member leaves and someone new joins, the old ledger belongs to the old pair. Money routes then refuse writes, and the app says the ledger is between the remaining member and a former member. There is no way to start a new ledger in this phase.
 *   **Opt-in notifications.** A new entry never counts until the other person opens Money, and a push is sent only if the adder ticks "Let them know". The tick could default on for money. This design keeps the app-wide rule that nothing notifies unless asked.
-*   **Six tabs.** Today, Plan, Recipes, Shopping, Money, Settings. The tab labels must fit at the largest text size (the existing touch-target test pins the label size for five tabs). If six do not fit, Recipes moves under Plan.
+*   **Six tabs.** Today, Plan, Recipes, Shopping, Money, Settings. The tab labels must fit at the largest text size (the existing touch-target test pins the label size for five tabs). Checking this at 360 px is a go/no-go before item 9 merges. If six do not fit, Recipes moves under Plan in the same pull request.
 *   **The odd penny stays with the payer.** An equal split of 1001 pence gives the other person 500.
 *   **Restore needs agreement again.** A restored entry returns as waiting, so the other person can agree again, because it changes what they pay.
 *   **Limits.** At most 2,000 live entries, and amounts up to £1,000,000. Only the 50 newest deleted entries are listed, and older deleted entries cannot be restored in the app.
@@ -133,7 +133,7 @@ Decisions the author has not yet reviewed, listed roughly by the cost of changin
 
 *   **Given**: Sam has no signal.
 *   **When**: Sam adds an expense.
-*   **Then**: It appears on Sam's phone marked "Not saved yet" and is sent when the signal returns. It does not appear on Alex's phone until then. A retry or a double tap makes one entry. While changes are unsaved, the total on Sam's phone includes them and says "Includes 1 change not saved yet".
+*   **Then**: It appears on Sam's phone marked "Not saved yet" and is sent when the signal returns. It does not appear on Alex's phone until then. A retry or a double tap makes one entry. While changes are unsaved, Sam's page says "1 change not saved yet". The total does not change until Alex agrees, because a waiting entry does not count.
 
 ### CUJ 8: Both people record the same payment
 
@@ -151,7 +151,7 @@ Decisions the author has not yet reviewed, listed roughly by the cost of changin
 
 *   **Given**: The loan is paid back and the expenses are settled up, so the agreed entries add up to zero.
 *   **When**: A person opens Money.
-*   **Then**: The total reads "All square". The page says "Everything is settled. 6 entries are hidden." with a "Show settled" switch.
+*   **Then**: The total reads "All square". The page says "Everything is settled. {n} entries are hidden." with a "Show settled" switch.
 
 ### CUJ 11: The other person has left
 
@@ -237,7 +237,8 @@ Every route is wrapped in `withHousehold` and `guarded`, and is validated by `sr
 | `change` | `version`, and exactly one of `money` (`paidBy`, `amountPence`, `sharePence`, `loanId?`) or `delete: true` |
 | `change/respond` | `response` and `requestId` |
 | `change/withdraw` | `requestId` |
-| `DELETE /money/{id}` | the envelope only |
+| `DELETE /money/{id}` | the envelope only. It carries no version: it can only delete the caller's own waiting or declined entry, which the status and proposer checks bound. |
+| `POST /restore` (money entries) | `entries` of `{ kind: 'money', id, deletedAt }`, where `deletedAt` is the deletion the person saw |
 
 `GET` answers `{ entries, serverTime }`.
 
@@ -259,8 +260,8 @@ An entry has no `expiresAt`.
 *   `description`: 1 to 120 characters. `on`: the date the money moved, `YYYY-MM-DD`, chosen on the form (today by default).
 *   `fieldTimes`: the client time `description` and `on` were last set, for per-field last-writer-wins.
 *   `status`: `waiting`, `agreed` or `declined`.
-*   `version`: starts at 1 and goes up each time the money fields change, when a declined entry is edited, when an entry is restored, and when an entry becomes agreed or declined.
-*   `createdBy`: the creator, for display. `proposedBy`: who put the entry into waiting (the creator, or whoever restored it). `agreedAt` and `agreedBy`: set when the responder agrees.
+*   `version`: starts at 1 and goes up each time the money fields change, each time a waiting or declined entry is edited, when an entry is restored, and when an entry becomes agreed or declined.
+*   `createdBy`: the creator, for display. `proposedBy`: who put the entry into waiting (the creator, or whoever restored it). `agreedAt` and `agreedBy`: set when the responder agrees. An entry that needed no agreement has `agreedAt` and no `agreedBy`, and the entry page says "No agreement needed".
 *   `pendingChange`: absent, or `{ id, by, at, money?, delete? }`. `id` is the `mutationId` of the request that made it.
 *   `deletedAt`, `deletedBy`: set when the entry is deleted.
 
@@ -285,7 +286,7 @@ The total is one pure function, `computeTotal(entries, me, other)`, in `src/shar
 
 **Loan progress**
 
-`loanProgress(entries, loanId)` is the sum of `amountPence` of agreed, live payments whose `loanId` is that loan. A loan is paid back when its progress is at least its amount. The page shows progress up to the loan's amount. A payment above the amount still counts in the total, because the total ignores `loanId`.
+`loanProgress(entries, loanId)` is the sum of `amountPence` of agreed, live payments whose `loanId` is that loan and whose sender is the loan's borrower (not the loan's payer, so a later change of the loan's payer cannot make old payments count). A loan is paid back when its progress is at least its amount. The page shows progress up to the loan's amount. A payment above the amount still counts in the total, because the total ignores `loanId`.
 
 **Other rules**
 
@@ -333,7 +334,7 @@ Nothing here is stored. `settledIds(entries)` returns the ids of settled entries
 ### Writes and conflicts
 
 *   Every write reads the write record first (`replayOf`) and runs through `withWriteRecord`, with the entry's update at index 0 so a lost race is reported as `failedIndex 0`, as in `putRecipe`. A put or update of the entry is conditional on `version` and `status`, and a retry runs up to three times.
-*   **The money fields are one unit.** An edit sends the whole money group with the `baseVersion` it was based on. The update is conditional on that version. If the entry changed since, the answer is 409 `entry_changed` with the current entry in the response. Fields are never merged one by one. Description and date use per-field last-writer-wins by `fieldTimes`. Editing them does not change `version`, because they change no one's debt.
+*   **The money fields are one unit.** An edit sends the whole money group with the `baseVersion` it was based on. The update is conditional on that version. If the entry changed since, the answer is 409 `entry_changed` with the current entry in the response. Fields are never merged one by one. Description and date use per-field last-writer-wins by `fieldTimes`. On an agreed entry, editing them does not change `version`, because they change no one's debt.
 *   **Create.** A put to a missing id creates the entry as `waiting`, with the caller as `createdBy` and `proposedBy`. If `sharePence` is zero (only an expense can have that) the entry is `agreed` at once, because the other person pays nothing. A loan or a payment always has a positive share, so it always waits: the payee agrees that the money arrived.
 *   **Who may do what**, by the caller and the entry:
 
@@ -347,7 +348,7 @@ Nothing here is stored. `settledIds(entries)` returns the ids of settled entries
 | Member who asked | the request | Withdraw |
 | Either member | deleted | Restore. Nothing else is allowed on a deleted entry (410 `gone`). |
 
-*   **Agreeing.** `respond` is conditional on the `version` the responder saw, so agreeing to an entry that was edited, declined or restored since answers 409 `entry_changed`. `change/respond` and `change/withdraw` carry the request's `requestId`. They are conditional on `pendingChange.id`, so a queued agreement cannot apply to a different request made after the person saw the first.
+*   **Agreeing.** `respond` is conditional on the `version` the responder saw, so agreeing to an entry that was edited, declined or restored since answers 409 `entry_changed`. On a waiting or declined entry every edit, including description and date, raises `version`, so a person only agrees to what they saw. On an agreed entry, editing the description or date does not raise it. `change/respond` and `change/withdraw` carry the request's `requestId`. They are conditional on `pendingChange.id`, so a queued agreement cannot apply to a different request made after the person saw the first.
 *   **A declined entry** stays in the ledger, shown to the proposer under "Needs another look". Any save by the proposer puts it back to waiting.
 *   **A payment's loan.** A change to a loan's amount or payer, or a delete of a loan, does not touch the payments linked to it. They keep counting in the total. The delete request says so: "Payments recorded against this loan will stay in the total."
 
@@ -365,14 +366,14 @@ An agreed entry can carry one change request. It is stored on the entry as `pend
 
 *   The proposer deletes a waiting or declined entry directly. An agreed entry is deleted through a change request.
 *   A deleted entry leaves the total at once and shows in Deleted. It is never purged.
-*   Restore is `POST /api/hh/restore` with `{ kind: 'money', id }` entries. Either member may restore. The restore of each entry is its own conditional transaction on `deletedAt`, like `restoreRecord`, and the write record is stored once at the end, as the restore route does today. It removes `deletedAt`, `deletedBy`, `agreedAt`, `agreedBy` and `pendingChange`, raises `version`, sets the status to `waiting` with the restorer as `proposedBy` (or `agreed` if the share is zero). `RestoreStatus` gains `needs_two`, `pair_changed` and `money_limit`, which the money branch returns per entry, and the live-entry limit is checked as the recipe limit is.
+*   Restore is `POST /api/hh/restore` with `{ kind: 'money', id, deletedAt }` entries, where `deletedAt` is the deletion the person saw. Either member may restore. The restore of each entry is its own transaction, conditional on that `deletedAt`, so a restore queued before the entry was restored, edited and deleted again answers `entry_changed` and applies nothing the person did not see, like `restoreRecord`, and the write record is stored once at the end, as the restore route does today. It removes `deletedAt`, `deletedBy`, `agreedAt`, `agreedBy` and `pendingChange`, raises `version`, sets the status to `waiting` with the restorer as `proposedBy` (or `agreed` if the share is zero). `RestoreStatus` gains `needs_two`, `pair_changed`, `money_limit` and `entry_changed`, which the money branch returns per entry, and the live-entry limit is checked as the recipe limit is.
 *   A payment whose loan is deleted keeps its `loanId`. It counts in the total, and the loan view ignores it while the loan is deleted.
 
 ### Sync, offline and cache
 
 *   **Mutation kinds.** A new "money" set in `app/lib/mutations.ts`, all scoped `household` with the shared offline defaults and owner guard: `moneyAdd`, `moneyEdit`, `moneyRespond`, `moneyChange`, `moneyChangeRespond`, `moneyChangeWithdraw`, `moneyDelete` and `moneyRestore`. The set has its own variables type, runner table and `useMoneyMutation`, like the meals set, and its keys and query key live in `app/lib/moneyKeys.ts` so the registry can name them without a cycle. Each invalidates `['money']` when it settles. A key is never renamed once shipped.
 *   **Persistence.** `shouldDehydrateMutation` saves every pending mutation whose scope is `household`, so these persist with no list to update. A test saves and restores one of each.
-*   **Overlay.** `app/lib/moneyOverlay.ts` lays pending writes over the cached entries with the same pure rules as the server (`src/money/applyEntry.ts`). The total is worked out from the overlaid entries, so it moves as soon as the person acts. When pending money writes exist the page says "Includes {n} changes not saved yet", because the other phone shows the total without them.
+*   **Overlay.** `app/lib/moneyOverlay.ts` lays pending writes over the cached entries with the same pure rules as the server (`src/money/applyEntry.ts`). The total is worked out from the overlaid entries, so an agreement or a zero-share entry moves it as soon as the person acts. When pending money writes exist the page says "{n} changes not saved yet", because the other phone shows the total without them.
 *   **Query.** `useMoney()` (`['money']`) is polled every 10 seconds while visible, like tasks, shopping and the plan, with the existing `noteMutationSettled` guard.
 *   **A stale write.** A queued edit, response or change that arrives after the entry changed is refused with 409 `entry_changed`. The queue drops it, and the app shows "That entry changed. Please look at it again." There is no draft for money in this phase: the person reopens the entry and acts again.
 *   **Offline reading.** Entries are saved in the persisted cache with the other lists, for seven days.
@@ -414,8 +415,8 @@ The phase 1 wording rules apply (`docs/brand.md`): no red, and none of "overdue"
 |---|---|
 | Total, one way | "£30.00 to settle, from Alex to Sam" |
 | Total at zero | "All square" |
-| Unsaved changes | "Includes 2 changes not saved yet" |
-| Everything settled | "Everything is settled. 6 entries are hidden." |
+| Unsaved changes | "1 change not saved yet", "2 changes not saved yet" |
+| Everything settled | "Everything is settled. {n} entries are hidden." |
 | No entries yet | "No money entries yet. Add one when you share a cost or lend money." |
 | Waiting for the other person | "Waiting for Alex" |
 | Waiting for me | "Waiting for you" |
@@ -599,14 +600,14 @@ File names are taken from the current code. Where one differs when a step starts
 #### 6. `src/api/money.ts` (Create), `src/api/apiRoutes.ts` (Modify), `src/push/events.ts` (Modify), `src/money/log.ts` (Create), `src/api/__tests__/money.test.ts` (Create), `src/api/__tests__/apiRoutes.test.ts` (Modify)
 
 *   **Type / Scope**: Routes, notification wording and logging.
-*   **Proposed Changes**: `registerMoneyRoutes(router)` registers all seven money routes in the table, each as `withHousehold(guarded(['id'], ...))`. Create and restore call `notifyAfter` with `moneyAdded`, responses with `moneyReplied`, and change requests, delete requests and withdrawals with `moneyAsked`, as in "Notifications". The log helpers and the handler wrapper are in `src/money/log.ts`.
+*   **Proposed Changes**: `registerMoneyRoutes(router)` registers all seven money routes in the table, each as `withHousehold(guarded(['id'], ...))`. Create calls `notifyAfter` with `moneyAdded` (restore is notified in item 7), responses with `moneyReplied`, and change requests, delete requests and withdrawals with `moneyAsked`, as in "Notifications". The log helpers and the handler wrapper are in `src/money/log.ts`.
 *   **Tests**: status codes; 400 naming the field; 404 for a non-UUID id; the 409 codes; replay through the write record; another household cannot read the entries; no amount, description or name in a log line, and no amount, description or loan name in a push payload; a push goes out only when asked, once for a retry, and not after 30 minutes; the route list.
 
 #### 7. `src/household/invites.ts` (Modify), `src/tasks/restore.ts` (Modify), `src/api/tasks.ts` (Modify), `src/shared/taskValidation.ts` (Modify), `src/store/__tests__/contract.ts` (Modify), and the tests beside each
 
 *   **Type / Scope**: Household move, restore and store contract.
-*   **Proposed Changes**: Add `MONEY_PREFIX` to `moveOptions`. Widen the restore `kind` to include `'money'` in `restoreEntries` and `parseRestoreBody`, add the money branch of "Deleting and restoring" and the new `RestoreStatus` values, and update the restore route if it needs the new statuses. The contract test adds a case that puts entries under `MONEY#` and queries the prefix on all three stores.
-*   **Tests**: a person alone with an entry is not offered a move; restore works, twice does nothing, a restore after a later delete does nothing, and a restore returns `needs_two`, `pair_changed` or `money_limit` as they apply; the contract case.
+*   **Proposed Changes**: Add `MONEY_PREFIX` to `moveOptions`. Widen the restore `kind` to include `'money'` in `restoreEntries` and `parseRestoreBody` (a money entry also carries `deletedAt`), add the money branch of "Deleting and restoring" and the new `RestoreStatus` values, and update the restore route if it needs the new statuses. A money restore notifies with `moneyAdded`, as in "Notifications". The restore is first built here, not in item 5. The contract test adds a case that puts entries under `MONEY#` and queries the prefix on all three stores.
+*   **Tests**: a person alone with an entry is not offered a move; restore works, twice does nothing, a restore with a stale `deletedAt` (after a restore, an edit and a new delete) returns `entry_changed` and does nothing, and a restore returns `needs_two`, `pair_changed` or `money_limit` as they apply; the contract case.
 
 ### Step 2: The app
 
