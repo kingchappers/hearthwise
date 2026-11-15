@@ -125,6 +125,27 @@ describe('EventSheet: adding', () => {
   });
 });
 
+describe('EventSheet: with nobody else in the household', () => {
+  const alone = [{ userId: SAM, displayName: 'Sam' }];
+
+  it('offers only the person themselves, with no Both and no Private, and adds for them', async () => {
+    renderSheet({ members: alone });
+    expect(screen.getByLabelText('Who is it for?')).toHaveValue(SAM);
+    expect([...screen.getByLabelText('Who is it for?').querySelectorAll('option')].map(option => option.textContent)).toEqual(['Sam (you)']);
+    await type('Title', 'Walk');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(addedWith()).toMatchObject({ people: { who: SAM, private: false } });
+  });
+
+  it('shows an event for a former member as for the person, and saves what is shown', async () => {
+    const gone = event({ who: 'u-gone' });
+    renderSheet({ members: alone, event: gone });
+    expect(screen.getByLabelText('Who is it for?')).toHaveValue(SAM);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(actions.edit).toHaveBeenCalledWith(gone, { people: { who: SAM, private: false } });
+  });
+});
+
 describe('EventSheet: editing', () => {
   it('opens the event as it is, with no choice of kind, and sends only what changed', async () => {
     const dentist = event({ place: 'Surgery' });

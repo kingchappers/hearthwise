@@ -29,13 +29,18 @@ const KINDS: { value: EventKind; label: string }[] = [{ value: 'event', label: '
 const title = (event: EventView | undefined): string => (event ? `Edit ${event.kind}` : 'Add to the calendar');
 
 function Content({ onClose, event, day, me, members, actions }: Omit<EventSheetProps, 'opened'>) {
-  const [form, setForm] = useState<EventForm>(() => (event ? formFromEvent(event) : blankForm(day)));
+  const other = members.find(member => member.userId !== me);
+  // Only people who can be chosen are shown: with nobody else (or a former member named) it is the person themselves.
+  const choosable = (who: string): string => (who === me || who === 'both' || who === other?.userId) && (who !== 'both' || other) ? who : me;
+  const [form, setForm] = useState<EventForm>(() => {
+    const start = event ? formFromEvent(event) : blankForm(day);
+    return { ...start, who: choosable(start.who) };
+  });
   const [submitted, setSubmitted] = useState(false);
   // Made once, when the sheet opens, and kept while it is open: a double tap is one event.
   const [ids] = useState(() => ({ id: crypto.randomUUID(), mutationId: crypto.randomUUID() }));
   const set = (patch: Partial<EventForm>): void => setForm(current => ({ ...current, ...patch }));
 
-  const other = members.find(member => member.userId !== me);
   const result = evaluateForm(form, me);
   const errorFor = (field: keyof typeof result.errors): string | undefined => (submitted ? result.errors[field] : undefined);
   // Only the maker may make an event private or not.
