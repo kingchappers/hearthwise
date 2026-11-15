@@ -16,6 +16,7 @@ import { currentSettledCount } from './queries';
 export { MONEY_KEY };
 
 const POLL_MS = 10_000;
+const NONE: MoneyEntry[] = [];
 export const FORMER_MEMBER = 'Former member';
 
 export interface LedgerPair {
@@ -107,6 +108,8 @@ export interface MoneyState {
   status: 'loading' | 'ready' | 'error';
   // Every entry as the person sees it, deleted ones too, with every pending write laid over.
   entries: MoneyEntry[];
+  // The server's entries with nothing laid over them.
+  serverEntries: MoneyEntry[];
   me: string;
   people: People;
   other: { userId: string | undefined; name: string };
@@ -182,6 +185,7 @@ export function useMoney(): MoneyState {
   return {
     status: data ? 'ready' : query.isError ? 'error' : 'loading',
     entries,
+    serverEntries: query.data?.entries ?? NONE,
     me,
     people: { meId: me, meName: household.data?.me.displayName ?? '', otherId: pair.otherId ?? '', otherName: pair.otherName },
     other: { userId: pair.otherId, name: pair.otherName },

@@ -25,7 +25,7 @@ import MoneyEntryPage, { meta as entryMeta } from '../money.$id';
 // What the real hook gives for these entries, worked out by the same ledger functions.
 function moneyOf(entries: MoneyEntry[], over: Partial<MoneyState> = {}): MoneyState {
   return {
-    status: 'ready', entries, me: SAM, people, other: { userId: ALEX, name: 'Alex' }, canWrite: true, total: computeTotal(entries, SAM, ALEX), loans: loanLines(entries),
+    status: 'ready', entries, serverEntries: entries, me: SAM, people, other: { userId: ALEX, name: 'Alex' }, canWrite: true, total: computeTotal(entries, SAM, ALEX), loans: loanLines(entries),
     settled: settledIds(entries), unsaved: 0, unsavedIds: new Set(), dataUpdatedAt: 1, refetch: vi.fn(), ...over,
   };
 }

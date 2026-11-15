@@ -22,7 +22,7 @@ function EntryContent() {
   const money = useMoney();
   const actions = useMoneyActions();
   const household = useHousehold();
-  useChangeNotices(money.entries, money.me);
+  useChangeNotices(money.serverEntries, money.me);
   // Which way the sheet is open: for the whole entry, or only for its words and date.
   const [sheet, setSheet] = useState<'closed' | 'all' | 'words'>('closed');
 

@@ -26,7 +26,7 @@ function MoneyContent() {
   const [showSettled, setShowSettled] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MoneyEntry | undefined>();
-  useChangeNotices(money.entries, money.me);
+  useChangeNotices(money.serverEntries, money.me);
 
   if (money.status === 'loading') return <Group justify="center" py="xl" role="status" aria-label="Loading money"><Loader /></Group>;
   if (money.status === 'error') return <LoadError thing="money" onRetry={money.refetch} />;

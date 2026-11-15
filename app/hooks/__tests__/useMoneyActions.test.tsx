@@ -117,6 +117,13 @@ describe('useChangeNotices', () => {
     expect(show).toHaveBeenCalledTimes(1);
   });
 
+  it('says nothing when the entries are the server\'s and the request was only agreed (version moved)', () => {
+    const agreed = { ...answered, version: asked.version + 1 };
+    const { rerender } = renderHook(({ entries }) => useChangeNotices(entries, 'u-sam'), { initialProps: { entries: [asked] } });
+    rerender({ entries: [agreed] });
+    expect(show).not.toHaveBeenCalled();
+  });
+
   it('says nothing on the first load', () => {
     renderHook(() => useChangeNotices([answered], 'u-sam'));
     expect(show).not.toHaveBeenCalled();

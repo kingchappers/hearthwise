@@ -25,7 +25,7 @@ vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => ({ me: { userId
 vi.mock('~/lib/money', async importOriginal => ({
   ...(await importOriginal<typeof import('~/lib/money')>()),
   useMoney: () => ({
-    status: 'ready', entries: [], me: 'a', people: { meId: 'a', meName: 'Ann', otherId: 'b', otherName: 'Bo' }, other: { userId: 'b', name: 'Bo' }, canWrite: false,
+    status: 'ready', entries: [], serverEntries: [], me: 'a', people: { meId: 'a', meName: 'Ann', otherId: 'b', otherName: 'Bo' }, other: { userId: 'b', name: 'Bo' }, canWrite: false,
     total: { direction: 'square', pence: 0 }, loans: [], settled: new Set(), unsaved: 1, unsavedIds: new Set(), dataUpdatedAt: 1, refetch: vi.fn(),
   }),
 }));

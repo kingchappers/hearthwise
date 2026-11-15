@@ -88,6 +88,7 @@ export function useMoneyActions(): MoneyActions {
   };
 }
 
+// Takes the server's entries, never the overlaid ones: a queued write that settles before its refetch lands would look like a declined request.
 // Says "Change not made" when a request of mine ends with nothing changed. The server keeps no trace of a declined request, so this is
 // seen as the entry's request going away while its version stays the same.
 export function useChangeNotices(entries: MoneyEntry[], me: string): void {

@@ -208,6 +208,18 @@ describe('useMoney', () => {
     expect(result.current.unsaved).toBe(0);
   });
 
+  it('gives the server\'s entries apart from the overlaid ones, so a notice is never made from a write that is only queued', async () => {
+    const { result } = renderHook(() => useMoney(), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    const id = result.current.entries[0].id;
+    act(() => {
+      new MutationObserver(client, { mutationKey: moneyMutationKeys.moneyChange, mutationFn: () => new Promise(() => undefined) })
+        .mutate({ mutationId: 'm1', at: NOW, by: SAM, entryId: id, version: 2, delete: true } as never);
+    });
+    await waitFor(() => expect(result.current.entries[0].pendingChange).toBeDefined());
+    expect(result.current.serverEntries[0].pendingChange).toBeUndefined();
+  });
+
   it('reports an error when the first load fails', async () => {
     request.mockRejectedValue(new Error('down'));
     const { result } = renderHook(() => useMoney(), { wrapper });
