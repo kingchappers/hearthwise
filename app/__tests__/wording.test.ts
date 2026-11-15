@@ -7,6 +7,15 @@ const BANNED = /\b(overdue|missed|streak|late|failed to complete)\b/i;
 // Phase 2 also avoids these. They are tested only against the meal files, because "Forgot your password?" and similar words in the
 // sign-in screens are not about a plan or a recipe.
 const BANNED_PHASE_2 = /\b(forgot|skipped|incomplete|missing|unplanned)\b/i;
+// Phase 3 also avoids these in the money files, so that nothing there reads as blame. They are tested only against those files.
+const BANNED_PHASE_3 = /\b(owe|owes|owed|debt|debts|unpaid|behind)\b/i;
+const MONEY_LIB = ['money', 'moneyKeys', 'moneyOverlay', 'moneyForm', 'moneyText'];
+// The fixed fragments of the design's Wording table, each of which must appear in what a person can read in the money files.
+const MONEY_PHRASES = [
+  'to settle, from', 'All square', 'Waiting for', 'Not saved yet', 'wants to check this one', 'Change waiting for', 'paid back', 'Needs another look', 'Show settled',
+  'Everything is settled', 'No money entries yet. Add one when you share a cost or lend money.', 'Delete waiting for', 'Payments recorded against this loan will stay in the total.',
+  'That entry changed. Please look at it again.', 'to agree to this change.', 'Adding or agreeing needs the two people this ledger is between.', 'This household has reached 2,000 entries.',
+];
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];
 // The fixed phrases the design promises, each of which must appear in what a person can read in the meal files.
 const FIXED_PHRASES = [
@@ -38,6 +47,17 @@ function mealFiles(): string[] {
       || /^routes\/(recipes[^/]*|plan)\.tsx$/.test(path)
       || MEAL_LIB.some(name => path === `lib/${name}.ts`)
       || /^hooks\/(useRecipeActions|usePlanActions)\.tsx$/.test(path);
+  });
+}
+
+// The files of the money tracker: the screens, the routes, the client data and the actions.
+function moneyFiles(): string[] {
+  return sourceFiles(APP).filter(file => {
+    const path = relative(APP, file).split('\\').join('/');
+    return path.startsWith('components/money/')
+      || /^routes\/money[^/]*\.tsx$/.test(path)
+      || MONEY_LIB.some(name => path === `lib/${name}.ts`)
+      || path === 'hooks/useMoneyActions.tsx';
   });
 }
 
@@ -83,5 +103,57 @@ describe('wording', () => {
     const text = mealFiles().flatMap(file => readableText(readFileSync(file, 'utf8')));
     const absent = FIXED_PHRASES.filter(phrase => !text.some(line => line.includes(phrase)));
     expect(absent).toEqual([]);
+  });
+
+  it('finds the files of the money tracker, and not others', () => {
+    const files = moneyFiles().map(file => relative(APP, file).split('\\').join('/'));
+    expect(files).toEqual(expect.arrayContaining([
+      'components/money/TotalCard.tsx', 'components/money/WaitingList.tsx', 'components/money/LoanList.tsx', 'components/money/EntryList.tsx', 'components/money/EntryRow.tsx',
+      'components/money/AddSheet.tsx', 'components/money/EntryDetail.tsx', 'routes/money._index.tsx', 'routes/money.$id.tsx', 'lib/money.ts', 'lib/moneyOverlay.ts',
+      'lib/moneyForm.ts', 'lib/moneyText.ts', 'lib/moneyKeys.ts', 'hooks/useMoneyActions.tsx',
+    ]));
+    expect(files).not.toContain('components/meals/CookingView.tsx');
+  });
+
+  it('keeps owe, debt, unpaid and behind out of the money tracker', () => {
+    const found = (text: string): boolean => readableText(text).some(line => BANNED_PHASE_3.test(line));
+    expect(found(`const a = 'Alex owes Sam';`)).toBe(true);
+    expect(found('<p>Your debt</p>')).toBe(true);
+    expect(found(`const a = "unpaid";`)).toBe(true);
+    expect(found(`const a = 'You are behind';`)).toBe(true);
+    expect(found(`const a = 'Owen';`)).toBe(false);
+    expect(found(`// owed is banned in comments too, but this test reads only what is shown\nconst a = 1;`)).toBe(false);
+    const hits = moneyFiles().flatMap(file =>
+      readableText(readFileSync(file, 'utf8')).filter(line => BANNED_PHASE_3.test(line)).map(line => `${relative(APP, file)}: ${line}`),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps forgot, skipped, incomplete, missing and unplanned out of the money tracker', () => {
+    const hits = moneyFiles().flatMap(file =>
+      readableText(readFileSync(file, 'utf8')).filter(line => BANNED_PHASE_2.test(line)).map(line => `${relative(APP, file)}: ${line}`),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps every banned word out of the comments of the money files too', () => {
+    const everything = new RegExp(`${BANNED.source}|${BANNED_PHASE_2.source}|${BANNED_PHASE_3.source}`, 'i');
+    const hits = moneyFiles().flatMap(file =>
+      readFileSync(file, 'utf8').split('\n').filter(line => everything.test(line)).map(line => `${relative(APP, file)}: ${line.trim()}`),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('uses every fixed phrase of the money wording table in at least one file', () => {
+    const text = moneyFiles().flatMap(file => readableText(readFileSync(file, 'utf8')));
+    const absent = MONEY_PHRASES.filter(phrase => !text.some(line => line.includes(phrase)));
+    expect(absent).toEqual([]);
+  });
+
+  it('uses no red in the money files', () => {
+    const hits = moneyFiles().flatMap(file =>
+      readFileSync(file, 'utf8').split('\n').filter(line => /\b(red|crimson|#f00|#ff0000|c="red"|color="red")\b|color=["']red/i.test(line)).map(line => `${relative(APP, file)}: ${line.trim()}`),
+    );
+    expect(hits).toEqual([]);
   });
 });

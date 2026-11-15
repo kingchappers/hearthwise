@@ -62,17 +62,17 @@ beforeEach(() => {
 });
 
 describe('DefaultLayout navigation', () => {
-  it('has Today, Plan, Recipes, Shopping and Settings in the tab bar, and nothing else', () => {
+  it('has Today, Plan, Recipes, Shopping, Money and Settings in the tab bar, in that order, and nothing else', () => {
     renderLayout();
     const tabBar = screen.getByRole('navigation', { name: 'Primary' });
     const names = within(tabBar).getAllByRole('link').map(link => link.getAttribute('aria-label'));
-    expect(names).toEqual(['Today', 'Plan', 'Recipes', 'Shopping', 'Settings']);
+    expect(names).toEqual(['Today', 'Plan', 'Recipes', 'Shopping', 'Money', 'Settings']);
     expect(within(tabBar).queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('shows the same destinations in the sidebar, each with its own address', () => {
     renderLayout();
-    const addresses: Record<string, string> = { Today: '/', Plan: '/plan', Recipes: '/recipes', Shopping: '/shopping', Settings: '/settings' };
+    const addresses: Record<string, string> = { Today: '/', Plan: '/plan', Recipes: '/recipes', Shopping: '/shopping', Money: '/money', Settings: '/settings' };
     for (const [name, href] of Object.entries(addresses)) {
       const links = screen.getAllByRole('link', { name });
       expect(links).toHaveLength(2);
@@ -97,6 +97,12 @@ describe('DefaultLayout navigation', () => {
     const tabBar = screen.getByRole('navigation', { name: 'Primary' });
     expect(within(tabBar).getByRole('link', { name: 'Recipes' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabBar).getByRole('link', { name: 'Today' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('keeps Money current on the pages under it', () => {
+    renderLayout(<p>page</p>, '/money/abc');
+    const tabBar = screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(tabBar).getByRole('link', { name: 'Money' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('keeps Today current only on the home page', () => {

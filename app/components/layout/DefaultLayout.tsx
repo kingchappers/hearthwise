@@ -5,7 +5,7 @@ import Authentication from "../authentication/Authentication";
 import { AuthProvider } from "../authentication/AuthProvider";
 import { ColorSchemeToggle } from './ColorSchemeToggle';
 import { Logo, Mark } from './Logo';
-import { IconCalendar, IconHome, IconSettings, IconShoppingCart, IconToolsKitchen2 } from '@tabler/icons-react';
+import { IconCalendar, IconHome, IconPigMoney, IconSettings, IconShoppingCart, IconToolsKitchen2 } from '@tabler/icons-react';
 import { Navigate, NavLink as RouterNavLink, useLocation } from 'react-router';
 import { SignedOutPanel } from './SignedOutPanel';
 import { LoadError } from './LoadError';
@@ -27,6 +27,7 @@ export const NAV_ITEMS = [
   { to: '/plan', label: 'Plan', Icon: IconCalendar },
   { to: '/recipes', label: 'Recipes', Icon: IconToolsKitchen2 },
   { to: '/shopping', label: 'Shopping', Icon: IconShoppingCart },
+  { to: '/money', label: 'Money', Icon: IconPigMoney },
   { to: '/settings', label: 'Settings', Icon: IconSettings },
 ];
 

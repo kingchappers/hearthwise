@@ -15,6 +15,7 @@ import { HOUSEHOLD_KEY } from './household';
 import type { HouseholdData } from './household';
 import { ITEMS_KEY } from './items';
 import { MONEY_KEY, moneyMutationKeys } from './moneyKeys';
+import { moneyFailureText } from './moneyText';
 import type { MoneyMutationKind } from './moneyKeys';
 import { noteMutationSettled, TASKS_KEY } from './queries';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
@@ -290,14 +291,6 @@ const MONEY_RUNNERS: { [K in MoneyMutationKind]: (vars: MoneyMutationVars[K], re
   }),
 };
 
-const MONEY_WORDS: Record<string, (otherName: string | undefined) => string> = {
-  entry_changed: () => 'That entry changed. Please look at it again.',
-  needs_agreement: name => `Ask ${name ?? 'them'} to agree to this change.`,
-  needs_two: () => 'Adding or agreeing needs the two people this ledger is between.',
-  pair_changed: () => 'Adding or agreeing needs the two people this ledger is between.',
-  money_limit: () => 'This household has reached 2,000 entries.',
-};
-
 // What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
 // error that is still being retried says nothing (retryRules.ts); one that has used up its tries, or that the server refused, does.
 // A write dropped because someone else is now signed in says nothing.
@@ -306,8 +299,8 @@ export function describeFailure(error: unknown, kind?: string, otherName?: strin
   if (error.code === 'wrong_user') return undefined;
   if (error.code === 'recipe_limit') return 'This household has reached 200 recipes.';
   // The money codes come before the generic 409 text, which says less.
-  const money = error.code === undefined ? undefined : MONEY_WORDS[error.code];
-  if (money && kind?.startsWith('money')) return money(otherName);
+  const money = kind?.startsWith('money') && error.code !== undefined ? moneyFailureText(error.code, otherName) : undefined;
+  if (money) return money;
   if (error.status === 400 && (kind === 'recipeAdd' || kind === 'recipeEdit')) return "That recipe couldn't be saved. Please check its length.";
   if (error.status === 409) return 'This changed on another phone. Please check it and try again.';
   if (error.status === 410) return 'That was deleted on another phone.';

@@ -69,3 +69,14 @@ export function stateLabel(entry: MoneyEntry, people: People): string | undefine
   if (entry.status === 'declined') return entry.proposedBy === meId ? `${otherName} wants to check this one` : `Waiting for ${otherName}`;
   return undefined;
 }
+
+const FAILURES: Record<string, (otherName: string | undefined) => string> = {
+  entry_changed: () => 'That entry changed. Please look at it again.',
+  needs_agreement: name => `Ask ${name ?? 'them'} to agree to this change.`,
+  needs_two: () => 'Adding or agreeing needs the two people this ledger is between.',
+  pair_changed: () => 'Adding or agreeing needs the two people this ledger is between.',
+  money_limit: () => 'This household has reached 2,000 entries.',
+};
+
+// What to tell the person when the server refused a money write with this code, or nothing for a code that is not one of these.
+export const moneyFailureText = (code: string, otherName?: string): string | undefined => FAILURES[code]?.(otherName);
