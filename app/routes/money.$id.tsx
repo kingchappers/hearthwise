@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Anchor, Group, Loader, Stack, Text } from '@mantine/core';
 import { Link, useParams } from 'react-router';
+import type { MoneyEntry } from '../../src/money/types';
 import { dayInZone } from '../../src/shared/schedule';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { LoadError } from '~/components/layout/LoadError';
@@ -24,7 +25,8 @@ function EntryContent() {
   const household = useHousehold();
   useChangeNotices(money.serverEntries, money.me);
   // Which way the sheet is open: for the whole entry, or only for its words and date.
-  const [sheet, setSheet] = useState<'closed' | 'all' | 'words'>('closed');
+  // The entry is kept as it was when the sheet opened, so a save names the version the person was looking at.
+  const [sheet, setSheet] = useState<{ mode: 'closed' | 'all' | 'words'; entry?: MoneyEntry }>({ mode: 'closed' });
 
   if (money.status === 'loading') return <Group justify="center" py="xl" role="status" aria-label="Loading the entry"><Loader /></Group>;
   if (money.status === 'error') return <LoadError thing="entry" onRetry={money.refetch} />;
@@ -46,10 +48,10 @@ function EntryContent() {
       <LetThemKnow />
       <EntryDetail
         entry={entry} people={money.people} notSaved={money.unsavedIds.has(entry.id)} canWrite={money.canWrite}
-        loan={money.loans.find(line => line.loan.id === entry.id)} actions={actions} onEdit={wordsOnly => setSheet(wordsOnly ? 'words' : 'all')}
+        loan={money.loans.find(line => line.loan.id === entry.id)} actions={actions} onEdit={wordsOnly => setSheet({ mode: wordsOnly ? 'words' : 'all', entry })}
       />
       <AddSheet
-        key={sheet} opened={sheet !== 'closed'} onClose={() => setSheet('closed')} entry={entry} wordsOnly={sheet === 'words'} entries={money.entries}
+        key={sheet.mode} opened={sheet.mode !== 'closed'} onClose={() => setSheet({ mode: 'closed' })} entry={sheet.entry ?? entry} wordsOnly={sheet.mode === 'words'} entries={money.entries}
         people={money.people} today={dayInZone(Date.now(), timezone)} canWrite={money.canWrite} actions={actions}
       />
     </Stack>

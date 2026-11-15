@@ -232,6 +232,20 @@ describe('the Money entry page', () => {
     expect(actions().askChange).toHaveBeenCalledWith(shop, { money: { paidBy: SAM, amountPence: 3640, sharePence: 1820 } });
   });
 
+  it('sends a change against the version the sheet was opened on, even if the entry moves on meanwhile', async () => {
+    const shop = entry({ description: 'Weekly shop', version: 2 });
+    show([shop]);
+    const view = renderEntry(shop.id);
+    await userEvent.click(screen.getByRole('button', { name: 'Change' }));
+    show([{ ...shop, version: 3 }]);
+    view.rerender(<MantineProvider env="test"><MemoryRouter initialEntries={[`/money/${shop.id}`]}><Routes><Route path="/money/:id" element={<MoneyEntryPage />} /></Routes></MemoryRouter></MantineProvider>);
+    await userEvent.clear(screen.getByLabelText('How much?'));
+    await userEvent.type(screen.getByLabelText('How much?'), '36.40');
+    await userEvent.selectOptions(screen.getByLabelText('Split'), 'equal');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask Alex to agree' }));
+    expect((actions().askChange as ReturnType<typeof vi.fn>).mock.calls[0][0].version).toBe(2);
+  });
+
   it('says it cannot find an entry that is not in the list, with a way back', () => {
     show([entry()]);
     renderEntry('00000000-0000-4000-8000-00000000ffff');
