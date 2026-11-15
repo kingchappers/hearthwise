@@ -184,6 +184,14 @@ describe('runReminders: who and what', () => {
     expect(sender.sent).toHaveLength(0);
   });
 
+  it('sends no "at the end" reminder for an event that is not a block, even if one were stored', async () => {
+    const id = await dentist();
+    await remind(id, [start(30)]);
+    await store.patch(eventKey(householdId, id), { reminders: { [U1]: { savedAt: SET_AT, list: [{ from: 'end', minutes: 0 }] } } });
+    await run('2026-12-02T11:31:00Z');
+    expect(sender.sent).toHaveLength(0);
+  });
+
   it('sends nothing for an all-day event', async () => {
     const id = await dentist();
     await remind(id, [start(30)]);

@@ -141,6 +141,7 @@ async function remindersOf(run: Run, event: CalendarEvent, userId: string, owner
   const windowStart = run.now - CATCH_UP_MS;
   for (const occurrence of occurrencesOf(event, from, to)) {
     for (const reminder of entry.list) {
+      if (reminder.from === 'end' && event.kind !== 'block') continue;
       const candidate = candidateFor(occurrence, reminder, run.timeZone);
       if (!candidate) continue;
       if (candidate.instant > run.now) continue;
