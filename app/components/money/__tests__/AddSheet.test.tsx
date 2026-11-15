@@ -35,6 +35,11 @@ describe('AddSheet: adding', () => {
     expect(screen.getByLabelText('Split')).toHaveValue('equal');
   });
 
+  it('stops the description at 120 characters', () => {
+    renderSheet();
+    expect(screen.getByLabelText('What for?')).toHaveAttribute('maxlength', '120');
+  });
+
   it('shows the other person\'s share as it is typed, by name', async () => {
     renderSheet();
     await type('What for?', 'Weekly shop');

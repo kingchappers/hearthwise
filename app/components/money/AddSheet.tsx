@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, NativeSelect, Radio, Stack, Text, TextInput } from '@mantine/core';
 import type { MoneyChange, MoneyEntry, MoneyKind } from '../../../src/money/types';
 import { formatPounds } from '../../../src/shared/money';
+import { MAX_DESCRIPTION } from '../../../src/shared/moneyValidation';
 import type { SplitMode } from '../../../src/shared/money';
 import type { MoneyActions } from '~/hooks/useMoneyActions';
 import { blankForm, evaluateForm, formFromEntry, paymentDescription, splitOptions } from '~/lib/moneyForm';
@@ -105,7 +106,7 @@ function Content({ onClose, entry, wordsOnly = false, entries, people, today, ca
 
         {!wordsOnly && <NativeSelect label={PAYER_LABEL[form.kind]} data={payers} value={form.paidBy} onChange={event => set({ paidBy: event.currentTarget.value })} />}
         {form.kind !== 'payment' && (
-          <TextInput label="What for?" value={form.description} onChange={event => set({ description: event.currentTarget.value })} maxLength={240} error={errorFor('description')} />
+          <TextInput label="What for?" value={form.description} onChange={event => set({ description: event.currentTarget.value })} maxLength={MAX_DESCRIPTION} error={errorFor('description')} />
         )}
         {!wordsOnly && (
           <TextInput
