@@ -33,3 +33,8 @@ const MONEY_BODY = 'Open Money to take a look.';
 export const moneyAdded = (actor: string, mutationId: string): NotifyEvent => base('money.added', mutationId, `${actor} added a money entry`, MONEY_BODY, '/money');
 export const moneyReplied = (actor: string, mutationId: string): NotifyEvent => base('money.replied', mutationId, `${actor} replied to a money entry`, MONEY_BODY, '/money');
 export const moneyAsked = (actor: string, mutationId: string): NotifyEvent => base('money.asked', mutationId, `${actor} asked about a money entry`, MONEY_BODY, '/money');
+
+// Calendar. No title, place or notes is ever in the text, and a private event sends nothing at all (the route decides that).
+const CALENDAR_BODY = 'Open the calendar to take a look.';
+export const eventAdded = (actor: string, mutationId: string): NotifyEvent => base('event.added', mutationId, `${actor} added an event`, CALENDAR_BODY, '/plan/calendar');
+export const eventChanged = (actor: string, mutationId: string): NotifyEvent => base('event.changed', mutationId, `${actor} changed an event`, CALENDAR_BODY, '/plan/calendar');
