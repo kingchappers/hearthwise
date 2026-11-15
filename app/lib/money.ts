@@ -8,6 +8,7 @@ import { useHousehold } from './household';
 import type { MemberSummary } from './household';
 import { MONEY_KEY, moneyMutationKeys } from './moneyKeys';
 import { applyPendingMoney } from './moneyOverlay';
+import type { People } from './moneyText';
 import type { MoneyMutationVars } from './mutations';
 import type { PendingMutation } from './overlay';
 import { currentSettledCount } from './queries';
@@ -98,6 +99,7 @@ export interface MoneyState {
   // Every entry as the person sees it, deleted ones too, with every pending write laid over.
   entries: MoneyEntry[];
   me: string;
+  people: People;
   other: { userId: string | undefined; name: string };
   canWrite: boolean;
   total: Total;
@@ -172,6 +174,7 @@ export function useMoney(): MoneyState {
     status: data ? 'ready' : query.isError ? 'error' : 'loading',
     entries,
     me,
+    people: { meId: me, meName: household.data?.me.displayName ?? '', otherId: pair.otherId ?? '', otherName: pair.otherName },
     other: { userId: pair.otherId, name: pair.otherName },
     canWrite: pair.canWrite,
     ...computed,

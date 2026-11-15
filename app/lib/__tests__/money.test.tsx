@@ -180,6 +180,7 @@ describe('useMoney', () => {
     expect(result.current.other).toEqual({ userId: ALEX, name: 'Alex' });
     expect(result.current.canWrite).toBe(true);
     expect(result.current.me).toBe(SAM);
+    expect(result.current.people).toEqual({ meId: SAM, meName: 'Sam', otherId: ALEX, otherName: 'Alex' });
     expect(result.current.unsaved).toBe(0);
   });
 
