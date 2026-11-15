@@ -230,9 +230,10 @@ export async function restoreMoneyEntry(
   try {
     await store.transact([updateFor(householdId, raw, next, { ifEquals: { deletedAt: raw.deletedAt } })]);
   } catch (error) {
-    // Restored or deleted again since it was read: it is not the deletion this entry saw.
+    // Restored (noop) or deleted again (entry_changed) since it was read: it is not the deletion this entry saw.
     if (!(error instanceof ConditionFailedError)) throw error;
-    return 'noop';
+    const now = await store.get(moneyKey(householdId, target.id), { consistent: true });
+    return now?.deletedAt === undefined ? 'noop' : 'entry_changed';
   }
   batch.live += 1;
   return 'restored';

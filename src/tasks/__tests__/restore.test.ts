@@ -4,6 +4,7 @@ import { createHousehold } from '../../household/households';
 import { hhPk, membershipKey, memberSk } from '../../household/keys';
 import type { HouseholdContext } from '../../household/types';
 import { DEFAULT_SETTINGS } from '../../shared/household';
+import { ConditionFailedError } from '../../store';
 import { MemoryStore } from '../../store/memory';
 import { completeCycle } from '../completions';
 import { taskHistory } from '../history';
@@ -260,6 +261,26 @@ describe('restoreEntries: money', () => {
     expect((await restoreMoney([entry])).result.results).toEqual([{ id: entry.id, status: 'entry_changed' }]);
     expect(await stored(entry.id)).toEqual(before);
     expect((await restoreMoney([{ id: entry.id, deletedAt: again.result.entry.deletedAt! }])).result.results[0].status).toBe('restored');
+  });
+
+  it('answers entry_changed when it was deleted again during the race', async () => {
+    const entry = await money();
+    vi.spyOn(store, 'transact').mockImplementationOnce(async () => {
+      await store.patch(moneyKey(householdId, entry.id), { deletedAt: entry.deletedAt + 5 });
+      throw new ConditionFailedError(0);
+    });
+    expect((await restoreMoney([entry])).result.results[0].status).toBe('entry_changed');
+  });
+
+  it('answers noop when the entry was restored by someone else during the race', async () => {
+    const entry = await money();
+    vi.spyOn(store, 'transact').mockImplementationOnce(async () => {
+      const key = moneyKey(householdId, entry.id);
+      const { PK: _p, SK: _s, deletedAt: _d, ...rest } = (await store.get(key))!;
+      await store.put({ ...key, ...rest });
+      throw new ConditionFailedError(0);
+    });
+    expect((await restoreMoney([entry])).result.results[0].status).toBe('noop');
   });
 
   it('says not found for an unknown entry', async () => {
