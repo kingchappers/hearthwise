@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MutationObserver, QueryClient, onlineManager } from '@tanstack/react-query';
 import { persistQueryClientRestore, persistQueryClientSave } from '@tanstack/react-query-persist-client';
 import { ApiError } from '../apiError';
-import { itemMutationKeys, mealMutationKeys, mutationKeys, registerMutations } from '../mutations';
+import { itemMutationKeys, mealMutationKeys, moneyMutationKeys, mutationKeys, registerMutations } from '../mutations';
 import {
   CACHE_SCHEMA_VERSION, cacheKey, clearStoredUser, clearUserCache, createUserPersister, pendingWriteCount, readStoredUser, resumeHydratedMutations,
   resetSigningOutForTests, shouldDehydrateMutation, signOutCleanup, storeUser,
@@ -134,6 +134,30 @@ describe('writes made offline, across a reload', () => {
     await vi.waitFor(() => expect(sent).toHaveLength(2));
     expect(sent.map(request => `${request.method} ${request.path}`)).toEqual(['POST /api/hh/plan/add-to-list', 'PUT /api/hh/plan/2026-11-17']);
     expect(sent[0].body).toMatchObject({ days, lines });
+    await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
+  });
+
+  it('include a pending money entry and a pending change request: saved with a schema version 1 cache, restored and sent in order', async () => {
+    const ID = '11111111-1111-4111-8111-111111111111';
+    const REQUEST = '22222222-2222-4222-8222-222222222222';
+    onlineManager.setOnline(false);
+    const before = newClient();
+    void mutate(before, moneyMutationKeys.moneyAdd, { mutationId: 'm1', entry: { id: ID, kind: 'loan', paidBy: ME, amountPence: 5000, sharePence: 5000, description: 'Rent shortfall', on: '2026-11-15' } });
+    void mutate(before, moneyMutationKeys.moneyChange, { mutationId: REQUEST, entryId: ID, version: 2, money: { paidBy: ME, amountPence: 3640, sharePence: 3640 } });
+    void mutate(before, moneyMutationKeys.moneyChangeRespond, { mutationId: 'm3', entryId: ID, response: 'agree', requestId: REQUEST });
+    await vi.waitFor(() => expect(pendingWriteCount(before)).toBe(3));
+    await save(before);
+    expect(JSON.parse(storage.map.get(cacheKey(ME))!).buster).toBe('1');
+
+    onlineManager.setOnline(true);
+    const after = newClient();
+    await restore(after);
+    expect(pendingWriteCount(after)).toBe(3);
+    resumeHydratedMutations(after);
+    await vi.waitFor(() => expect(sent).toHaveLength(3));
+    expect(sent.map(request => `${request.method} ${request.path}`)).toEqual([`PUT /api/hh/money/${ID}`, `POST /api/hh/money/${ID}/change`, `POST /api/hh/money/${ID}/change/respond`]);
+    expect(sent[1].body.mutationId).toBe(REQUEST);
+    expect(sent[2].body.requestId).toBe(REQUEST);
     await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
   });
 

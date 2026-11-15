@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   tasks: { status: 'ready', tasks: [] as Task[], proposals: [], today: '2026-11-13', refetch: vi.fn() },
   items: { status: 'ready', items: [] as object[], refetch: vi.fn() },
   recipes: { status: 'ready', recipes: [] as object[], dataUpdatedAt: 1, refetch: vi.fn() },
+  money: { status: 'ready', entries: [] as object[], canWrite: true, unsavedIds: new Set<string>(), refetch: vi.fn() },
+  moneyActions: undefined as unknown,
   actions: undefined as unknown,
   itemActions: undefined as unknown,
   recipeActions: undefined as unknown,
@@ -19,6 +21,8 @@ vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children
 vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
 vi.mock('~/lib/items', () => ({ useItems: () => state.items }));
 vi.mock('~/lib/recipes', () => ({ useRecipes: () => state.recipes }));
+vi.mock('~/lib/money', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/money')>()), useMoney: () => state.money }));
+vi.mock('~/hooks/useMoneyActions', () => ({ useMoneyActions: () => state.moneyActions }));
 vi.mock('~/hooks/useRecipeActions', () => ({ useRecipeActions: () => state.recipeActions }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => state.itemActions }));
@@ -36,6 +40,45 @@ beforeEach(() => {
   state.itemActions = { restore: vi.fn() };
   state.recipes = { status: 'ready', recipes: [], dataUpdatedAt: 1, refetch: vi.fn() };
   state.recipeActions = { restore: vi.fn() };
+  state.money = { status: 'ready', entries: [], canWrite: true, unsavedIds: new Set<string>(), refetch: vi.fn() };
+  state.moneyActions = { restore: vi.fn() };
+});
+
+describe('the Deleted page: money', () => {
+  const shop = {
+    id: 'm1', kind: 'expense', paidBy: THEM.userId, amountPence: 6340, sharePence: 3170, description: 'Weekly shop', on: '2026-11-10', fieldTimes: {}, status: 'agreed', version: 3,
+    createdBy: THEM.userId, createdAt: 1, proposedBy: THEM.userId, updatedAt: 1, updatedBy: ME.userId, deletedAt: NOV_12, deletedBy: ME.userId,
+  };
+
+  it('lists a Money group after Recipes, and restores an entry with one tap', async () => {
+    state.recipes.recipes = [{ id: 'r1', title: 'Chilli', mealType: 'dinner', servings: 2, lowEnergy: false, ingredients: [], steps: [], fieldTimes: {}, createdBy: 'u', updatedAt: 1, updatedBy: 'u', deletedAt: NOV_12, deletedBy: ME.userId }];
+    state.money.entries = [shop, { ...shop, id: 'm2', description: 'Kept', deletedAt: undefined }];
+    renderPage();
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['Recipes', 'Money']);
+    expect(screen.queryByText('Kept')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Deleted by Sam, .*12 Nov/)).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button', { name: 'Restore: Weekly shop' }));
+    expect((state.moneyActions as { restore: ReturnType<typeof vi.fn> }).restore).toHaveBeenCalledWith(shop);
+  });
+
+  it('says money entries stay until restored, and does not say nothing is deleted', () => {
+    state.money.entries = [shop];
+    renderPage();
+    expect(screen.getByText('Deleted money entries stay until you restore them.')).toBeInTheDocument();
+    expect(screen.queryByText('Nothing has been deleted.')).not.toBeInTheDocument();
+  });
+
+  it('turns Restore off when the ledger is read only or the entry has a change not saved yet', () => {
+    state.money.entries = [shop];
+    state.money.canWrite = false;
+    const { unmount } = renderPage();
+    expect(screen.getByRole('button', { name: 'Restore: Weekly shop' })).toBeDisabled();
+    unmount();
+    state.money.canWrite = true;
+    state.money.unsavedIds = new Set(['m1']);
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Restore: Weekly shop' })).toBeDisabled();
+  });
 });
 
 describe('the Deleted page: recipes', () => {

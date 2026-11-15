@@ -22,6 +22,14 @@ vi.mock('~/lib/plan', async importOriginal => ({ ...(await importOriginal<typeof
 vi.mock('~/hooks/usePlanActions', () => ({ usePlanActions: () => ({ set: vi.fn(), clear: vi.fn() }) }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => ({ status: 'ready', tasks: [], proposals: [], today: '2026-11-13', refetch: vi.fn() }) }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => ({ me: { userId: 'u1', displayName: 'Sam' }, members: [], caller: { userId: 'u1', members: [] }, today: '2026-11-13', needsAsk: () => false }) }));
+vi.mock('~/lib/money', async importOriginal => ({
+  ...(await importOriginal<typeof import('~/lib/money')>()),
+  useMoney: () => ({
+    status: 'ready', entries: [], serverEntries: [], me: 'a', people: { meId: 'a', meName: 'Ann', otherId: 'b', otherName: 'Bo' }, other: { userId: 'b', name: 'Bo' }, canWrite: false,
+    total: { direction: 'square', pence: 0 }, loans: [], settled: new Set(), unsaved: 1, unsavedIds: new Set(), dataUpdatedAt: 1, refetch: vi.fn(),
+  }),
+}));
+vi.mock('~/hooks/useMoneyActions', () => ({ useChangeNotices: vi.fn(), useMoneyActions: () => ({ add: vi.fn(), edit: vi.fn(), respond: vi.fn(), askChange: vi.fn(), respondChange: vi.fn(), withdrawChange: vi.fn(), remove: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import { SignedOutPanel } from '~/components/layout/SignedOutPanel';
@@ -31,6 +39,7 @@ import Settings from '~/routes/settings';
 import Welcome from '~/routes/welcome';
 import Join from '~/routes/join';
 import Deleted from '~/routes/deleted';
+import Money from '~/routes/money._index';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 import { expectReadable } from '~/test-utils/readableText';
 
@@ -99,5 +108,19 @@ describe('tasks', () => {
     renderIn(<Deleted />);
     expectReadable(screen.getByText('Deleted tasks, shopping items and recipes stay here for 30 days.'));
     expectReadable(screen.getByText('Nothing has been deleted.'));
+  });
+});
+
+describe('money', () => {
+  it('shows what will appear, the read-only note and the unsaved line at a readable size', () => {
+    renderIn(<Money />);
+    expectReadable(screen.getByText('No money entries yet. Add one when you share a cost or lend money.'));
+    expectReadable(screen.getByText('1 change not saved yet'));
+    expectReadable(screen.getByText('Adding or agreeing needs the two people this ledger is between.'));
+  });
+
+  it('shows the Deleted hint for money at a readable size', () => {
+    renderIn(<Deleted />);
+    expectReadable(screen.getByText('Deleted money entries stay until you restore them.'));
   });
 });

@@ -2,8 +2,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import { itemMutationKeys, mealMutationKeys, registerMutations } from '~/lib/mutations';
+import { itemMutationKeys, mealMutationKeys, moneyMutationKeys, registerMutations } from '~/lib/mutations';
 import { applyPendingItems } from '~/lib/itemOverlay';
+import { applyPendingMoney } from '~/lib/moneyOverlay';
 import { applyPendingPlan } from '~/lib/planOverlay';
 import { applyPendingRecipes } from '~/lib/recipeOverlay';
 
@@ -92,5 +93,41 @@ describe('itemsFromPlan', () => {
     const plan = { days: [{ day: '2026-11-16', meal: { recipeId: 'r1', title: 'Chilli', servings: 4 }, fieldTimes: { meal: 1 }, updatedAt: 1, updatedBy: 'u', expiresAt: 9_999_999_999 }], serverTime: 0 };
     expect(applyPendingItems(items, pending)).not.toEqual(items);
     expect(applyPendingPlan(plan, pending)).not.toEqual(plan);
+  });
+});
+
+describe('the money mutations', () => {
+  const client = new QueryClient();
+  registerMutations(client, vi.fn(), () => ({ tasks: [], proposals: [], serverTime: 0 }), vi.fn());
+
+  it.each(Object.entries(moneyMutationKeys))('%s is registered with a function and the household scope', (_kind, key) => {
+    const defaults = client.getMutationDefaults(key);
+    expect(defaults.mutationFn).toBeTypeOf('function');
+    expect(defaults.scope).toEqual({ id: 'household' });
+  });
+
+  const A = '11111111-1111-4111-8111-111111111111';
+  const money = { paidBy: 'u', amountPence: 1000, sharePence: 500 };
+  const base = {
+    id: A, kind: 'expense' as const, ...money, description: 'Shop', on: '2026-11-15', fieldTimes: { description: 1, on: 1 }, status: 'waiting' as const, version: 1,
+    createdBy: 'u', createdAt: 1, proposedBy: 'u', updatedAt: 1, updatedBy: 'u',
+  };
+  // A starting entry in the state each kind of write needs, and the variables that change it.
+  const cases: Record<string, { entry?: object; vars: Record<string, unknown>; by?: string }> = {
+    moneyAdd: { vars: { entry: { id: 'b'.repeat(8) + '-1111-4111-8111-111111111111', kind: 'loan', paidBy: 'u', amountPence: 100, sharePence: 100, description: 'L', on: '2026-11-15' } } },
+    moneyEdit: { vars: { entryId: A, description: 'Better' } },
+    moneyRespond: { vars: { entryId: A, response: 'agree', version: 1 }, by: 'other' },
+    moneyChange: { entry: { status: 'agreed' }, vars: { entryId: A, version: 1, delete: true } },
+    moneyChangeRespond: { entry: { status: 'agreed', pendingChange: { id: 'r1', by: 'u', at: 1, delete: true } }, vars: { entryId: A, response: 'agree', requestId: 'r1' }, by: 'other' },
+    moneyChangeWithdraw: { entry: { status: 'agreed', pendingChange: { id: 'r1', by: 'u', at: 1, delete: true } }, vars: { entryId: A, requestId: 'r1' } },
+    moneyDelete: { vars: { entryId: A } },
+    moneyRestore: { entry: { deletedAt: 5, deletedBy: 'u' }, vars: { entries: [{ id: A, deletedAt: 5 }] }, by: 'other' },
+  };
+
+  it.each(Object.entries(moneyMutationKeys))('%s has an overlay that changes the data', (kind, key) => {
+    const { entry, vars, by } = cases[kind];
+    const start = { entries: kind === 'moneyAdd' ? [] : [{ ...base, ...entry }], serverTime: 0 };
+    const result = applyPendingMoney(start, [{ mutationKey: key, variables: { mutationId: 'm', at: 1_800_000_000_000, by: by ?? 'u', ...vars } }]);
+    expect(result).not.toEqual(start);
   });
 });
