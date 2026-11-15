@@ -32,7 +32,7 @@ export function EntryDetail({ entry, people, notSaved, canWrite, loan, actions, 
   const share = shareLine(entry, people);
 
   const action = (label: string, onClick: () => void, primary = false): React.ReactNode => (
-    <Button key={label} style={BUTTON} variant={primary ? 'filled' : 'default'} disabled={!canWrite} onClick={onClick}>{label}</Button>
+    <Button key={label} style={BUTTON} variant={primary ? 'filled' : 'default'} disabled={!canWrite || notSaved} onClick={onClick}>{label}</Button>
   );
 
   function buttons(): React.ReactNode {

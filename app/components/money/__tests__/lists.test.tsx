@@ -135,6 +135,21 @@ describe('WaitingList: for them and needs another look', () => {
   });
 });
 
+describe('WaitingList: a second tap', () => {
+  it('turns the buttons off for an entry that already has a change queued, so a double tap is one write', () => {
+    const rent = waitingForMe({ description: 'Rent' });
+    renderIn(<WaitingList title="Waiting for you" mode="forMe" entries={[rent]} people={people} unsavedIds={new Set([rent.id])} canWrite actions={makeActions()} onEdit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Agree: Rent' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Ask Alex to check: Rent' })).toBeDisabled();
+  });
+
+  it('does the same for Withdraw', () => {
+    const asked = entry({ description: 'Shop', pendingChange: { id: 'r', by: SAM, at: 1, delete: true } });
+    renderIn(<WaitingList title="Waiting for Alex" mode="forOther" entries={[asked]} people={people} unsavedIds={new Set([asked.id])} canWrite actions={makeActions()} onEdit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Withdraw: Shop' })).toBeDisabled();
+  });
+});
+
 describe('LoanList', () => {
   it('shows each loan\'s progress as a line of text, with a bar that is only a picture', () => {
     const loan = entry({ kind: 'loan', amountPence: 5000, sharePence: 5000, description: 'Rent shortfall' });

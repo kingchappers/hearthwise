@@ -23,13 +23,15 @@ export function WaitingList({ title, mode, entries, people, unsavedIds, canWrite
 
   function buttons(entry: MoneyEntry): React.ReactNode {
     const name = entry.description;
+    // A change already queued for this entry: a second tap would be a second write.
+    const off = !canWrite || unsavedIds.has(entry.id);
     if (mode === 'forMe') {
       const answer = entry.pendingChange ? actions.respondChange : actions.respond;
       return (
         <Group gap="xs">
-          <Button style={BUTTON} disabled={!canWrite} aria-label={`Agree: ${name}`} onClick={() => answer(entry, 'agree')}>Agree</Button>
+          <Button style={BUTTON} disabled={off} aria-label={`Agree: ${name}`} onClick={() => answer(entry, 'agree')}>Agree</Button>
           <Button
-            style={BUTTON} variant="default" disabled={!canWrite}
+            style={BUTTON} variant="default" disabled={off}
             aria-label={`${entry.pendingChange ? 'Keep as it is' : `Ask ${people.otherName} to check`}: ${name}`}
             onClick={() => answer(entry, 'decline')}
           >
@@ -42,14 +44,14 @@ export function WaitingList({ title, mode, entries, people, unsavedIds, canWrite
       if (!entry.pendingChange) return null;
       return (
         <Group gap="xs">
-          <Button style={BUTTON} variant="default" disabled={!canWrite} aria-label={`Withdraw: ${name}`} onClick={() => actions.withdrawChange(entry)}>Withdraw</Button>
+          <Button style={BUTTON} variant="default" disabled={off} aria-label={`Withdraw: ${name}`} onClick={() => actions.withdrawChange(entry)}>Withdraw</Button>
         </Group>
       );
     }
     return (
       <Group gap="xs">
-        <Button style={BUTTON} disabled={!canWrite} aria-label={`Change: ${name}`} onClick={() => onEdit(entry)}>Change</Button>
-        <Button style={BUTTON} variant="default" disabled={!canWrite} aria-label={`Delete: ${name}`} onClick={() => actions.remove(entry)}>Delete</Button>
+        <Button style={BUTTON} disabled={off} aria-label={`Change: ${name}`} onClick={() => onEdit(entry)}>Change</Button>
+        <Button style={BUTTON} variant="default" disabled={off} aria-label={`Delete: ${name}`} onClick={() => actions.remove(entry)}>Delete</Button>
       </Group>
     );
   }

@@ -155,6 +155,11 @@ describe('EntryDetail: the buttons that apply', () => {
     for (const button of screen.getAllByRole('button')) expect(button).toBeDisabled();
   });
 
+  it('turns every button off while a change to the entry is not saved, so a double tap is one write', () => {
+    renderDetail(waitingForMe(), { notSaved: true });
+    for (const button of screen.getAllByRole('button')) expect(button).toBeDisabled();
+  });
+
   it('turns Restore off while a change to the entry is not saved yet', () => {
     renderDetail(entry({ deletedAt: AT, deletedBy: SAM }), { notSaved: true });
     expect(screen.getByRole('button', { name: 'Restore' })).toBeDisabled();
