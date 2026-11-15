@@ -20,7 +20,9 @@ function EditRecipeContent() {
   const pending = usePendingRecipeSaves();
   const navigate = useNavigate();
 
-  if (recipes.status === 'loading') return <Group justify="center" py="xl" role="status" aria-label="Loading the recipe"><Loader /></Group>;
+  const userId = household.data?.me.userId;
+  // Drafts are kept under the person's id, so nothing is shown until it is known.
+  if (!userId || recipes.status === 'loading') return <Group justify="center" py="xl" role="status" aria-label="Loading the recipe"><Loader /></Group>;
   if (recipes.status === 'error') return <LoadError thing="recipe" onRetry={recipes.refetch} />;
 
   const recipe = recipes.recipes.find(candidate => candidate.id === id);
@@ -53,7 +55,7 @@ function EditRecipeContent() {
       </Group>
       <RecipeForm
         key={recipe.id}
-        userId={household.data?.me.userId ?? ''}
+        userId={userId}
         recipe={recipe}
         pendingIds={pending}
         onAdd={actions.add}
