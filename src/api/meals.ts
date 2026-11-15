@@ -1,11 +1,12 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { withHousehold } from '../household/guard';
 import type { HouseholdContext } from '../household/types';
+import { addPlanToList } from '../meals/addToList';
 import { listPlan, setPlanDay } from '../meals/plan';
 import { deleteRecipe, listRecipes, putRecipe } from '../meals/recipes';
 import * as events from '../push/events';
 import { parseItemDeleteBody } from '../shared/itemValidation';
-import { parsePlanPut, parseRecipePut } from '../shared/mealValidation';
+import { parseAddToList, parsePlanPut, parseRecipePut } from '../shared/mealValidation';
 import { addDays, dayInZone, isRealDate } from '../shared/schedule';
 import { getStore } from '../store';
 import { err, invalid, noStore, ok, parseJsonObject } from './http';
@@ -61,10 +62,22 @@ const putPlanRoute: TaskHandler = async (event, ctx, params) => {
   return written(outcome, 200);
 };
 
+const addToListRoute: TaskHandler = async (event, ctx) => {
+  const body = parseJsonObject(event);
+  if (!body) return invalid('body');
+  const input = parseAddToList(body);
+  if (!input.ok) return invalid(input.field);
+  const outcome = await addPlanToList(getStore(), ctx, input.value);
+  // The number of lines in the request, not only those newly created: a replay finds them already there.
+  await notifyAfter(ctx, body, outcome.fresh, events.itemsBatch(ctx.member.displayName, input.value.lines.length, 0, input.value.mutationId));
+  return written(outcome, 200);
+};
+
 export function registerMealRoutes(router: Router): void {
   router.get('/api/hh/recipes', withHousehold(getRecipes));
   router.put('/api/hh/recipes/{id}', withHousehold(guarded(['id'], putRoute)));
   router.delete('/api/hh/recipes/{id}', withHousehold(guarded(['id'], deleteRoute)));
   router.get('/api/hh/plan', withHousehold(guarded([], async (event, ctx) => getPlan(event, ctx))));
   router.put('/api/hh/plan/{day}', withHousehold(guarded([], putPlanRoute)));
+  router.post('/api/hh/plan/add-to-list', withHousehold(guarded([], addToListRoute)));
 }

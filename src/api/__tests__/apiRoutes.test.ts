@@ -37,6 +37,7 @@ describe('registerApiRoutes', () => {
       { method: 'DELETE', template: '/api/hh/recipes/{id}' },
       { method: 'GET', template: '/api/hh/plan' },
       { method: 'PUT', template: '/api/hh/plan/{day}' },
+      { method: 'POST', template: '/api/hh/plan/add-to-list' },
       { method: 'POST', template: '/api/push/subscriptions' },
       { method: 'DELETE', template: '/api/push/subscriptions' },
     ]);
