@@ -38,8 +38,8 @@ export function ItemRow({ item, onTick, onDelete, onEdit }: ItemRowProps) {
   const [editing, setEditing] = useState(false);
   return (
     <li style={{ listStyle: 'none' }}>
-      <Group justify="space-between" wrap="nowrap" gap="xs" py={4}>
-        <Stack gap={0} miw={0}>
+      <Group justify="space-between" wrap="wrap" gap="xs" py={4}>
+        <Stack gap={0} style={{ flex: '1 1 12rem', minWidth: 0 }}>
           <Checkbox
             size="md"
             checked={item.ticked}
