@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS } from '../../shared/household';
 import { getStore, setStore } from '../../store';
 import { MemoryStore } from '../../store/memory';
 import { registerHouseholdRoutes } from '../households';
+import { registerItemRoutes } from '../items';
 import { registerMealRoutes } from '../meals';
 import { createRouter, type Router } from '../router';
 
@@ -48,6 +49,7 @@ beforeEach(async () => {
   router = createRouter();
   registerHouseholdRoutes(router);
   registerMealRoutes(router);
+  registerItemRoutes(router);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
   householdId = (await call(U1, 'POST', '/api/households', mut({ name: 'Home', displayName: 'Sam', timezone: 'Europe/London' }))).json.householdId;
   await getStore().put({ PK: hhPk(householdId), SK: memberSk(U2), displayName: 'Alex', settings: DEFAULT_SETTINGS, joinedAt: '2026-11-13T11:00:00.000Z' });
@@ -156,5 +158,73 @@ describe('planChanged', () => {
   it('words a set and a clear, with the plan as the place to go', () => {
     expect(planChanged('Sam', 'Friday 20', 'Curry', 'm1')).toMatchObject({ type: 'plan.changed', title: 'Sam changed the plan', body: 'Friday 20: Curry', url: '/plan', mutationId: 'm1' });
     expect(planChanged('Sam', 'Friday 20', undefined, 'm1').body).toBe('Cleared Friday 20');
+  });
+});
+
+describe('POST /api/hh/plan/add-to-list', () => {
+  const lineId = (index: number): string => `22222222-2222-4222-8222-${String(index).padStart(12, '0')}`;
+  const line = (index: number, extra: Record<string, unknown> = {}) => ({ id: lineId(index), text: `item ${index}`, ...extra });
+  const addBody = (over: Record<string, unknown> = {}) => mut({ days: [{ day: '2026-11-16', ...meal }], lines: [line(1, { quantity: '3', forRecipes: 'Chilli' }), line(2)], ...over });
+  const shopping = async () => (await call(U1, 'GET', '/api/hh/items')).json.items as { id: string; text: string; forRecipes?: string }[];
+
+  it('answers 403 no_household to someone with no household', async () => {
+    expect(await call('auth0|nobody', 'POST', '/api/hh/plan/add-to-list', addBody())).toEqual({ status: 403, json: { error: 'no_household' } });
+  });
+
+  it('creates the shopping lines, marks the day, and answers with each id and status', async () => {
+    await call(U1, 'PUT', '/api/hh/plan/2026-11-16', mut({ meal, mealAt: AT }));
+    const res = await call(U2, 'POST', '/api/hh/plan/add-to-list', addBody());
+    expect(res.status).toBe(200);
+    expect(res.json.results).toEqual([{ id: lineId(1), status: 'created' }, { id: lineId(2), status: 'created' }]);
+    expect((await shopping()).find(item => item.id === lineId(1))).toMatchObject({ text: 'item 1', forRecipes: 'Chilli' });
+    expect((await call(U1, 'GET', '/api/hh/plan')).json.days[0]).toMatchObject({ addedBy: U2 });
+  });
+
+  it('answers a repeat of the same mutation from its record, without making more lines', async () => {
+    await call(U1, 'PUT', '/api/hh/plan/2026-11-16', mut({ meal, mealAt: AT }));
+    const body = addBody();
+    const first = await call(U1, 'POST', '/api/hh/plan/add-to-list', body);
+    const again = await call(U1, 'POST', '/api/hh/plan/add-to-list', { ...body, lines: [line(9)] });
+    expect(again).toEqual(first);
+    expect(await shopping()).toHaveLength(2);
+  });
+
+  it.each([
+    ['a text over 200 characters', () => addBody({ lines: [line(1), line(2, { text: 'x'.repeat(201) })] }), 'lines[1].text'],
+    ['a recipe label over 200 characters', () => addBody({ lines: [line(1, { forRecipes: 'x'.repeat(201) })] }), 'lines[0].forRecipes'],
+    ['a line id that is not a UUID', () => addBody({ lines: [{ id: 'nope', text: 'a' }] }), 'lines[0].id'],
+    ['a day that is not a real date', () => addBody({ days: [{ day: '2026-02-30', title: 'A' }] }), 'days[0].day'],
+    ['a day listed twice', () => addBody({ days: [{ day: '2026-11-16', title: 'A' }, { day: '2026-11-16', title: 'B' }] }), 'days'],
+    ['a line id listed twice', () => addBody({ lines: [line(1), line(1)] }), 'lines'],
+    ['no lines', () => addBody({ lines: [] }), 'lines'],
+    ['an unknown key', () => addBody({ colour: 'red' }), 'colour'],
+  ])('rejects %s with 400 naming the field, and writes nothing', async (_name, body, field) => {
+    expect(await call(U1, 'POST', '/api/hh/plan/add-to-list', body())).toEqual({ status: 400, json: { error: 'invalid', field } });
+    expect(await shopping()).toEqual([]);
+  });
+
+  it('takes 100 lines, and refuses 101', async () => {
+    await call(U1, 'PUT', '/api/hh/plan/2026-11-16', mut({ meal, mealAt: AT }));
+    const lines = (count: number) => Array.from({ length: count }, (_, index) => line(index + 1));
+    expect((await call(U1, 'POST', '/api/hh/plan/add-to-list', addBody({ lines: lines(100) }))).status).toBe(200);
+    expect(await call(U1, 'POST', '/api/hh/plan/add-to-list', addBody({ lines: lines(101) }))).toEqual({ status: 400, json: { error: 'invalid', field: 'lines' } });
+  });
+
+  it('sends the other person one push saying how many items were added, and opens the shopping list', async () => {
+    const body = addBody({ notify: true, clientAt: AT });
+    await call(U1, 'POST', '/api/hh/plan/add-to-list', body);
+    await call(U1, 'POST', '/api/hh/plan/add-to-list', body);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].endpoint).toBe(`https://fcm.googleapis.com/fcm/send/${U2}`);
+    expect(sent[0].payload).toMatchObject({ title: 'Sam updated the shopping list', body: '2 items added to the shopping list', url: '/shopping' });
+  });
+
+  it('sends nothing unless it was asked', async () => {
+    await call(U1, 'POST', '/api/hh/plan/add-to-list', addBody());
+    expect(sent).toEqual([]);
+  });
+
+  it('keeps the shopping routes for existing items: they still refuse forRecipes', async () => {
+    expect(await call(U1, 'PUT', `/api/hh/items/${uuid()}`, mut({ text: 'x', textAt: AT, forRecipes: 'Chilli' }))).toEqual({ status: 400, json: { error: 'invalid', field: 'forRecipes' } });
   });
 });

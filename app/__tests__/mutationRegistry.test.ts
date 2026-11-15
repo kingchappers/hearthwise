@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import { mealMutationKeys, registerMutations } from '~/lib/mutations';
+import { itemMutationKeys, mealMutationKeys, registerMutations } from '~/lib/mutations';
+import { applyPendingItems } from '~/lib/itemOverlay';
 import { applyPendingPlan } from '~/lib/planOverlay';
 import { applyPendingRecipes } from '~/lib/recipeOverlay';
 
@@ -67,5 +68,29 @@ describe('the meal mutations', () => {
     const start = { days: [], serverTime: 0 };
     const result = applyPendingPlan(start, [{ mutationKey: mealMutationKeys.planSet, variables: { mutationId: 'm', at: 1_800_000_000_000, by: 'u', day: '2026-11-16', meal: { title: 'Soup' } } }]);
     expect(result).not.toEqual(start);
+  });
+});
+
+describe('itemsFromPlan', () => {
+  const client = new QueryClient();
+  registerMutations(client, vi.fn(), () => ({ tasks: [], proposals: [], serverTime: 0 }), vi.fn());
+  const variables = {
+    mutationId: 'm', at: 1_800_000_000_000, by: 'u',
+    days: [{ day: '2026-11-16', title: 'Chilli', recipeId: 'r1', servings: 4 }],
+    lines: [{ id: 'n1', text: 'onions', forRecipes: 'Chilli' }],
+  };
+  const pending = [{ mutationKey: itemMutationKeys.itemsFromPlan, variables }];
+
+  it('is registered with a function and the household scope', () => {
+    const defaults = client.getMutationDefaults(itemMutationKeys.itemsFromPlan);
+    expect(defaults.mutationFn).toBeTypeOf('function');
+    expect(defaults.scope).toEqual({ id: 'household' });
+  });
+
+  it('changes both the shopping list and the plan', () => {
+    const items = { items: [], serverTime: 0 };
+    const plan = { days: [{ day: '2026-11-16', meal: { recipeId: 'r1', title: 'Chilli', servings: 4 }, fieldTimes: { meal: 1 }, updatedAt: 1, updatedBy: 'u', expiresAt: 9_999_999_999 }], serverTime: 0 };
+    expect(applyPendingItems(items, pending)).not.toEqual(items);
+    expect(applyPendingPlan(plan, pending)).not.toEqual(plan);
   });
 });

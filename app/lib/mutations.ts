@@ -63,11 +63,12 @@ export interface MutationVars {
   withdraw: Common & { id: string };
 }
 
-export type ItemMutationKind = 'itemAdd' | 'itemEdit' | 'itemTick' | 'itemDelete' | 'itemClear' | 'itemRestore';
+export type ItemMutationKind = 'itemAdd' | 'itemEdit' | 'itemTick' | 'itemDelete' | 'itemClear' | 'itemRestore' | 'itemsFromPlan';
 
 export const itemMutationKeys: { [K in ItemMutationKind]: readonly ['household', K] } = {
   itemAdd: ['household', 'itemAdd'], itemEdit: ['household', 'itemEdit'], itemTick: ['household', 'itemTick'],
   itemDelete: ['household', 'itemDelete'], itemClear: ['household', 'itemClear'], itemRestore: ['household', 'itemRestore'],
+  itemsFromPlan: ['household', 'itemsFromPlan'],
 };
 
 export interface ItemMutationVars {
@@ -78,6 +79,12 @@ export interface ItemMutationVars {
   // Each ticked item with the time it was ticked, as this phone saw it: the server keeps one that was changed since.
   itemClear: Common & { entries: { id: string; ifTickedAt: number }[] };
   itemRestore: Common & { itemIds: string[] };
+  // The review's shopping lines, and the plan days they were made from. The days are as the client saw them, so the server marks a day
+  // only if its dinner is still the one added.
+  itemsFromPlan: Common & {
+    days: { day: string; title: string; recipeId?: string; servings?: number }[];
+    lines: { id: string; text: string; quantity?: string; forRecipes?: string }[];
+  };
 }
 
 export type RecipeMutationKind = 'recipeAdd' | 'recipeEdit' | 'recipeDelete' | 'recipeRestore';
@@ -203,6 +210,7 @@ const ITEM_RUNNERS: { [K in ItemMutationKind]: (vars: ItemMutationVars[K], reque
     mutationId: v.mutationId, clientAt: v.at, writes: v.entries.map(entry => ({ id: entry.id, delete: true, ifTickedAt: entry.ifTickedAt })),
   }),
   itemRestore: (v, request) => send(request, 'POST', '/api/hh/restore', { mutationId: v.mutationId, clientAt: v.at, entries: v.itemIds.map(id => ({ kind: 'item', id })) }),
+  itemsFromPlan: (v, request) => send(request, 'POST', '/api/hh/plan/add-to-list', { mutationId: v.mutationId, clientAt: v.at, days: v.days, lines: v.lines }),
 };
 
 const RECIPE_FIELDS = ['title', 'mealType', 'servings', 'minutes', 'lowEnergy', 'nutrition', 'ingredients', 'steps'] as const;
@@ -333,7 +341,8 @@ export function registerMutations(
     keys: itemMutationKeys,
     run: (kind, variables: ItemMutationVars[ItemMutationKind], send) =>
       (ITEM_RUNNERS[kind as ItemMutationKind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, send),
-    invalidate: () => [ITEMS_KEY],
+    // The add also marks plan days, so the plan is refreshed too and the marker does not flicker when the overlay drops.
+    invalidate: kind => (kind === 'itemsFromPlan' ? [ITEMS_KEY, PLAN_KEY] : [ITEMS_KEY]),
     onError: (_kind, error) => {
       const message = describeFailure(error);
       if (message) report(message);

@@ -79,6 +79,22 @@ describe('Shopping', () => {
   });
 });
 
+describe('Shopping: lines made from the plan', () => {
+  it('shows which recipes a line is for, as a small second line, and nothing for a line typed by hand', () => {
+    state.items.items = [item({ id: 'a', text: 'Onions', forRecipes: 'Chilli, Pasta bake' }), item({ id: 'b', text: 'Milk' })];
+    renderPage();
+    expect(screen.getByText('for Chilli, Pasta bake')).toBeInTheDocument();
+    expect(screen.getAllByText(/^for /)).toHaveLength(1);
+  });
+
+  it('keeps the label on a ticked line, and has no violations', async () => {
+    state.items.items = [item({ id: 'a', text: 'Onions', forRecipes: 'Chilli', ticked: true })];
+    const { container } = renderPage();
+    expect(screen.getByText('for Chilli')).toBeInTheDocument();
+    await expectNoViolations(container);
+  });
+});
+
 describe('Shopping: Let them know', () => {
   it('has the box, unticked, above the list', () => {
     renderPage();

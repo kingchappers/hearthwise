@@ -208,7 +208,7 @@ describe('the item mutations', () => {
     new MutationObserver(client, { mutationKey: itemMutationKeys[kind] }).mutate({ mutationId: 'a'.repeat(8) + '-0000-4000-8000-000000000001', at: 1_800_000_000_000, by: ME, ...variables } as never);
 
   it('are registered with the household scope too', () => {
-    for (const kind of ['itemAdd', 'itemEdit', 'itemTick', 'itemDelete', 'itemClear', 'itemRestore'] as ItemMutationKind[]) {
+    for (const kind of ['itemAdd', 'itemEdit', 'itemTick', 'itemDelete', 'itemClear', 'itemRestore', 'itemsFromPlan'] as ItemMutationKind[]) {
       const defaults = client.getMutationDefaults(itemMutationKeys[kind]);
       expect(defaults.mutationFn, kind).toBeTypeOf('function');
       expect(defaults.scope, kind).toEqual({ id: 'household' });
@@ -241,6 +241,29 @@ describe('the item mutations', () => {
     await runItem('itemClear', { entries: [{ id: 'a', ifTickedAt: 300 }, { id: 'b', ifTickedAt: 400 }] });
     expect(call()[0]).toBe('/api/hh/items/batch');
     expect(body().writes).toEqual([{ id: 'a', delete: true, ifTickedAt: 300 }, { id: 'b', delete: true, ifTickedAt: 400 }]);
+  });
+
+  it('itemsFromPlan posts the days and the lines to the add route, with the mutation id and the time', async () => {
+    const days = [{ day: '2026-11-16', title: 'Chilli', recipeId: 'r1', servings: 4 }];
+    const lines = [{ id: 'n1', text: 'onions', quantity: '3', forRecipes: 'Chilli' }];
+    await runItem('itemsFromPlan', { days, lines });
+    expect(call()[0]).toBe('/api/hh/plan/add-to-list');
+    expect(call()[1].method).toBe('POST');
+    expect(body()).toEqual({ mutationId: 'a'.repeat(8) + '-0000-4000-8000-000000000001', clientAt: 1_800_000_000_000, days, lines });
+  });
+
+  it('itemsFromPlan refreshes the shopping list and the plan', async () => {
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await runItem('itemsFromPlan', { days: [], lines: [] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['items'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['plan'] });
+  });
+
+  it('itemTick refreshes the shopping list only', async () => {
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await runItem('itemTick', { itemId: 'i1', done: true });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['items'] });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['plan'] });
   });
 
   it('restore posts one entry per item', async () => {
