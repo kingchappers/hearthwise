@@ -48,3 +48,5 @@ export function repeatText(repeat: Repeat, endsOn?: string): string | undefined 
   const label = repeatLabel(repeat);
   return endsOn === undefined ? label : `${label}, until ${formatDay(endsOn)}`;
 }
+
+export const unsavedChanges = (count: number): string => `${count} ${count === 1 ? 'change' : 'changes'} not saved yet`;

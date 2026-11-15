@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Button, Group, Loader, Stack, Title } from '@mantine/core';
-import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { LoadError } from '~/components/layout/LoadError';
 import { AddToListSheet } from '~/components/meals/AddToListSheet';
 import { DaySheet } from '~/components/meals/DaySheet';
@@ -13,7 +12,7 @@ import { useHousehold } from '~/lib/household';
 import { useItems } from '~/lib/items';
 import { pageTitle } from '~/lib/pageTitle';
 import { usePlan } from '~/lib/plan';
-import type { Route } from './+types/plan';
+import type { Route } from './+types/plan._index';
 
 export const meta: Route.MetaFunction = () => [{ title: pageTitle('Plan') }];
 
@@ -70,10 +69,6 @@ function PlanContent() {
   );
 }
 
-export default function Plan() {
-  return (
-    <DefaultLayout>
-      <PlanContent />
-    </DefaultLayout>
-  );
+export default function PlanDinners() {
+  return <PlanContent />;
 }

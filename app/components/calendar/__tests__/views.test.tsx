@@ -15,7 +15,10 @@ const task = (over: Partial<Task> = {}): Task => ({
   updatedAt: 1, dueOn: TODAY, ...over,
 });
 const inputsFor = (over: Partial<TimelineInputs> = {}) => (): TimelineInputs => ({ events: [], tasks: [], members: MEMBERS, ...over });
-const noSmallButtons = () => { for (const button of screen.queryAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs'); };
+const noSmallButtons = () => {
+  for (const button of screen.queryAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
+  for (const control of [...screen.queryAllByRole('button'), ...screen.queryAllByRole('link')]) expect(control, control.textContent ?? '').toHaveStyle({ minHeight: '44px' });
+};
 
 describe('TimelineList', () => {
   const show = (inputs: TimelineInputs, unsaved: string[] = [], onOpen = vi.fn()) =>

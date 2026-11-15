@@ -11,7 +11,6 @@ const state = vi.hoisted(() => ({
   items: { status: 'ready', items: [] as object[], refetch: vi.fn() },
   itemActions: { addFromPlan: vi.fn() },
 }));
-vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/plan', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/plan')>()), usePlan: () => state.plan }));
 vi.mock('~/lib/items', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/items')>()), useItems: () => state.items }));
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => state.itemActions }));
@@ -21,7 +20,7 @@ vi.mock('~/lib/household', () => ({
   useHousehold: () => ({ status: 'ready', refetch: vi.fn(), data: { household: { timezone: 'UTC' }, members: [{ userId: 'u1', displayName: 'Sam' }, { userId: 'u2', displayName: 'Alex' }], me: { userId: 'u1', displayName: 'Sam', settings: {} } } }),
 }));
 
-import Plan, { meta } from '../plan';
+import Plan, { meta } from '../plan._index';
 
 const recipe = { id: 'r1', title: 'Chilli', mealType: 'dinner', servings: 2, minutes: 20, lowEnergy: true, ingredients: [], steps: [], fieldTimes: {}, createdBy: 'u', updatedAt: 1, updatedBy: 'u' };
 const renderPage = () => render(<MantineProvider env="test"><MemoryRouter><Plan /></MemoryRouter></MantineProvider>);

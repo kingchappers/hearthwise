@@ -114,6 +114,11 @@ describe('EventSheet: adding', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('keeps the Add button at least 44px tall', () => {
+    renderSheet();
+    expect(screen.getByRole('button', { name: 'Add' })).toHaveStyle({ minHeight: '44px' });
+  });
+
   it('has no accessibility violations', async () => {
     renderSheet();
     await expectNoViolations(document.body);

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { buildTimeline } from '../../../../src/shared/timeline';
 import { expectNoViolations } from '~/test-utils/accessibility';
@@ -74,6 +74,12 @@ describe('EventDetail', () => {
   it('renders nothing when no event is selected', () => {
     renderIn(<EventDetail opened={false} selected={undefined} unsaved={false} onEdit={onEdit} onClose={onClose} actions={makeActions()} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps every action at least 44px tall', () => {
+    renderDetail(event({ repeat: { type: 'fixed', every: 1, unit: 'day', startOn: TODAY } }));
+    const dialog = screen.getByRole('dialog');
+    for (const name of ['Edit', 'Skip this day', 'Delete']) expect(within(dialog).getByRole('button', { name })).toHaveStyle({ minHeight: '44px' });
   });
 
   it('has no accessibility violations', async () => {
