@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { LoadError } from '~/components/layout/LoadError';
 import { RecipeForm } from '~/components/meals/RecipeForm';
-import { RecipeMenu } from '~/components/meals/RecipeMenu';
 import { useRecipeActions } from '~/hooks/useRecipeActions';
 import { useHousehold } from '~/lib/household';
 import { pageTitle } from '~/lib/pageTitle';
@@ -49,10 +48,7 @@ function EditRecipeContent() {
 
   return (
     <Stack maw={640}>
-      <Group justify="space-between" align="center" wrap="nowrap">
-        <Title order={1} size="h3" style={{ overflowWrap: 'anywhere' }}>Edit recipe</Title>
-        <RecipeMenu onDuplicate={() => actions.duplicate(recipe)} onDelete={() => actions.remove(recipe)} />
-      </Group>
+      <Title order={1} size="h3">Edit recipe</Title>
       <RecipeForm
         key={recipe.id}
         userId={userId}

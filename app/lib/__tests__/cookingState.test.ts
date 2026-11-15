@@ -92,4 +92,11 @@ describe('when storage is not available', () => {
     expect(readCooking(ME, 'r1', at(14, 18))).toBeUndefined();
     expect(readCooking(ME, 'r2', at(14, 18))).toBeUndefined();
   });
+
+  it('keeps nothing without a person to clean it up after', () => {
+    tickLine('', 'r1', 'steps', 0, true, 2, at(14, 18));
+    writeServings('', 'r1', 3, at(14, 18));
+    expect(readCooking('', 'r1', at(14, 18))).toBeUndefined();
+    expect(Object.keys(window.localStorage)).toEqual([]);
+  });
 });

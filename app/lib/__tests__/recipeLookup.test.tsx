@@ -59,7 +59,7 @@ describe('useRecipeCheck', () => {
     request.mockResolvedValue(served([recipe()]));
     const { result } = renderHook(() => useBoth(() => false), { wrapper });
     await waitFor(() => expect(result.current.recipes.status).toBe('ready'));
-    expect(result.current.checkedAt).toBeUndefined();
+    await new Promise(resolve => setTimeout(resolve, 30));
     expect(request).toHaveBeenCalledTimes(1);
   });
 

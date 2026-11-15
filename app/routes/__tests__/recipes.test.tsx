@@ -9,6 +9,7 @@ import { expectNoViolations, expectSoundHeadings } from '~/test-utils/accessibil
 const state = vi.hoisted(() => ({
   recipes: { status: 'ready', recipes: [] as object[], dataUpdatedAt: 1, refetch: vi.fn() },
   pending: new Set<string>(),
+  checkedAt: undefined as number | undefined,
   actions: {} as Record<string, ReturnType<typeof vi.fn>>,
 }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -17,12 +18,15 @@ vi.mock('~/lib/recipes', async importOriginal => ({
   useRecipes: () => state.recipes,
   usePendingRecipeSaves: () => state.pending,
 }));
+vi.mock('~/lib/recipeLookup', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/recipeLookup')>()), useRecipeCheck: () => state.checkedAt }));
+vi.mock('~/lib/wakeLock', () => ({ useWakeLock: vi.fn() }));
 vi.mock('~/hooks/useRecipeActions', () => ({ useRecipeActions: () => state.actions }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => ({ status: 'ready', refetch: vi.fn(), data: { household: { timezone: 'UTC' }, members: [], me: { userId: 'u1', displayName: 'Sam', settings: {} } } }) }));
 
 import Recipes, { meta as recipesMeta } from '../recipes._index';
 import NewRecipe, { meta as newMeta } from '../recipes.new';
 import EditRecipe, { meta as editMeta } from '../recipes.$id_.edit';
+import CookRecipe, { meta as cookMeta } from '../recipes.$id';
 
 const recipe = (over: Partial<Recipe> = {}): Recipe => ({
   id: 'r1', title: 'Chilli', mealType: 'dinner', servings: 2, lowEnergy: false, ingredients: ['2 onions'], steps: ['Chop'], fieldTimes: {}, createdBy: 'u1', updatedAt: 1, updatedBy: 'u1', ...over,
@@ -36,6 +40,7 @@ function renderAt(path: string) {
           <Route path="/recipes" element={<Recipes />} />
           <Route path="/recipes/new" element={<NewRecipe />} />
           <Route path="/recipes/:id/edit" element={<EditRecipe />} />
+          <Route path="/recipes/:id" element={<CookRecipe />} />
         </Routes>
       </MemoryRouter>
     </MantineProvider>,
@@ -46,6 +51,7 @@ beforeEach(() => {
   window.localStorage.clear();
   state.recipes = { status: 'ready', recipes: [], dataUpdatedAt: 1, refetch: vi.fn() };
   state.pending = new Set();
+  state.checkedAt = undefined;
   state.actions = { add: vi.fn(), edit: vi.fn(), remove: vi.fn(), restore: vi.fn(), duplicate: vi.fn() };
 });
 
@@ -147,15 +153,12 @@ describe('the edit recipe page', () => {
     expect(state.actions.restore).toHaveBeenCalledWith(deleted);
   });
 
-  it('has a menu with Duplicate and Delete, and the editor has its own Delete', async () => {
+  it('has its own Delete button, and the Duplicate and Delete menu lives on the recipe page', async () => {
     const live = recipe();
     state.recipes.recipes = [live];
     renderAt('/recipes/r1/edit');
-    await userEvent.click(screen.getByRole('button', { name: 'Recipe actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Duplicate' }));
-    expect(state.actions.duplicate).toHaveBeenCalledWith(live);
-    await userEvent.click(screen.getByRole('button', { name: 'Recipe actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    expect(screen.queryByRole('button', { name: 'Recipe actions' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(state.actions.remove).toHaveBeenCalledWith(live);
   });
 
@@ -165,5 +168,78 @@ describe('the edit recipe page', () => {
     window.localStorage.setItem('hearthwise.recipeDraft.u1', JSON.stringify({ r1: { recipeId: 'r1', base: {}, fields: {} } }));
     renderAt('/recipes/r1/edit');
     expect(screen.queryByRole('button', { name: 'Continue your draft' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the recipe page (cooking view)', () => {
+  it('is titled, shows the cooking view, and has no violations', async () => {
+    state.recipes.recipes = [recipe({ servings: 2, ingredients: ['200 g flour'] })];
+    const { container } = renderAt('/recipes/r1');
+    expect(cookMeta({} as never)).toEqual([{ title: 'Recipes – Hearthwise' }]);
+    expect(screen.getByRole('heading', { level: 1, name: 'Chilli' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Get everything out' })).toBeInTheDocument();
+    expectSoundHeadings(container);
+    await expectNoViolations(container);
+  });
+
+  it('starts at the planned servings from the link, and ignores a servings value that is not a whole number from 1 to 50', () => {
+    state.recipes.recipes = [recipe({ servings: 2, ingredients: ['200 g flour'] })];
+    const first = renderAt('/recipes/r1?servings=4&day=2026-11-16');
+    expect(screen.getByText('4 servings')).toBeInTheDocument();
+    expect(screen.getByText('400 g flour')).toBeInTheDocument();
+    first.unmount();
+    window.localStorage.clear();
+    for (const bad of ['0', '51', '2.5', 'abc', '']) {
+      const view = renderAt(`/recipes/r1?servings=${bad}`);
+      expect(screen.getByText('2 servings')).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('has a menu with Edit, Duplicate and Delete', async () => {
+    const live = recipe();
+    state.recipes.recipes = [live];
+    renderAt('/recipes/r1');
+    await userEvent.click(screen.getByRole('button', { name: 'Recipe actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Edit' })).toHaveAttribute('href', '/recipes/r1/edit');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    expect(state.actions.duplicate).toHaveBeenCalledWith(live);
+    await userEvent.click(screen.getByRole('button', { name: 'Recipe actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    expect(state.actions.remove).toHaveBeenCalledWith(live);
+  });
+
+  it('shows a loader while loading, and a retry on an error', async () => {
+    state.recipes = { ...state.recipes, status: 'loading' };
+    const first = renderAt('/recipes/r1');
+    expect(screen.getByRole('status', { name: 'Loading the recipe' })).toBeInTheDocument();
+    first.unmount();
+    state.recipes = { ...state.recipes, status: 'error' };
+    renderAt('/recipes/r1');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(state.recipes.refetch).toHaveBeenCalled();
+  });
+
+  it('says it is checking while a missing recipe is looked for, and never calls it gone before then', () => {
+    renderAt('/recipes/nope');
+    expect(screen.getByText('Checking the recipe…')).toBeInTheDocument();
+    expect(screen.queryByText('This recipe is gone')).not.toBeInTheDocument();
+  });
+
+  it('says a recipe is gone once the check has finished and it is still absent, with a link back', () => {
+    state.checkedAt = 123;
+    renderAt('/recipes/nope');
+    expect(screen.getByText('This recipe is gone')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to Recipes' })).toHaveAttribute('href', '/recipes');
+  });
+
+  it('opens a deleted recipe read-only, and Restore restores it', async () => {
+    const deleted = recipe({ deletedAt: 5, deletedBy: 'u1' });
+    state.recipes.recipes = [deleted];
+    renderAt('/recipes/r1');
+    expect(screen.getByText('This recipe was deleted.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(state.actions.restore).toHaveBeenCalledWith(deleted);
+    expect(screen.queryByRole('button', { name: 'Recipe actions' })).not.toBeInTheDocument();
   });
 });

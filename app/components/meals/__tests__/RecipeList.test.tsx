@@ -18,7 +18,7 @@ describe('RecipeList', () => {
   it('lists each recipe as a link with its minutes and a low-energy mark', () => {
     render(wrap(<RecipeList recipes={[recipe({ minutes: 20, lowEnergy: true }), recipe({ id: 'r2', title: 'Soup' })]} filtered={false} />));
     const links = screen.getAllByRole('link');
-    expect(links.map(link => link.getAttribute('href'))).toEqual(['/recipes/r1/edit', '/recipes/r2/edit']);
+    expect(links.map(link => link.getAttribute('href'))).toEqual(['/recipes/r1', '/recipes/r2']);
     expect(links[0].textContent).toContain('Chilli');
     expect(links[0].textContent).toContain('20 min');
     expect(links[0].textContent).toContain('Low energy');
@@ -38,8 +38,8 @@ describe('RecipeList', () => {
   });
 
   it('follows the address it is given for a row', () => {
-    render(wrap(<RecipeList recipes={[recipe()]} filtered={false} hrefFor={entry => `/recipes/${entry.id}`} />));
-    expect(screen.getByRole('link')).toHaveAttribute('href', '/recipes/r1');
+    render(wrap(<RecipeList recipes={[recipe()]} filtered={false} hrefFor={entry => `/recipes/${entry.id}/edit`} />));
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/recipes/r1/edit');
   });
 });
 
