@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MutationObserver, QueryClient, onlineManager } from '@tanstack/react-query';
 import { persistQueryClientRestore, persistQueryClientSave } from '@tanstack/react-query-persist-client';
 import { ApiError } from '../apiError';
-import { itemMutationKeys, mutationKeys, registerMutations } from '../mutations';
+import { itemMutationKeys, mealMutationKeys, mutationKeys, registerMutations } from '../mutations';
 import {
   CACHE_SCHEMA_VERSION, cacheKey, clearStoredUser, clearUserCache, createUserPersister, pendingWriteCount, readStoredUser, resumeHydratedMutations,
   resetSigningOutForTests, shouldDehydrateMutation, signOutCleanup, storeUser,
@@ -91,6 +91,27 @@ describe('writes made offline, across a reload', () => {
     resumeHydratedMutations(after);
     await vi.waitFor(() => expect(sent).toHaveLength(2));
     expect(sent.map(request => `${request.method} ${request.path}`)).toEqual(['POST /api/hh/tasks', 'DELETE /api/hh/tasks/t1']);
+    await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
+  });
+
+  it('include one of each recipe kind: saved, restored with a schema version 1 cache, and sent in order', async () => {
+    onlineManager.setOnline(false);
+    const before = newClient();
+    void mutate(before, mealMutationKeys.recipeAdd, { mutationId: 'r1', recipe: { id: 'a', title: 'Soup' } });
+    void mutate(before, mealMutationKeys.recipeEdit, { mutationId: 'r2', recipeId: 'a', changes: { title: 'Better soup' } });
+    void mutate(before, mealMutationKeys.recipeDelete, { mutationId: 'r3', recipeId: 'a' });
+    void mutate(before, mealMutationKeys.recipeRestore, { mutationId: 'r4', recipeIds: ['a'] });
+    await vi.waitFor(() => expect(pendingWriteCount(before)).toBe(4));
+    await save(before);
+    expect(JSON.parse(storage.map.get(cacheKey(ME))!).buster).toBe('1');
+
+    onlineManager.setOnline(true);
+    const after = newClient();
+    await restore(after);
+    expect(pendingWriteCount(after)).toBe(4);
+    resumeHydratedMutations(after);
+    await vi.waitFor(() => expect(sent).toHaveLength(4));
+    expect(sent.map(request => `${request.method} ${request.path}`)).toEqual(['PUT /api/hh/recipes/a', 'PUT /api/hh/recipes/a', 'DELETE /api/hh/recipes/a', 'POST /api/hh/restore']);
     await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
   });
 

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MealType, Recipe, RecipesData } from '../../src/meals/types';
 import { useProtectedApi } from '~/hooks/useProtectedApi';
+import type { MealMutationVars } from './mutations';
 import type { PendingMutation } from './overlay';
 import { currentSettledCount } from './queries';
 import { applyPendingRecipes } from './recipeOverlay';
@@ -82,4 +83,20 @@ export function useRecipes(): RecipesState {
     dataUpdatedAt: query.dataUpdatedAt || undefined,
     refetch: () => { void query.refetch(); },
   };
+}
+
+// The ids of recipes that have an add or an edit waiting in the queue. The editor does not offer an older draft for one of them.
+export function usePendingRecipeSaves(): ReadonlySet<string> {
+  const pending = useMutationState<PendingMutation>({
+    filters: { status: 'pending', mutationKey: ['household'] },
+    select: mutation => ({ mutationKey: mutation.options.mutationKey, variables: mutation.state.variables }),
+  });
+  return useMemo(() => {
+    const ids = new Set<string>();
+    for (const { mutationKey, variables } of pending) {
+      if (mutationKey?.[1] === 'recipeAdd') ids.add((variables as MealMutationVars['recipeAdd']).recipe.id);
+      else if (mutationKey?.[1] === 'recipeEdit') ids.add((variables as MealMutationVars['recipeEdit']).recipeId);
+    }
+    return ids;
+  }, [pending]);
 }

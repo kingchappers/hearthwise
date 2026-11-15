@@ -12,7 +12,7 @@ import type { AsyncStorageLike } from '../persistedCache';
 import { mealMutationKeys } from '../mutations';
 import { noteMutationSettled } from '../queries';
 import { RECIPES_KEY } from '../recipeKeys';
-import { easyShortlist, filterRecipes, sortRecipes, useRecipes } from '../recipes';
+import { easyShortlist, filterRecipes, sortRecipes, usePendingRecipeSaves, useRecipes } from '../recipes';
 
 const NOW = Date.parse('2026-11-14T10:00:00.000Z');
 const recipe = (over: Partial<Recipe> = {}): Recipe => ({
@@ -150,6 +150,24 @@ describe('useRecipes', () => {
     release(served([]));
     await refetching;
     expect(result.current.recipes).toHaveLength(1);
+  });
+});
+
+describe('usePendingRecipeSaves', () => {
+  it('names the recipes that have an add or an edit waiting, and no others', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => usePendingRecipeSaves(), { wrapper });
+    expect([...result.current]).toEqual([]);
+    const hang = () => new Promise(() => undefined);
+    act(() => {
+      new MutationObserver(client, { mutationKey: mealMutationKeys.recipeAdd, mutationFn: hang }).mutate({ mutationId: 'm1', at: 1, by: 'u', recipe: { id: 'new1', title: 'A' } } as never);
+      new MutationObserver(client, { mutationKey: mealMutationKeys.recipeEdit, mutationFn: hang }).mutate({ mutationId: 'm2', at: 1, by: 'u', recipeId: 'edit1', changes: {} } as never);
+      new MutationObserver(client, { mutationKey: mealMutationKeys.recipeDelete, mutationFn: hang }).mutate({ mutationId: 'm3', at: 1, by: 'u', recipeId: 'del1' } as never);
+      new MutationObserver(client, { mutationKey: ['household', 'itemTick'], mutationFn: hang }).mutate({ mutationId: 'm4', at: 1, by: 'u', itemId: 'i1', done: true } as never);
+    });
+    await waitFor(() => expect(result.current.size).toBe(2));
+    expect([...result.current].sort()).toEqual(['edit1', 'new1']);
   });
 });
 
