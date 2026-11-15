@@ -21,9 +21,14 @@ export function askChange(store: Store, ctx: HouseholdContext, id: string, input
 
 // The member who did not ask answers. Agreeing applies the change in the same transaction; declining only removes the request.
 export function respondChange(store: Store, ctx: HouseholdContext, id: string, input: ChangeRespondInput, nowMs: number = Date.now()): Outcome {
-  return writeEntry(store, ctx, id, input.mutationId, nowMs, raw => {
+  return writeEntry(store, ctx, id, input.mutationId, nowMs, async raw => {
     const found = requireRaw(raw);
-    return preparedFrom(ctx.householdId, found, respondToChange(toEntry(found), input.response, input.requestId, ctx.userId, nowMs));
+    const existing = toEntry(found);
+    const applied = respondToChange(existing, input.response, input.requestId, ctx.userId, nowMs);
+    // The loan may have changed since the request was made: an agreement is held to the same rules as the ask.
+    const money = existing.pendingChange?.money;
+    if (applied.ok && input.response === 'agree' && money) await assertMoney(store, ctx, existing.kind, money, 'money');
+    return preparedFrom(ctx.householdId, found, applied);
   });
 }
 

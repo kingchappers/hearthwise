@@ -159,6 +159,18 @@ describe('respondChange', () => {
     expect((await raw(entry.id)).deletedAt).toBeUndefined();
   });
 
+  it('refuses to agree a request whose loan is no longer live and agreed', async () => {
+    const loan = await agreed('loan', 5000);
+    const id = uuid();
+    await putMoney(store, ctx2, id, { kind: 'payment', money: { paidBy: U2, amountPence: 2000, sharePence: 2000 }, description: { value: 'x', at: NOW }, on: { value: '2026-11-14', at: NOW }, mutationId: uuid() }, NOW);
+    const payment = (await respondMoney(store, ctx1, id, { response: 'agree', version: 1, mutationId: uuid() }, NOW + 1)).result.entry;
+    const requestId = uuid();
+    await askChange(store, ctx2, id, { version: payment.version, money: { paidBy: U2, amountPence: 2000, sharePence: 2000, loanId: loan.id }, mutationId: requestId }, NOW + 2);
+    await store.patch(moneyKey(householdId, loan.id), { deletedAt: NOW + 3, deletedBy: U1 });
+    await expect(respondChange(store, ctx1, id, { response: 'agree', requestId, mutationId: uuid() }, NOW + 4)).rejects.toMatchObject({ code: 'invalid', extra: { field: 'money.loanId' } });
+    expect((await raw(id)).pendingChange).toBeDefined();
+  });
+
   it('retries after a lost race', async () => {
     const entry = await agreed();
     const requestId = uuid();
