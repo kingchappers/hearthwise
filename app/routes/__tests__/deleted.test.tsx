@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   items: { status: 'ready', items: [] as object[], refetch: vi.fn() },
   recipes: { status: 'ready', recipes: [] as object[], dataUpdatedAt: 1, refetch: vi.fn() },
   money: { status: 'ready', entries: [] as object[], canWrite: true, unsavedIds: new Set<string>(), refetch: vi.fn() },
+  calendar: { status: 'ready', deleted: [] as object[], unsavedIds: new Set<string>(), refetch: vi.fn() },
+  calendarActions: undefined as unknown,
   moneyActions: undefined as unknown,
   actions: undefined as unknown,
   itemActions: undefined as unknown,
@@ -22,6 +24,8 @@ vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
 vi.mock('~/lib/items', () => ({ useItems: () => state.items }));
 vi.mock('~/lib/recipes', () => ({ useRecipes: () => state.recipes }));
 vi.mock('~/lib/money', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/money')>()), useMoney: () => state.money }));
+vi.mock('~/lib/calendar', () => ({ useCalendar: () => state.calendar }));
+vi.mock('~/hooks/useCalendarActions', () => ({ useCalendarActions: () => state.calendarActions }));
 vi.mock('~/hooks/useMoneyActions', () => ({ useMoneyActions: () => state.moneyActions }));
 vi.mock('~/hooks/useRecipeActions', () => ({ useRecipeActions: () => state.recipeActions }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
@@ -42,6 +46,8 @@ beforeEach(() => {
   state.recipeActions = { restore: vi.fn() };
   state.money = { status: 'ready', entries: [], canWrite: true, unsavedIds: new Set<string>(), refetch: vi.fn() };
   state.moneyActions = { restore: vi.fn() };
+  state.calendar = { status: 'ready', deleted: [], unsavedIds: new Set<string>(), refetch: vi.fn() };
+  state.calendarActions = { restore: vi.fn() };
 });
 
 describe('the Deleted page: money', () => {
@@ -173,5 +179,40 @@ describe('the Deleted page', () => {
     expectSoundHeadings(container);
     await expectNoViolations(container);
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
+  });
+});
+
+describe('the Deleted page: events', () => {
+  const dentist = {
+    id: 'e1', kind: 'event', title: 'Dentist', who: 'both', private: false, startOn: '2026-11-19', allDay: true, repeat: { type: 'none' }, skipOn: [], reminders: {}, fieldTimes: {},
+    createdBy: ME.userId, createdAt: 1, updatedAt: 1, updatedBy: ME.userId, deletedAt: NOV_12, deletedBy: ME.userId,
+  };
+
+  it('lists an Events group after Money, and restores an event with one tap', async () => {
+    state.money.entries = [{ id: 'm1', kind: 'expense', paidBy: 'u', amountPence: 1, sharePence: 0, description: 'Shop', on: '2026-11-10', fieldTimes: {}, status: 'agreed', version: 1, createdBy: 'u', createdAt: 1, proposedBy: 'u', updatedAt: 1, updatedBy: 'u', deletedAt: NOV_12, deletedBy: 'u' }];
+    state.calendar.deleted = [dentist];
+    renderPage();
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['Money', 'Events']);
+    expect(screen.getByText(/Deleted by Sam, .*12 Nov/, { selector: 'section:nth-of-type(2) p' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Restore: Dentist' }));
+    expect((state.calendarActions as { restore: ReturnType<typeof vi.fn> }).restore).toHaveBeenCalledWith(dentist);
+  });
+
+  it('turns Restore off while a write for the event is waiting, as the server\'s deletion time is not known yet', () => {
+    state.calendar.deleted = [dentist];
+    state.calendar.unsavedIds = new Set(['e1']);
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Restore: Dentist' })).toBeDisabled();
+  });
+
+  it('no longer says Nothing has been deleted when only an event is', () => {
+    state.calendar.deleted = [dentist];
+    renderPage();
+    expect(screen.queryByText('Nothing has been deleted.')).not.toBeInTheDocument();
+  });
+
+  it('says how long a deleted event is kept', () => {
+    renderPage();
+    expect(screen.getByText('Deleted events stay here for 30 days.')).toBeInTheDocument();
   });
 });
