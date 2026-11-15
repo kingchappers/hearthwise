@@ -115,6 +115,28 @@ describe('writes made offline, across a reload', () => {
     await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
   });
 
+  it('include a pending add to the shopping list: saved, restored with a schema version 1 cache, and sent', async () => {
+    onlineManager.setOnline(false);
+    const before = newClient();
+    const days = [{ day: '2026-11-16', title: 'Chilli', recipeId: 'r1', servings: 4 }];
+    const lines = [{ id: 'n1', text: 'onions', quantity: '3', forRecipes: 'Chilli' }];
+    void mutate(before, itemMutationKeys.itemsFromPlan, { mutationId: 'p1', days, lines });
+    void mutate(before, mealMutationKeys.planSet, { mutationId: 'p2', day: '2026-11-17', meal: null });
+    await vi.waitFor(() => expect(pendingWriteCount(before)).toBe(2));
+    await save(before);
+    expect(JSON.parse(storage.map.get(cacheKey(ME))!).buster).toBe('1');
+
+    onlineManager.setOnline(true);
+    const after = newClient();
+    await restore(after);
+    expect(pendingWriteCount(after)).toBe(2);
+    resumeHydratedMutations(after);
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent.map(request => `${request.method} ${request.path}`)).toEqual(['POST /api/hh/plan/add-to-list', 'PUT /api/hh/plan/2026-11-17']);
+    expect(sent[0].body).toMatchObject({ days, lines });
+    await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
+  });
+
   it('keep a write that was in the middle of a retry backoff, and save it after the reload', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
     const before = newClient();

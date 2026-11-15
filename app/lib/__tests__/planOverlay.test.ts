@@ -49,4 +49,33 @@ describe('applyPendingPlan', () => {
     const base = data();
     expect(applyPendingPlan(base, [{ mutationKey: ['household', 'itemTick'], variables: {} }, { mutationKey: mealMutationKeys.planSet, variables: undefined }])).toBe(base);
   });
+
+  describe('itemsFromPlan', () => {
+    const chilli = { recipeId: 'r1', title: 'Chilli', servings: 4 };
+    const added = (days: object[]) => ({ mutationKey: ['household', 'itemsFromPlan'] as const, variables: { mutationId: 'm', at: AT, by: ME, days, lines: [{ id: 'n1', text: 'onions' }] } });
+
+    it('marks a listed day whose dinner is the one added, with who and when', () => {
+      const result = applyPendingPlan(data([day({ meal: chilli })]), [added([{ day: '2026-11-16', ...chilli }])]);
+      expect(result.days[0]).toMatchObject({ addedAt: AT, addedBy: ME });
+    });
+
+    it('does not mark a day whose dinner or servings differ, a day that is not there, or a day that is not listed', () => {
+      const base = data([day({ meal: chilli }), day({ day: '2026-11-17', meal: chilli })]);
+      const result = applyPendingPlan(base, [added([{ day: '2026-11-16', ...chilli, servings: 2 }, { day: '2026-11-20', ...chilli }])]);
+      expect(result.days.map(entry => entry.addedAt)).toEqual([undefined, undefined]);
+    });
+
+    it('does not change the day\'s time of change, as the marker is display only', () => {
+      const result = applyPendingPlan(data([day({ meal: chilli })]), [added([{ day: '2026-11-16', ...chilli }])]);
+      expect(result.days[0].fieldTimes).toEqual({ meal: 100 });
+    });
+
+    it('is undone by a later pending change of dinner on the same day', () => {
+      const result = applyPendingPlan(data([day({ meal: chilli })]), [
+        added([{ day: '2026-11-16', ...chilli }]),
+        pending({ day: '2026-11-16', meal: { title: 'Soup' }, at: AT + 1 }),
+      ]);
+      expect(result.days[0].addedAt).toBeUndefined();
+    });
+  });
 });

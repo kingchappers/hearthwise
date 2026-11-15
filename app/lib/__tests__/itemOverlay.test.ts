@@ -60,4 +60,34 @@ describe('applyPendingItems', () => {
   it('ignores task mutations, and mutations for an item that is not there', () => {
     expect(applyPendingItems(data(), [pending('complete', { taskId: 't' }), pending('itemDelete', { itemId: 'missing' })])).toEqual(data());
   });
+
+  describe('itemsFromPlan', () => {
+    const lines = [
+      { id: 'n1', text: 'onions', quantity: '3', forRecipes: 'Chilli, Pasta bake' },
+      { id: 'n2', text: 'salt to taste', forRecipes: 'Chilli' },
+    ];
+    const days = [{ day: '2026-11-16', title: 'Chilli', recipeId: 'r1', servings: 4 }];
+
+    it('shows each shopping line at once, with its quantity and the recipes it is for', () => {
+      const added = after('itemsFromPlan', { days, lines });
+      expect(added.items).toHaveLength(3);
+      expect(one(added, 'n1')).toMatchObject({ text: 'onions', quantity: '3', forRecipes: 'Chilli, Pasta bake', ticked: false, fieldTimes: { text: 500, quantity: 500 } });
+      expect(one(added, 'n2').quantity).toBeUndefined();
+    });
+
+    it('shows a line once, and leaves one already on the list alone', () => {
+      const added = after('itemsFromPlan', { days, lines });
+      expect(applyPendingItems(added, [pending('itemsFromPlan', { days, lines })]).items).toHaveLength(3);
+      const typed = item({ id: 'n1', text: 'onions (typed)' });
+      expect(one(after('itemsFromPlan', { days, lines }, data([typed])), 'n1').text).toBe('onions (typed)');
+    });
+
+    it('leaves a hand-typed line with the same name untouched, and lets the label survive a tick and an edit', () => {
+      const typed = item({ id: 'h1', text: 'onions' });
+      const added = after('itemsFromPlan', { days, lines }, data([typed]));
+      expect(one(added, 'h1')).toEqual(typed);
+      const ticked = applyPendingItems(added, [pending('itemTick', { itemId: 'n1', done: true }), pending('itemEdit', { itemId: 'n1', text: 'red onions', at: 600 })]);
+      expect(one(ticked, 'n1')).toMatchObject({ ticked: true, text: 'red onions', forRecipes: 'Chilli, Pasta bake' });
+    });
+  });
 });

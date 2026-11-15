@@ -35,6 +35,16 @@ const OVERLAYS: { [K in ItemMutationKind]: Overlay<K> } = {
     const outcome = applyItemDelete(item, v.by, v.at, entry.ifTickedAt);
     return outcome.result === 'applied' ? outcome.item : undefined;
   }), data),
+  itemsFromPlan: (data, v) => v.lines.reduce((current, line) => {
+    if (current.items.some(item => item.id === line.id)) return current;
+    const write = {
+      text: { value: line.text, at: v.at },
+      ...(line.quantity === undefined ? {} : { quantity: { value: line.quantity, at: v.at } }),
+      ...(line.forRecipes === undefined ? {} : { forRecipes: line.forRecipes }),
+    };
+    const { item } = applyItemWrite(undefined, line.id, write, v.by, v.at);
+    return item ? { ...current, items: [...current.items, item] } : current;
+  }, data),
   itemRestore: (data, v) => v.itemIds.reduce((current, id) => changeItem(current, id, item => {
     const restored = { ...item };
     delete restored.deletedAt;
