@@ -18,6 +18,8 @@ vi.mock('~/lib/items', async importOriginal => ({ ...(await importOriginal<typeo
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => ({ add: vi.fn(), tick: vi.fn(), edit: vi.fn(), remove: vi.fn(), clearTicked: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/lib/recipes', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/recipes')>()), useRecipes: () => ({ status: 'ready', recipes: [], dataUpdatedAt: 1, refetch: vi.fn() }) }));
 vi.mock('~/hooks/useRecipeActions', () => ({ useRecipeActions: () => ({ add: vi.fn(), edit: vi.fn(), remove: vi.fn(), restore: vi.fn(), duplicate: vi.fn() }) }));
+vi.mock('~/lib/plan', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/plan')>()), usePlan: () => ({ status: 'ready', days: [], today: '2026-11-13', recipes: [], recipesCheckedAt: undefined, refetch: vi.fn() }) }));
+vi.mock('~/hooks/usePlanActions', () => ({ usePlanActions: () => ({ set: vi.fn(), clear: vi.fn() }) }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => ({ status: 'ready', tasks: [], proposals: [], today: '2026-11-13', refetch: vi.fn() }) }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => ({ me: { userId: 'u1', displayName: 'Sam' }, members: [], caller: { userId: 'u1', members: [] }, today: '2026-11-13', needsAsk: () => false }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
