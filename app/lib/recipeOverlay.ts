@@ -3,10 +3,10 @@
 import { applyRecipeDelete, applyRecipeWrite } from '../../src/meals/applyRecipe';
 import type { Recipe, RecipesData, RecipeWrite } from '../../src/meals/types';
 import { mealMutationKeys } from './mutations';
-import type { MealMutationKind, MealMutationVars } from './mutations';
+import type { MealMutationVars, RecipeMutationKind } from './mutations';
 import type { PendingMutation } from './overlay';
 
-type Overlay<K extends MealMutationKind> = (data: RecipesData, vars: MealMutationVars[K]) => RecipesData;
+type Overlay<K extends RecipeMutationKind> = (data: RecipesData, vars: MealMutationVars[K]) => RecipesData;
 
 const FIELDS = ['title', 'mealType', 'servings', 'minutes', 'lowEnergy', 'nutrition', 'ingredients', 'steps'] as const;
 
@@ -22,7 +22,7 @@ function changeRecipe(data: RecipesData, id: string, change: (recipe: Recipe) =>
   return { ...data, recipes: data.recipes.map(recipe => (recipe.id === id ? (change(recipe) ?? recipe) : recipe)) };
 }
 
-const OVERLAYS: { [K in MealMutationKind]: Overlay<K> } = {
+const OVERLAYS: { [K in RecipeMutationKind]: Overlay<K> } = {
   recipeAdd: (data, v) => {
     if (data.recipes.some(recipe => recipe.id === v.recipe.id)) return data;
     const { recipe: created } = applyRecipeWrite(undefined, v.recipe.id, toWrite(v.recipe, v.at), v.by, v.at);
@@ -39,15 +39,15 @@ const OVERLAYS: { [K in MealMutationKind]: Overlay<K> } = {
   }), data),
 };
 
-function kindOf(mutationKey: readonly unknown[] | undefined): MealMutationKind | undefined {
+function kindOf(mutationKey: readonly unknown[] | undefined): RecipeMutationKind | undefined {
   if (!mutationKey || mutationKey[0] !== 'household') return undefined;
-  return (Object.keys(mealMutationKeys) as MealMutationKind[]).find(kind => kind === mutationKey[1]);
+  return (Object.keys(mealMutationKeys) as (RecipeMutationKind | 'planSet')[]).find((kind): kind is RecipeMutationKind => kind !== 'planSet' && kind === mutationKey[1]);
 }
 
 export function applyPendingRecipes(data: RecipesData, pending: PendingMutation[]): RecipesData {
   return pending.reduce((current, mutation) => {
     const kind = kindOf(mutation.mutationKey);
     if (!kind || !mutation.variables) return current;
-    return (OVERLAYS[kind] as Overlay<MealMutationKind>)(current, mutation.variables as MealMutationVars[MealMutationKind]);
+    return (OVERLAYS[kind] as Overlay<RecipeMutationKind>)(current, mutation.variables as MealMutationVars[RecipeMutationKind]);
   }, data);
 }

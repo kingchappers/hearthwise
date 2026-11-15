@@ -43,6 +43,11 @@ export function dayInZone(ms: number, timezone: string): string {
 
 // Monday is 0. 1970-01-01 was a Thursday.
 const mondayIndex = (number: number): number => (((number + 3) % 7) + 7) % 7;
+// The Monday on or before `day`.
+export function weekStart(day: string): string {
+  return addDays(day, -mondayIndex(dayNumber(day)));
+}
+
 const daysInMonth = (year: number, month: number): number => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
 function occursOn(rule: FixedRepeat, day: string): boolean {

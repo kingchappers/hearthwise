@@ -62,17 +62,17 @@ beforeEach(() => {
 });
 
 describe('DefaultLayout navigation', () => {
-  it('has Today, Recipes, Shopping and Settings in the tab bar, and nothing else', () => {
+  it('has Today, Plan, Recipes, Shopping and Settings in the tab bar, and nothing else', () => {
     renderLayout();
     const tabBar = screen.getByRole('navigation', { name: 'Primary' });
     const names = within(tabBar).getAllByRole('link').map(link => link.getAttribute('aria-label'));
-    expect(names).toEqual(['Today', 'Recipes', 'Shopping', 'Settings']);
+    expect(names).toEqual(['Today', 'Plan', 'Recipes', 'Shopping', 'Settings']);
     expect(within(tabBar).queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('shows the same destinations in the sidebar, each with its own address', () => {
     renderLayout();
-    const addresses: Record<string, string> = { Today: '/', Recipes: '/recipes', Shopping: '/shopping', Settings: '/settings' };
+    const addresses: Record<string, string> = { Today: '/', Plan: '/plan', Recipes: '/recipes', Shopping: '/shopping', Settings: '/settings' };
     for (const [name, href] of Object.entries(addresses)) {
       const links = screen.getAllByRole('link', { name });
       expect(links).toHaveLength(2);

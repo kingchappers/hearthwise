@@ -30,5 +30,5 @@ export function useRecipeCheck(recipes: RecipesState, missing: boolean): number 
   }, [client, missing]);
 
   const updatedAt = recipes.dataUpdatedAt;
-  return updatedAt !== undefined && updatedAt > mountedAt.current && client.getQueryState(RECIPES_KEY)?.status === 'success' ? updatedAt : undefined;
+  return updatedAt !== undefined && updatedAt >= mountedAt.current && client.getQueryState(RECIPES_KEY)?.status === 'success' ? updatedAt : undefined;
 }
