@@ -4,9 +4,13 @@ import { createHousehold } from '../../household/households';
 import { hhPk, membershipKey, memberSk } from '../../household/keys';
 import type { HouseholdContext } from '../../household/types';
 import { DEFAULT_SETTINGS } from '../../shared/household';
+import { ConditionFailedError } from '../../store';
 import { MemoryStore } from '../../store/memory';
 import { completeCycle } from '../completions';
 import { taskHistory } from '../history';
+import { askChange, respondChange } from '../../money/changes';
+import { deleteMoney, MONEY_LIMIT, putMoney, respondMoney } from '../../money/entries';
+import { moneyKey } from '../../money/keys';
 import { recipeKey } from '../../meals/keys';
 import { deleteRecipe, putRecipe } from '../../meals/recipes';
 import { taskKey } from '../keys';
@@ -202,5 +206,103 @@ describe('restoring a recipe', () => {
     const { result } = await restoreEntries(store, ctx1, { entries: ids.map(id => ({ kind: 'recipe' as const, id })), mutationId: uuid() }, NOW + 1000);
     expect(result.results.map(entry => entry.status)).toEqual(['restored', 'restored', 'recipe_limit']);
     expect((await store.get(recipeKey(householdId, ids[2])))?.deletedAt).toBe(NOW);
+  });
+});
+
+describe('restoreEntries: money', () => {
+  const money = async (): Promise<{ id: string; deletedAt: number }> => {
+    const id = uuid();
+    await putMoney(store, ctx1, id, {
+      kind: 'loan', money: { paidBy: U1, amountPence: 5000, sharePence: 5000 }, description: { value: 'Rent shortfall', at: NOW }, on: { value: '2026-11-14', at: NOW }, mutationId: uuid(),
+    }, NOW);
+    await respondMoney(store, ctx2, id, { response: 'agree', version: 1, mutationId: uuid() }, NOW + 1);
+    const asked = uuid();
+    await askChange(store, ctx1, id, { version: 2, delete: true, mutationId: asked }, NOW + 2);
+    const deleted = (await respondChange(store, ctx2, id, { response: 'agree', requestId: asked, mutationId: uuid() }, NOW + 3)).result.entry;
+    return { id, deletedAt: deleted.deletedAt! };
+  };
+  const restoreMoney = (entries: { id: string; deletedAt: number }[], who = ctx1, mutationId = uuid(), now = NOW + 1000) =>
+    restoreEntries(store, who, { entries: entries.map(entry => ({ kind: 'money' as const, ...entry })), mutationId }, now);
+  const stored = async (id: string) => (await store.get(moneyKey(householdId, id)))!;
+
+  it('brings an entry back as waiting for the other person, with a new version and no old agreement', async () => {
+    const entry = await money();
+    const before = await stored(entry.id);
+    const { result } = await restoreMoney([entry], ctx2);
+    expect(result.results).toEqual([{ id: entry.id, status: 'restored' }]);
+    const after = await stored(entry.id);
+    expect(after).toMatchObject({ status: 'waiting', proposedBy: U2, version: Number(before.version) + 1, updatedBy: U2 });
+    for (const name of ['deletedAt', 'deletedBy', 'agreedAt', 'agreedBy', 'pendingChange']) expect(Object.keys(after)).not.toContain(name);
+  });
+
+  it('brings back an entry that needs no agreement as agreed', async () => {
+    const id = uuid();
+    await putMoney(store, ctx1, id, { kind: 'expense', money: { paidBy: U1, amountPence: 100, sharePence: 0 }, description: { value: 'x', at: NOW }, on: { value: '2026-11-14', at: NOW }, mutationId: uuid() }, NOW);
+    await store.patch(moneyKey(householdId, id), { deletedAt: NOW + 1, deletedBy: U1 });
+    await restoreMoney([{ id, deletedAt: NOW + 1 }]);
+    expect(await stored(id)).toMatchObject({ status: 'agreed', agreedAt: NOW + 1000 });
+  });
+
+  it('does nothing when restoring twice, and answers a retried batch from its record', async () => {
+    const entry = await money();
+    const mutationId = uuid();
+    const first = await restoreMoney([entry], ctx1, mutationId);
+    const retry = await restoreMoney([entry], ctx1, mutationId, NOW + 9000);
+    expect(retry).toEqual({ fresh: false, result: first.result });
+    expect((await restoreMoney([entry])).result.results).toEqual([{ id: entry.id, status: 'noop' }]);
+    expect((await stored(entry.id)).version).toBe(4);
+  });
+
+  it('answers entry_changed for a deletion the person did not see, and applies nothing', async () => {
+    const entry = await money();
+    await restoreMoney([entry]);
+    const again = await deleteMoney(store, ctx1, entry.id, { mutationId: uuid() }, NOW + 5000);
+    const before = await stored(entry.id);
+    expect((await restoreMoney([entry])).result.results).toEqual([{ id: entry.id, status: 'entry_changed' }]);
+    expect(await stored(entry.id)).toEqual(before);
+    expect((await restoreMoney([{ id: entry.id, deletedAt: again.result.entry.deletedAt! }])).result.results[0].status).toBe('restored');
+  });
+
+  it('answers entry_changed when it was deleted again during the race', async () => {
+    const entry = await money();
+    vi.spyOn(store, 'transact').mockImplementationOnce(async () => {
+      await store.patch(moneyKey(householdId, entry.id), { deletedAt: entry.deletedAt + 5 });
+      throw new ConditionFailedError(0);
+    });
+    expect((await restoreMoney([entry])).result.results[0].status).toBe('entry_changed');
+  });
+
+  it('answers noop when the entry was restored by someone else during the race', async () => {
+    const entry = await money();
+    vi.spyOn(store, 'transact').mockImplementationOnce(async () => {
+      const key = moneyKey(householdId, entry.id);
+      const { PK: _p, SK: _s, deletedAt: _d, ...rest } = (await store.get(key))!;
+      await store.put({ ...key, ...rest });
+      throw new ConditionFailedError(0);
+    });
+    expect((await restoreMoney([entry])).result.results[0].status).toBe('noop');
+  });
+
+  it('says not found for an unknown entry', async () => {
+    expect((await restoreMoney([{ id: uuid(), deletedAt: NOW }])).result.results[0].status).toBe('not_found');
+  });
+
+  it('answers needs_two with one member and pair_changed when the pair changed, restoring nothing', async () => {
+    const entry = await money();
+    await store.delete({ PK: hhPk(householdId), SK: memberSk(U2) });
+    expect((await restoreMoney([entry], (await loadContext(store, U1))!)).result.results[0].status).toBe('needs_two');
+    await store.put({ PK: hhPk(householdId), SK: memberSk('auth0|u3'), displayName: 'Kim', settings: DEFAULT_SETTINGS, joinedAt: '2026-11-14T11:00:00.000Z' });
+    await store.put({ ...membershipKey('auth0|u3'), householdId });
+    const result = await restoreMoney([entry], (await loadContext(store, U1))!);
+    expect(result.result.results[0].status).toBe('pair_changed');
+    expect((await stored(entry.id)).deletedAt).toBe(entry.deletedAt);
+  });
+
+  it('answers money_limit when 2,000 entries are live, counting the restores made earlier in the batch', async () => {
+    const entry = await money();
+    const second = await money();
+    for (let i = 0; i < MONEY_LIMIT - 1; i += 1) await store.put({ ...moneyKey(householdId, `fill-${i}`), kind: 'expense', paidBy: U1, createdBy: U1, proposedBy: U1, amountPence: 1, sharePence: 0, status: 'agreed', version: 1, createdAt: 1, updatedAt: 1 });
+    const { result } = await restoreMoney([entry, second]);
+    expect(result.results.map(item => item.status)).toEqual(['restored', 'money_limit']);
   });
 });

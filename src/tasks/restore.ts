@@ -3,13 +3,16 @@ import type { WriteOutcome } from '../api/writeRecord';
 import type { HouseholdContext } from '../household/types';
 import { ConditionFailedError } from '../store';
 import type { Key, Store } from '../store';
+import { restoreMoneyEntry } from '../money/entries';
+import type { RestoreBatch } from '../money/entries';
 import { recipeKey } from '../meals/keys';
+import type { RestoreEntry } from '../shared/taskValidation';
 import { countLiveRecipes, RECIPE_LIMIT } from '../meals/recipes';
 import { itemKey, taskKey } from './keys';
 import { needsProposal, otherMemberId } from './ownership';
 import { restoreChange, toTask } from './record';
 
-export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found' | 'recipe_limit';
+export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found' | 'recipe_limit' | 'needs_two' | 'pair_changed' | 'money_limit' | 'entry_changed';
 
 export interface RestoreResult {
   id: string;
@@ -40,7 +43,7 @@ async function restoreRecord(store: Store, key: Key, nowMs: number): Promise<Res
 // Each entry is its own transaction, applied only to the deletion it saw, so restoring twice does nothing and a restore can never
 // undo a later delete. One write record holds all the results, so a retried batch answers the same.
 export async function restoreEntries(
-  store: Store, ctx: HouseholdContext, input: { entries: { kind: 'task' | 'item' | 'recipe'; id: string }[]; mutationId: string }, nowMs: number = Date.now(),
+  store: Store, ctx: HouseholdContext, input: { entries: RestoreEntry[]; mutationId: string }, nowMs: number = Date.now(),
 ): Promise<WriteOutcome<{ results: RestoreResult[] }>> {
   const { householdId } = ctx;
   const replayed = await replayOf<{ results: RestoreResult[] }>(store, householdId, input.mutationId);
@@ -48,7 +51,12 @@ export async function restoreEntries(
 
   const results: RestoreResult[] = [];
   let liveRecipes: number | undefined;
+  const moneyBatch: RestoreBatch = {};
   for (const entry of input.entries) {
+    if (entry.kind === 'money') {
+      results.push({ id: entry.id, status: await restoreMoneyEntry(store, ctx, entry, moneyBatch, nowMs) });
+      continue;
+    }
     if (entry.kind === 'item') {
       results.push({ id: entry.id, status: await restoreRecord(store, itemKey(householdId, entry.id), nowMs) });
       continue;

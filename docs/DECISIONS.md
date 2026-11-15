@@ -164,3 +164,32 @@ The spike (`e2e/offline/`, Chromium) passed: TanStack Query's built-in persisten
 | `Tonight` is shown on Today | It is shown only once the plan has loaded, and is left out if the plan could not load | The rest of Today must keep working when the plan cannot load, and "Nothing planned yet" must not flash while it loads |
 | Wording test: each fixed phrase appears in the meal files | The test reads quoted strings and text between tags from the meal files and checks each phrase appears | The same reader the existing banned-word test uses |
 | `yarn test:e2e` runs the offline case | It passes here with the installed Chromium (`PLAYWRIGHT_CHROMIUM_EXECUTABLE`). `yarn build` passes with placeholder Auth0 build variables. The DynamoDB contract tests were not run here (no DynamoDB Local) | CI runs the DynamoDB tests |
+
+## Phase 3 design (2026-11-15)
+
+The design is `docs/designs/phase-3-money-tracker.md`. The author decided the product (loans first, one total, per-entry splits, hand entry, settled entries hidden, a new entry waits for the other person, the wording "to settle, from {name} to {name}"). Everything else in it is a **Claude** decision, which the author has not yet reviewed:
+
+- The total and loan progress are worked out from the entries every time and never stored; "settled" is worked out too.
+- One entry record with three kinds (expense, loan, payment); money in whole pence; only the other person's share is stored, never the split mode; the odd penny stays with the payer.
+- The money fields (kind, payer, amount, share, loan) change together under a version number; the description and date use per-field last-writer-wins.
+- An agreed entry changes through a change request stored on the entry (one at a time), not through the task proposals. Only agreed, live entries count.
+- A restore returns an entry as waiting with a new version. A deleted entry is never purged.
+- Writes need exactly two members, and everyone named in the ledger must be one of them.
+- No per-entry history. Notifications use the existing opt-in tick, and the text never holds an amount.
+- Six tabs (a Money tab); `CACHE_SCHEMA_VERSION` stays 1; three pull requests.
+
+### Phase 3, step 1: the ledger on the server (2026-11-15)
+
+| Spec says | Built | Why |
+|---|---|---|
+| A put or update of the entry is conditional on `version` and `status` | Every update is conditional on `updatedAt`, `version` and `status`, and on `deletedAt` being absent (a restore is conditional on `deletedAt`). `updatedAt` only moves forward | `version` does not move for a description or date edit of an agreed entry, or for a change request, so on its own it would let an answer to an old request apply. A lost race re-reads and re-decides, so the refusal is the one the rules give |
+| `change/respond` and `change/withdraw` are conditional on `pendingChange.id` | The check is made on the entry read (a different id answers 409 `entry_changed`), and the update is conditional on `updatedAt`, which every change request, withdrawal and answer moves | A condition cannot compare a field inside a stored object; `updatedAt` closes the same race |
+| 409 codes: `entry_changed`, `needs_agreement`, `needs_two`, `pair_changed`, `money_limit` | Also `entry_changed` for a change request on an entry that is not agreed, already has a request, or is at another version. New codes for refusals the spec leaves open: 403 `forbidden` (the wrong member: not the proposer, answering your own entry or request, withdrawing someone else's), 404 `not_found`, 410 `gone`, 400 `invalid` with `field` for a payer who is not a member or a `loanId` that is not a live, agreed loan borrowed by the sender, and 409 `conflict` after three lost races | The spec names no code for these; the recipe code uses the same ones |
+| A create against an id that exists | 409 `entry_changed` with the entry. An edit (no `kind`) of an id that does not exist is 404 | A create and an edit share `PUT`; `kind` tells them apart, and the spec does not say what a clash is |
+| The two-member and pair checks are made before the write | They come before the 404 for a missing entry, so one member alone gets `needs_two` for anything | One read of the ledger (ids and `deletedAt` only) serves the pair rule and the live-entry limit |
+| `deleteMoney` | Sets `deletedAt` and `deletedBy` and moves `updatedAt`, with no version change. A delete through an agreed change request does raise the version | The spec lists the version bumps and a direct delete is not among them; the change-request path says it raises the version |
+| `paidBy` "one of the two members" | A 400 `invalid` with field `paidBy` (`money.paidBy` in a change request) | A bad request body field, not a state conflict |
+| Pushes: "{name} added a money entry" and two others | Each has the spec text as its title and the fixed body "Open Money to take a look.", opening `/money`. An edit or delete of a waiting entry sends nothing; a restore sends the first text once, and only if something was restored | A push needs a body; it must not hold an amount |
+| Restore logging | The restore route reads each restored entry again to write its `money_write` line (`action: 'restore'`) | The restore answer holds statuses only |
+| `src/money/changes.ts`, `entries.ts`, `applyEntry.ts` | As specified. The store helpers shared by both (`writeEntry`, `toEntry`, `restoreMoneyEntry`) are exported from `entries.ts`, and `src/money/log.ts` also holds `withMoneyLog` and `logRestoredMoney` | One write loop for every route; the restore branch needs the same record mapping |
+| The "all-square point" uses a running credit | The running credit is taken from the first (sorted) person in the ledger's participants; zero is the same from either side | `computeTotal` takes me and other, but `settledIds` takes only the entries |

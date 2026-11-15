@@ -206,6 +206,24 @@ export function runStoreContract(name: string, backend: ContractBackend, options
         expect((await store.get({ PK, SK: 'RECIPE#a' }))?.ingredients).toEqual(['2 onions']);
       });
 
+      it('keeps money entries under their own prefix, with nested requests and conditional updates', async () => {
+        const PK = `HH#${crypto.randomUUID()}`;
+        const entry = { kind: 'loan', paidBy: 'u1', createdBy: 'u1', proposedBy: 'u1', amountPence: 5000, sharePence: 5000, description: 'Rent', on: '2026-11-14', fieldTimes: { description: 1 }, status: 'agreed', version: 2, updatedAt: 10 };
+        await store.put({ PK, SK: 'MONEY#a', ...entry });
+        await store.put({ PK, SK: 'MONEY#b', ...entry, deletedAt: 7 });
+        await store.put({ PK, SK: 'RECIPE#a', title: 'Chilli' });
+        expect(await store.query(PK, { skPrefix: 'MONEY#', attributes: ['SK', 'paidBy', 'createdBy', 'proposedBy', 'agreedBy', 'deletedAt'] }))
+          .toEqual([{ SK: 'MONEY#a', paidBy: 'u1', createdBy: 'u1', proposedBy: 'u1' }, { SK: 'MONEY#b', paidBy: 'u1', createdBy: 'u1', proposedBy: 'u1', deletedAt: 7 }]);
+
+        const pendingChange = { id: 'r1', by: 'u2', at: 11, money: { paidBy: 'u1', amountPence: 3000, sharePence: 3000 } };
+        await store.transact([{ update: { PK, SK: 'MONEY#a' }, set: { pendingChange, updatedAt: 11 }, ifEquals: { updatedAt: 10, version: 2, status: 'agreed' }, ifMissing: ['deletedAt'] }]);
+        expect((await store.get({ PK, SK: 'MONEY#a' }))?.pendingChange).toEqual(pendingChange);
+        await expect(store.transact([{ update: { PK, SK: 'MONEY#a' }, set: { updatedAt: 12 }, ifEquals: { updatedAt: 10 } }])).rejects.toBeInstanceOf(ConditionFailedError);
+        await expect(store.transact([{ update: { PK, SK: 'MONEY#b' }, set: { updatedAt: 12 }, ifMissing: ['deletedAt'] }])).rejects.toBeInstanceOf(ConditionFailedError);
+        await store.transact([{ update: { PK, SK: 'MONEY#a' }, set: { updatedAt: 12 }, remove: ['pendingChange'] }]);
+        expect(Object.keys((await store.get({ PK, SK: 'MONEY#a' }))!)).not.toContain('pendingChange');
+      });
+
       it('rejects skPrefix and skEquals together', async () => {
         await expect(store.query(newUser(), { skPrefix: 'A', skEquals: 'B' })).rejects.toThrow('not both');
       });

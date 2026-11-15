@@ -330,17 +330,27 @@ export function parseProposalBody(body: Record<string, unknown>): Parsed<Proposa
   return good(input);
 }
 
-export function parseRestoreBody(body: Record<string, unknown>): Parsed<{ entries: { kind: 'task' | 'item' | 'recipe'; id: string }[]; mutationId: string }> {
+// A money entry also carries the `deletedAt` the person saw, so a restore queued before the entry was restored, edited and deleted
+// again does not undo the later delete.
+export type RestoreEntry = { kind: 'task' | 'item' | 'recipe'; id: string } | { kind: 'money'; id: string; deletedAt: number };
+
+export function parseRestoreBody(body: Record<string, unknown>): Parsed<{ entries: RestoreEntry[]; mutationId: string }> {
   const extra = unknownKey(body, ['entries', ...ENVELOPE_KEYS], '');
   if (extra) return bad(extra);
   if (!Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > MAX_ENTRIES) return bad('entries');
-  const entries: { kind: 'task' | 'item' | 'recipe'; id: string }[] = [];
+  const entries: RestoreEntry[] = [];
   for (const [index, raw] of body.entries.entries()) {
     if (!isObject(raw)) return bad(`entries[${index}]`);
-    if (raw.kind !== 'task' && raw.kind !== 'item' && raw.kind !== 'recipe') return bad(`entries[${index}].kind`);
+    if (raw.kind !== 'task' && raw.kind !== 'item' && raw.kind !== 'recipe' && raw.kind !== 'money') return bad(`entries[${index}].kind`);
     const id = parseUuid(raw.id, `entries[${index}].id`);
     if (!id.ok) return id;
-    entries.push({ kind: raw.kind, id: id.value });
+    if (raw.kind !== 'money') {
+      if ('deletedAt' in raw) return bad(`entries[${index}].deletedAt`);
+      entries.push({ kind: raw.kind, id: id.value });
+      continue;
+    }
+    if (!inRange(raw.deletedAt, 0, Number.MAX_SAFE_INTEGER)) return bad(`entries[${index}].deletedAt`);
+    entries.push({ kind: 'money', id: id.value, deletedAt: raw.deletedAt });
   }
   const envelope = parseEnvelope(body);
   if (!envelope.ok) return envelope;

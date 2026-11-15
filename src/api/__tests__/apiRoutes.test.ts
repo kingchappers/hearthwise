@@ -3,7 +3,7 @@ import { createRouter } from '../router';
 import { registerApiRoutes } from '../apiRoutes';
 
 describe('registerApiRoutes', () => {
-  it('registers the health, household, invite, member, task, proposal, restore, item, recipe and push routes', () => {
+  it('registers the health, household, invite, member, task, proposal, restore, item, recipe, money and push routes', () => {
     const router = createRouter();
     registerApiRoutes(router);
     expect(router.routes()).toEqual([
@@ -38,6 +38,13 @@ describe('registerApiRoutes', () => {
       { method: 'GET', template: '/api/hh/plan' },
       { method: 'PUT', template: '/api/hh/plan/{day}' },
       { method: 'POST', template: '/api/hh/plan/add-to-list' },
+      { method: 'GET', template: '/api/hh/money' },
+      { method: 'PUT', template: '/api/hh/money/{id}' },
+      { method: 'POST', template: '/api/hh/money/{id}/respond' },
+      { method: 'POST', template: '/api/hh/money/{id}/change' },
+      { method: 'POST', template: '/api/hh/money/{id}/change/respond' },
+      { method: 'POST', template: '/api/hh/money/{id}/change/withdraw' },
+      { method: 'DELETE', template: '/api/hh/money/{id}' },
       { method: 'POST', template: '/api/push/subscriptions' },
       { method: 'DELETE', template: '/api/push/subscriptions' },
     ]);

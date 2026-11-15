@@ -4,6 +4,7 @@ import type { HouseholdContext } from '../household/types';
 import { parseCompleteBody, parseCreateTask, parseDeleteBody, parseMutationBody, parsePatchTask, parseProposalBody, parseRestoreBody } from '../shared/taskValidation';
 import { getStore } from '../store';
 import { completeCycle, undoCompletion } from '../tasks/completions';
+import { logRestoredMoney } from '../money/log';
 import { taskHistory } from '../tasks/history';
 import { acceptProposal, createProposal, declineProposal, listProposals, withdrawProposal } from '../tasks/proposals';
 import { taskKey } from '../tasks/keys';
@@ -103,7 +104,14 @@ const restoreRoute: TaskHandler = async (event, ctx) => {
   if (!body) return invalid('body');
   const input = parseRestoreBody(body);
   if (!input.ok) return invalid(input.field);
-  return written(await restoreEntries(getStore(), ctx, input.value), 200);
+  const outcome = await restoreEntries(getStore(), ctx, input.value);
+  if (outcome.fresh) {
+    const restored = new Set(outcome.result.results.filter(result => result.status === 'restored').map(result => result.id));
+    const money = input.value.entries.filter(entry => entry.kind === 'money' && restored.has(entry.id));
+    await logRestoredMoney(getStore(), ctx.householdId, input.value.mutationId, money.map(entry => entry.id));
+    if (money.length > 0) await notifyAfter(ctx, body, true, events.moneyAdded(ctx.member.displayName, input.value.mutationId));
+  }
+  return written(outcome, 200);
 };
 
 export function registerTaskRoutes(router: Router): void {
