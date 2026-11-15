@@ -1,4 +1,4 @@
-import { hhPk } from '../household/keys';
+import { hhPk, MEMBER_PREFIX } from '../household/keys';
 import type { Store } from '../store';
 import { ConditionFailedError } from '../store';
 import { EVENT_PREFIX } from './keys';
@@ -13,11 +13,14 @@ export interface PurgeResult {
   failed: number;
 }
 
-// Removes what belongs to people who are no longer members: their private events (deleted ones too), and their entries in the
+// Removes what belongs to people who are no longer members (by the current member records): their private events (deleted ones too), and their entries in the
 // reminders of every event. Shared events they made stay. Each item is its own write, so one failure never stops the rest; reads
 // hide this data until it is gone. It never throws and logs no text, only the error name.
-export async function purgeNonMemberData(store: Store, householdId: string, memberIds: ReadonlySet<string>): Promise<PurgeResult> {
+export async function purgeNonMemberData(store: Store, householdId: string): Promise<PurgeResult> {
   const result: PurgeResult = { deleted: 0, trimmed: 0, failed: 0 };
+  // Who is a member is read here, after any removal has committed, and never taken from an earlier read: a person who joined or
+  // stayed in the meantime keeps their data.
+  const memberIds = new Set((await store.query(hhPk(householdId), { skPrefix: MEMBER_PREFIX, attributes: ['SK'] })).map(row => row.SK.slice(MEMBER_PREFIX.length)));
   const rows = (await store.query(hhPk(householdId), { skPrefix: EVENT_PREFIX })).slice(0, MAX_ITEMS);
 
   for (const row of rows) {
