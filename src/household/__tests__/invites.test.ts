@@ -206,11 +206,14 @@ describe('acceptInvite', () => {
     ['a plan day', 'PLAN#2026-11-16'],
     ['a money entry', 'MONEY#e1'],
     ['a deleted money entry', 'MONEY#e2'],
+    ['a calendar event', 'EVENT#e1'],
+    ['a deleted calendar event', 'EVENT#e2'],
+    ['a calendar feed', 'CALFEED#f1'],
   ])('refuses a move from a household that has %s', async (_name, sk) => {
     const { token } = await createInvite(store, ctx, NOW);
     await createHousehold(store, { userId: B, name: 'Theirs', timezone: 'Europe/London', displayName: 'Bea' }, vi.fn());
     const theirs = await fresh(B);
-    await store.put({ PK: hhPk(theirs.householdId), SK: sk, title: 'Chilli', ...(sk === 'RECIPE#r2' || sk === 'MONEY#e2' ? { deletedAt: 5 } : {}) });
+    await store.put({ PK: hhPk(theirs.householdId), SK: sk, title: 'Chilli', ...(sk === 'RECIPE#r2' || sk === 'MONEY#e2' || sk === 'EVENT#e2' ? { deletedAt: 5 } : {}) });
     await expect(accept(token, B, { confirmMove: true })).rejects.toMatchObject({ extra: { canMove: false } });
     expect(await store.get(membershipKey(B))).toMatchObject({ householdId: theirs.householdId });
   });

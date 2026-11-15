@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
+import { purgeNonMemberData } from '../calendar/cleanup';
 import { withHousehold } from '../household/guard';
 import { createHousehold } from '../household/households';
 import { acceptInvite, createInvite, listInvites, revokeInvite } from '../household/invites';
@@ -115,6 +116,8 @@ async function removeMemberRoute(event: APIGatewayProxyEventV2, ctx: HouseholdCo
   if (problem) return problem;
   try {
     await removeMember(getStore(), ctx, params.userId);
+    // The member is gone either way: a failure here leaves their data hidden, and the sweep deletes it later.
+    await purgeNonMemberData(getStore(), ctx.householdId, new Set(ctx.members.map(member => member.userId).filter(id => id !== params.userId)));
     return NO_CONTENT;
   } catch (error) {
     return householdErrorResponse(error);

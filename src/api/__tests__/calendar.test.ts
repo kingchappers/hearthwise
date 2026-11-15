@@ -311,3 +311,31 @@ describe('DELETE /api/hh/calendar/{id} and restore', () => {
     expect((await call(U1, 'POST', '/api/hh/restore', mut({ entries: [{ kind: 'event', id, deletedAt: NOW }] }))).json.results).toEqual([{ id, status: 'event_limit' }]);
   });
 });
+
+describe('removing a member', () => {
+  beforeEach(async () => { await getStore().patch({ PK: hhPk(householdId), SK: 'META' }, { memberCount: 2 }); });
+
+  it('deletes their private events and reminders, and keeps the shared events they made', async () => {
+    const theirsPrivate = uuid();
+    const theirsShared = uuid();
+    const mine = uuid();
+    await call(U2, 'PUT', `/api/hh/calendar/${theirsPrivate}`, privateBody({ who: U2 }));
+    await call(U2, 'PUT', `/api/hh/calendar/${theirsShared}`, body());
+    await call(U1, 'PUT', `/api/hh/calendar/${mine}`, body());
+    await call(U2, 'PUT', `/api/hh/calendar/${mine}/reminders`, mut({ list: [{ from: 'start', minutes: 5 }] }));
+    expect((await call(U1, 'DELETE', `/api/hh/members/${encodeURIComponent(U2)}`, mut())).status).toBe(204);
+    expect(await getStore().get(eventKey(householdId, theirsPrivate))).toBeUndefined();
+    expect(await getStore().get(eventKey(householdId, theirsShared))).toBeDefined();
+    expect('reminders' in (await getStore().get(eventKey(householdId, mine)))!).toBe(false);
+  });
+
+  it('still removes the member when the cleanup fails, and says nothing of the content', async () => {
+    const theirsPrivate = uuid();
+    await call(U2, 'PUT', `/api/hh/calendar/${theirsPrivate}`, privateBody({ who: U2 }));
+    vi.spyOn(getStore(), 'delete').mockRejectedValue(new Error('SENTINEL boom'));
+    expect((await call(U1, 'DELETE', `/api/hh/members/${encodeURIComponent(U2)}`, mut())).status).toBe(204);
+    expect(await getStore().get(membershipKey(U2))).toBeUndefined();
+    expect((await call(U1, 'GET', '/api/hh/calendar')).json.events).toEqual([]);
+    expect(JSON.stringify(logged)).not.toContain('SENTINEL');
+  });
+});

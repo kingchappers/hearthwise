@@ -288,6 +288,45 @@ export function runStoreContract(name: string, backend: ContractBackend, options
       });
     });
 
+    describe('index partitions (CALREM)', () => {
+      const PK = 'CALREM';
+      const hid = (): string => crypto.randomUUID();
+
+      it('finds a household by its key and lists the partition by query', async () => {
+        const id = hid();
+        await store.put({ PK, SK: id, updatedAt: 5 });
+        expect(await store.get({ PK, SK: id })).toEqual({ PK, SK: id, updatedAt: 5 });
+        expect((await store.query(PK)).some(item => item.SK === id)).toBe(true);
+      });
+
+      it('marks an item empty only when its updatedAt is unchanged', async () => {
+        const id = hid();
+        await store.put({ PK, SK: id, updatedAt: 5 });
+        await store.patch({ PK, SK: id }, { empty: true }, { ifEquals: { updatedAt: 5 } });
+        expect(await store.get({ PK, SK: id })).toMatchObject({ empty: true });
+        await store.put({ PK, SK: id, updatedAt: 6 });
+        await expect(store.patch({ PK, SK: id }, { empty: true }, { ifEquals: { updatedAt: 5 } })).rejects.toBeInstanceOf(ConditionFailedError);
+        expect((await store.get({ PK, SK: id }))?.empty).toBeUndefined();
+      });
+
+      it('a save that replaces the item clears empty', async () => {
+        const id = hid();
+        await store.put({ PK, SK: id, updatedAt: 5, empty: true });
+        await store.put({ PK, SK: id, updatedAt: 7 });
+        expect(await store.get({ PK, SK: id })).toEqual({ PK, SK: id, updatedAt: 7 });
+      });
+
+      it('writes an event with reminders keyed by user id, and reads and updates it by names that are reserved words elsewhere', async () => {
+        const home = `HH#${hid()}`;
+        const reminders = { 'auth0|u1': { savedAt: 1, list: [{ from: 'start', minutes: 30 }] } };
+        await store.put({ PK: home, SK: 'EVENT#e1', private: true, who: 'both', reminders, updatedAt: 1 });
+        const rows = await store.query(home, { skPrefix: 'EVENT#', attributes: ['SK', 'private', 'reminders'] });
+        expect(rows).toEqual([{ SK: 'EVENT#e1', private: true, reminders }]);
+        await store.transact([{ update: { PK: home, SK: 'EVENT#e1' }, set: { private: false }, remove: ['reminders'], ifEquals: { updatedAt: 1 }, ifMissing: ['deletedAt'] }]);
+        expect(await store.get({ PK: home, SK: 'EVENT#e1' })).toEqual({ PK: home, SK: 'EVENT#e1', private: false, who: 'both', updatedAt: 1 });
+      });
+    });
+
     describe('transact update', () => {
       const task = (PK: string) => ({ PK, SK: 'TASK#t1' });
 
