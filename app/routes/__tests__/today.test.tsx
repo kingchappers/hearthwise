@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   plan: { status: 'ready', days: [] as object[], today: '2026-11-13', recipes: [] as object[] | undefined, recipesCheckedAt: undefined as number | undefined, refetch: vi.fn() },
   planActions: { set: vi.fn(), clear: vi.fn() },
   actions: undefined as unknown,
+  sources: undefined as unknown,
 }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
@@ -24,6 +25,7 @@ vi.mock('~/lib/household', () => ({
       me: { userId: 'u1', displayName: 'Sam', joinedAt: '', settings: { defaultView: state.defaultView } } },
   }),
 }));
+vi.mock('~/lib/calendar', () => ({ useTimelineSources: () => state.sources }));
 vi.mock('~/lib/plan', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/plan')>()), usePlan: () => state.plan }));
 vi.mock('~/hooks/usePlanActions', () => ({ usePlanActions: () => state.planActions }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
@@ -31,6 +33,16 @@ vi.mock('~/components/settings/PushPrompt', () => ({ PushPrompt: () => <p>push p
 vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
 
 import Today, { meta } from '../_index';
+
+const NONE = { type: 'none' as const };
+const calendarEvent = (over: object = {}) => ({
+  id: 'e1', kind: 'event', title: 'Dentist', who: 'u2', private: false, startOn: TODAY, allDay: false, startTime: '10:30', durationMin: 45, repeat: NONE, skipOn: [], reminders: {},
+  fieldTimes: {}, createdBy: 'u2', createdAt: 1, updatedAt: 1, updatedBy: 'u2', ...over,
+});
+function sourcesOf(events: object[], status = 'ready') {
+  const members = [{ userId: 'u1', displayName: 'Sam' }, { userId: 'u2', displayName: 'Alex' }];
+  return { status, calendar: { status, events, me: 'u1', members, timezone: 'Europe/London', today: TODAY, refetch: vi.fn() }, inputsFor: () => ({ events, tasks: [], members }) };
+}
 
 function renderToday() {
   return render(<MantineProvider env="test"><MemoryRouter><Today /></MemoryRouter></MantineProvider>);
@@ -42,6 +54,7 @@ beforeEach(() => {
   state.actions = makeActions();
   state.plan = { status: 'ready', days: [], today: TODAY, recipes: [], recipesCheckedAt: undefined, refetch: vi.fn() };
   state.planActions = { set: vi.fn(), clear: vi.fn() };
+  state.sources = sourcesOf([]);
 });
 
 describe('Today', () => {
@@ -186,6 +199,52 @@ describe('Today: the Tonight card', () => {
   });
 
   it('keeps sound headings and no violations with the card shown', async () => {
+    const { container } = renderToday();
+    expectSoundHeadings(container);
+    await expectNoViolations(container);
+  });
+});
+
+describe('Today: Now and next', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.parse(`${TODAY}T08:00:00Z`));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('CUJ 11: says nothing is on now, and that the other person\'s appointment is next, with a way into the calendar', () => {
+    state.sources = sourcesOf([calendarEvent()]);
+    renderToday();
+    const strip = screen.getByRole('heading', { level: 2, name: 'Now and next' }).closest('section') as HTMLElement;
+    expect(strip).toHaveTextContent('Now: nothing on');
+    expect(strip).toHaveTextContent('Next: Dentist, Alex, at 10:30');
+    expect(screen.getByRole('link', { name: 'Open the calendar' })).toHaveAttribute('href', '/plan/calendar');
+  });
+
+  it('CUJ 5: says what is on now and until when, and that nothing more is coming', () => {
+    vi.setSystemTime(Date.parse(`${TODAY}T21:35:00Z`));
+    state.sources = sourcesOf([calendarEvent({ kind: 'block', title: 'Wind down', who: 'u1', startTime: '21:30', durationMin: 30 })]);
+    renderToday();
+    const strip = screen.getByRole('heading', { level: 2, name: 'Now and next' }).closest('section') as HTMLElement;
+    expect(strip).toHaveTextContent('Now: Wind down, until 22:00');
+    expect(strip).toHaveTextContent('Nothing more today');
+  });
+
+  it('shows the other person\'s private event as Busy, never its title', () => {
+    state.sources = sourcesOf([{ id: 'p', busy: true, owner: 'Alex', startOn: TODAY, allDay: false, startTime: '17:00', durationMin: 60, repeat: NONE, skipOn: [] }]);
+    renderToday();
+    expect(screen.getByRole('heading', { level: 2, name: 'Now and next' }).closest('section')).toHaveTextContent('Next: Busy, Alex, at 17:00');
+  });
+
+  it('is left out while the calendar loads or cannot be loaded, and never hides the tasks', () => {
+    state.sources = sourcesOf([], 'loading');
+    renderToday();
+    expect(screen.queryByRole('heading', { name: 'Now and next' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
+  });
+
+  it('keeps one h1 and sound headings, with no accessibility violations', async () => {
+    state.sources = sourcesOf([calendarEvent()]);
     const { container } = renderToday();
     expectSoundHeadings(container);
     await expectNoViolations(container);

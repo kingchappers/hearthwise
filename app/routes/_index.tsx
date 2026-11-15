@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, Group, Loader, Stack, Title } from '@mantine/core';
+import { NowAndNext } from '~/components/calendar/NowAndNext';
 import { EasyPicks } from '~/components/meals/EasyPicks';
 import { Tonight } from '~/components/meals/Tonight';
 import { NextThing } from '~/components/tasks/NextThing';
@@ -12,11 +13,13 @@ import { LetThemKnow } from '~/components/shared/LetThemKnow';
 import { PushPrompt } from '~/components/settings/PushPrompt';
 import { usePlanActions } from '~/hooks/usePlanActions';
 import { useTaskActions } from '~/hooks/useTaskActions';
+import { useTimelineSources } from '~/lib/calendar';
 import { useHousehold } from '~/lib/household';
 import { pageTitle } from '~/lib/pageTitle';
 import { usePlan } from '~/lib/plan';
 import { useTasks } from '~/lib/queries';
 import { nextThing } from '~/lib/tasks';
+import { nowAndNext } from '../../src/shared/timeline';
 import type { Route } from './+types/_index';
 
 export const meta: Route.MetaFunction = () => [{ title: pageTitle('Today') }];
@@ -28,6 +31,7 @@ function TodayContent() {
   const household = useHousehold();
   const actions = useTaskActions();
   const plan = usePlan();
+  const sources = useTimelineSources();
   const planActions = usePlanActions();
   const [easy, setEasy] = useState(false);
   // The viewer's own default view is saved with their settings; switching here lasts for this visit only.
@@ -44,6 +48,9 @@ function TodayContent() {
   return (
     <Stack maw={640}>
       <Title order={1} size="h3">Today</Title>
+      {sources.status === 'ready' && (
+        <NowAndNext {...nowAndNext(sources.inputsFor(sources.calendar.today), Date.now(), sources.calendar.timezone, sources.calendar.me)} />
+      )}
       {plan.status === 'ready' && (
         <Tonight today={plan.today} plan={plan.days.find(day => day.day === plan.today)} recipes={plan.recipes} checkedAt={plan.recipesCheckedAt} onPickEasy={() => setEasy(true)} />
       )}

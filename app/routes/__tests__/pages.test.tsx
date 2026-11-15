@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router';
 vi.mock('~/lib/items', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/items')>()), useItems: () => ({ status: 'ready', items: [], refetch: vi.fn() }) }));
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => ({ add: vi.fn(), tick: vi.fn(), edit: vi.fn(), remove: vi.fn(), clearTicked: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/lib/plan', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/plan')>()), usePlan: () => ({ status: 'ready', days: [], today: '2026-11-13', recipes: [], recipesCheckedAt: undefined, refetch: vi.fn() }) }));
+vi.mock('~/lib/calendar', () => ({ useTimelineSources: () => ({ status: 'loading', calendar: {}, inputsFor: () => ({ events: [], tasks: [], members: [] }) }) }));
 vi.mock('~/hooks/usePlanActions', () => ({ usePlanActions: () => ({ set: vi.fn(), clear: vi.fn() }) }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => ({ status: 'ready', tasks: [], proposals: [], today: '2026-11-13', refetch: vi.fn() }) }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => ({ status: 'ready', refetch: vi.fn(), data: { household: { timezone: 'UTC' }, members: [], me: { userId: 'u1', displayName: 'Sam', settings: { defaultView: 'list' } } } }) }));
