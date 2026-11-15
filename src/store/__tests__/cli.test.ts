@@ -7,6 +7,9 @@ import { createFirstAccount, createSession, getAccountByEmail, readSession, reco
 import { verifyPassword } from '../../auth/password';
 import { runCli } from '../cli';
 import { SqliteStore } from '../sqlite';
+import { computeTotal, loanProgress } from '../../shared/ledger';
+import { toEntry } from '../../money/entries';
+import { formatPounds } from '../../shared/money';
 
 let dir: string;
 let env: NodeJS.ProcessEnv;
@@ -213,6 +216,65 @@ describe('runCli', () => {
       await expect(runCli(['backup'], env)).rejects.toThrow(/Usage/);
       setStore(undefined);
       await expect(runCli(['backup', '--out', join(dir, 'x.sqlite')], { STORE: 'dynamodb', DYNAMODB_TABLE: 't' })).rejects.toThrow(/sqlite/i);
+    });
+  });
+
+  describe('money-total <householdId>', () => {
+    const base = { fieldTimes: {}, version: 1, createdAt: 1, updatedAt: 1, status: 'agreed', proposedBy: 'u1', agreedBy: 'u2' };
+    const row = (id: string, over: Record<string, unknown>) => ({
+      PK: 'HH#h1', SK: `MONEY#${id}`, description: 'x', on: '2026-11-01', createdBy: 'u1', updatedBy: 'u1', ...base, ...over,
+    });
+
+    async function seedMoney(members: string[]): Promise<void> {
+      const store = new SqliteStore(env.SQLITE_PATH as string);
+      for (const [i, id] of members.entries()) {
+        await store.put({ PK: 'HH#h1', SK: `MEMBER#${id}`, displayName: i === 0 ? 'Sam' : 'Alex', joinedAt: `2026-11-0${i + 1}T10:00:00.000Z` });
+      }
+      await store.put(row('loan1', { kind: 'loan', paidBy: 'u1', amountPence: 10000, sharePence: 10000 }));
+      await store.put(row('pay1', { kind: 'payment', paidBy: 'u2', amountPence: 2500, sharePence: 2500, loanId: 'loan1' }));
+      await store.put(row('exp1', { kind: 'expense', paidBy: 'u2', amountPence: 3001, sharePence: 1500 }));
+      await store.put(row('wait1', { kind: 'expense', paidBy: 'u1', amountPence: 9999, sharePence: 5000, status: 'waiting' }));
+      store.close();
+    }
+
+    const entriesOf = async () => {
+      const store = new SqliteStore(env.SQLITE_PATH as string);
+      const rows = (await store.query('HH#h1', { skPrefix: 'MONEY#' })).map(toEntry);
+      store.close();
+      return rows;
+    };
+
+    it('prints the total and each loan\'s progress for two members', async () => {
+      await seedMoney(['u1', 'u2']);
+      const total = computeTotal(await entriesOf(), 'u1', 'u2');
+
+      const out = await runCli(['money-total', 'h1'], env);
+
+      expect(total).toEqual({ direction: 'toMe', pence: 6000 });
+      expect(out).toContain(`Alex pays Sam ${formatPounds(total.pence)}`);
+      expect(out).toContain(`${formatPounds(loanProgress(await entriesOf(), 'loan1'))} of ${formatPounds(10000)}`);
+    });
+
+    it('works with one member and counts only what that member paid', async () => {
+      await seedMoney(['u1']);
+
+      const out = await runCli(['money-total', 'h1'], env);
+
+      expect(out).toContain('1 member');
+      expect(out).toContain(`Total: ${formatPounds(computeTotal(await entriesOf(), 'u1', '').pence)}`);
+    });
+
+    it('writes nothing', async () => {
+      await seedMoney(['u1', 'u2']);
+      const before = await entriesOf();
+      await runCli(['money-total', 'h1'], env);
+      expect(await entriesOf()).toEqual(before);
+    });
+
+    it('needs exactly one household id', async () => {
+      await seedMoney(['u1', 'u2']);
+      await expect(runCli(['money-total'], env)).rejects.toThrow('Usage');
+      await expect(runCli(['money-total', 'h1', 'h2'], env)).rejects.toThrow('Usage');
     });
   });
 });
