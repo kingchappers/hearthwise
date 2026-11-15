@@ -27,3 +27,9 @@ export const itemsBatch = (actor: string, added: number, changed: number, mutati
 // A plan change. `dayLabel` is the weekday and day of the month ("Friday 20"); `title` is the dinner, or undefined when the day was cleared.
 export const planChanged = (actor: string, dayLabel: string, title: string | undefined, mutationId: string): NotifyEvent =>
   base('plan.changed', mutationId, `${actor} changed the plan`, title === undefined ? `Cleared ${dayLabel}` : `${dayLabel}: ${title}`, '/plan');
+
+// Money. No amount, description or loan name is ever in the text: only who did it, and that something is waiting in Money.
+const MONEY_BODY = 'Open Money to take a look.';
+export const moneyAdded = (actor: string, mutationId: string): NotifyEvent => base('money.added', mutationId, `${actor} added a money entry`, MONEY_BODY, '/money');
+export const moneyReplied = (actor: string, mutationId: string): NotifyEvent => base('money.replied', mutationId, `${actor} replied to a money entry`, MONEY_BODY, '/money');
+export const moneyAsked = (actor: string, mutationId: string): NotifyEvent => base('money.asked', mutationId, `${actor} asked about a money entry`, MONEY_BODY, '/money');
