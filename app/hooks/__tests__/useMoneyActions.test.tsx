@@ -96,6 +96,12 @@ describe('useMoneyActions', () => {
     expect(show.mock.calls.at(-1)![0].message).toBe('Restored: Weekly shop. It waits for the other person to agree.');
   });
 
+  it('does not say it waits for agreement when the entry has no share to agree to', () => {
+    const { result } = renderHook(() => useMoneyActions());
+    result.current.restore(entry({ deletedAt: 77, sharePence: 0 }));
+    expect(show.mock.calls.at(-1)![0].message).toBe('Restored: Weekly shop');
+  });
+
   it('does not restore an entry that is not deleted', () => {
     const { result } = renderHook(() => useMoneyActions());
     result.current.restore(entry());

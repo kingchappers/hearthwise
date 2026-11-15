@@ -83,7 +83,7 @@ export function useMoneyActions(): MoneyActions {
     restore: entry => {
       if (entry.deletedAt === undefined) return;
       restore.mutate({ ...common(), entries: [{ id: entry.id, deletedAt: entry.deletedAt }] });
-      toast(`Restored: ${entry.description}. It waits for the other person to agree.`);
+      toast(entry.kind !== 'expense' || entry.sharePence > 0 ? `Restored: ${entry.description}. It waits for the other person to agree.` : `Restored: ${entry.description}`);
     },
   };
 }
