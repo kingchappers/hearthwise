@@ -199,6 +199,37 @@ describe('CUJ 9: restoring a shopping item', () => {
   });
 });
 
+describe('forRecipes', () => {
+  const stored = async (id: string) => (await raw(id)).forRecipes;
+
+  it('survives a tick, an edit, a delete and a restore, in the item and in the stored record', async () => {
+    const item = await add('Onions', NOW - 5000, ctx1, { forRecipes: 'Chilli, Pasta bake' });
+    expect(item.forRecipes).toBe('Chilli, Pasta bake');
+    expect(await stored(item.id)).toBe('Chilli, Pasta bake');
+
+    const ticked = (await tick(item.id, true, NOW - 4000)).result.item;
+    expect(ticked.forRecipes).toBe('Chilli, Pasta bake');
+    expect(await stored(item.id)).toBe('Chilli, Pasta bake');
+
+    const edited = (await putItem(store, ctx2, item.id, { mutationId: uuid(), write: { text: { value: 'Red onions', at: NOW - 3000 } } }, NOW)).result.item;
+    expect(edited.forRecipes).toBe('Chilli, Pasta bake');
+    expect(await stored(item.id)).toBe('Chilli, Pasta bake');
+
+    const deleted = (await deleteItem(store, ctx1, item.id, { mutationId: uuid() }, NOW)).result.item;
+    expect(deleted.forRecipes).toBe('Chilli, Pasta bake');
+    expect(await stored(item.id)).toBe('Chilli, Pasta bake');
+
+    await restoreEntries(store, ctx1, { entries: [{ kind: 'item', id: item.id }], mutationId: uuid() }, NOW + 1000);
+    expect(await stored(item.id)).toBe('Chilli, Pasta bake');
+    expect((await listItems(store, ctx1, NOW + 2000)).items[0].forRecipes).toBe('Chilli, Pasta bake');
+  });
+
+  it('is left out of the stored record when an item has none', async () => {
+    const item = await add('Milk');
+    expect(Object.keys(await raw(item.id))).not.toContain('forRecipes');
+  });
+});
+
 describe('listItems', () => {
   it('returns items and tombstones from the last 30 days, not older, and not another household\'s', async () => {
     const recent = await add('Recent');

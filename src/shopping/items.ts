@@ -22,6 +22,7 @@ export function toShoppingItem(raw: StoreItem): ShoppingItem {
     updatedAt: Number(raw.updatedAt),
   };
   if (typeof raw.quantity === 'string') item.quantity = raw.quantity;
+  if (typeof raw.forRecipes === 'string') item.forRecipes = raw.forRecipes;
   if (typeof raw.tickedBy === 'string') item.tickedBy = raw.tickedBy;
   if (typeof raw.deletedAt === 'number') item.deletedAt = raw.deletedAt;
   if (typeof raw.deletedBy === 'string') item.deletedBy = raw.deletedBy;
@@ -115,7 +116,7 @@ export async function deleteItem(
 }
 
 // One entry of a batch, in its own transaction. It is conditional on what it read, so running it again is safe.
-async function writeEntry(store: Store, ctx: HouseholdContext, entry: Exclude<BatchEntry, { invalid: string }>, nowMs: number): Promise<string> {
+export async function writeEntry(store: Store, ctx: HouseholdContext, entry: Exclude<BatchEntry, { invalid: string }>, nowMs: number): Promise<string> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const raw = await store.get(itemKey(ctx.householdId, entry.id), { consistent: true });
     const planned = plan(ctx.householdId, raw, entry.id, ctx.userId, nowMs, 'delete' in entry ? entry : { write: entry.write });

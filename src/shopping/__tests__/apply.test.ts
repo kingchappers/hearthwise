@@ -104,3 +104,17 @@ describe('applyItemDelete', () => {
     });
   });
 });
+
+describe('applyItemWrite: forRecipes', () => {
+  it('is set on create, and carries no time', () => {
+    const { item: created } = applyItemWrite(undefined, ID, { text: { value: 'Onions', at: 500 }, forRecipes: 'Chilli, Pasta bake' }, ME, NOW);
+    expect(created).toMatchObject({ text: 'Onions', forRecipes: 'Chilli, Pasta bake' });
+    expect(created?.fieldTimes).toEqual({ text: 500 });
+  });
+
+  it('is ignored on an edit of an existing item', () => {
+    const existing = item({ forRecipes: 'Chilli' });
+    const { item: edited } = applyItemWrite(existing, ID, { text: { value: 'Red onions', at: 900 }, forRecipes: 'Other' }, ME, NOW);
+    expect(edited).toMatchObject({ text: 'Red onions', forRecipes: 'Chilli' });
+  });
+});
