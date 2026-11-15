@@ -152,3 +152,15 @@ The spike (`e2e/offline/`, Chromium) passed: TanStack Query's built-in persisten
 |---|---|---|
 | Measure a persisted-cache save with 200 typical recipes and record the time in the pull request | 200 recipes of about 1.7 KB each saved in 0.5 ms (354 KB) against in-memory storage in jsdom. The real IndexedDB write was not measured | The 50 ms threshold is for a mid-range phone, which a test cannot stand in for: measure on a real phone with the release checklist before deciding whether recipes need their own persisted key |
 | `markRefused` is called from the registered `onError` | It also reports the failure through the existing `report` toast, as the other sets do | A person who is not on the editor still hears that a queued save was refused |
+
+## Phase 2, steps 3 to 6: cooking view, plan, add to the list, finish (2026-11-15)
+
+| Spec says | Built | Why |
+|---|---|---|
+| `usePlan` refetches the recipe list once for each missing recipe id, and a day's "gone" waits on that | One refetch per mount for all missing ids (`useRecipeCheck` in `app/lib/recipeLookup.ts`), and any successful answer after the screen mounted counts, including the first load. `lookupState` is shared by the plan, Tonight, the review and the cooking view | The list is one request, so one refetch answers every id. A list that loaded after the screen mounted is already fresh from the server |
+| The 4am cooking day and "ticks stay on the same positions" | As specified. An entry from another day reads as nothing and is replaced the next time one is written | Matches the design; recorded because the tests pin the 1am and 4am edges |
+| The review gives each review line an id when it opens | Each line gets its id the first time it appears in the review (so a day switched on later gets new ids), and the ids are saved with the review state | A line that was never shown has no need of an id, and a line switched off and on keeps its own |
+| `planSet` is a "meals group" key that invalidates `['plan']` | `mealMutationKeys` holds the recipe kinds and `planSet`; `RecipeMutationKind` names the recipe ones, and the registration table takes a function from kind to the queries to refresh | `planSet` shares the offline defaults and owner guard with the recipe kinds but refreshes another query |
+| `Tonight` is shown on Today | It is shown only once the plan has loaded, and is left out if the plan could not load | The rest of Today must keep working when the plan cannot load, and "Nothing planned yet" must not flash while it loads |
+| Wording test: each fixed phrase appears in the meal files | The test reads quoted strings and text between tags from the meal files and checks each phrase appears | The same reader the existing banned-word test uses |
+| `yarn test:e2e` runs the offline case | It passes here with the installed Chromium (`PLAYWRIGHT_CHROMIUM_EXECUTABLE`). `yarn build` passes with placeholder Auth0 build variables. The DynamoDB contract tests were not run here (no DynamoDB Local) | CI runs the DynamoDB tests |

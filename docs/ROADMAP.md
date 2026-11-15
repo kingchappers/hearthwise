@@ -12,11 +12,22 @@ Each step is its own pull request, in this order. Design: [`designs/phase-1-foun
 6. **Notifications** (built): "Let them know", held pushes, opt-in digest and due nudges, settings.
 7. **Finish** (built, except the real-phone checks): wording test, accessibility checks on every route, deployment docs, and the release checklist [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md) for the PWA install and iPhone push check.
 
+## Phase 2: meals
+
+Each step is its own pull request, in this order. Design: [`designs/phase-2-meal-plan.md`](designs/phase-2-meal-plan.md).
+
+1. **Foundation** (built): ingredient reader, scaling and merging, recipe domain and routes, `forRecipes` on a shopping line, restore of recipes.
+2. **Recipe library** (built): recipes list and editor with drafts, the Recipes tab, recipes on the Deleted page.
+3. **Cooking view** (built): the tick-through ingredient list and steps, servings, wake lock.
+4. **Week plan** (built): the plan, the day sheet, Tonight on Today, "Pick something easy".
+5. **Add to the shopping list** (built): the review, merged shopping lines labelled with their recipes, "On the list".
+6. **Finish** (built, except the real-phone checks): wording test, offline case, docs, and the release checklist in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md).
+
 ## Later phases
 
 Each gets its own design document.
 
-- Phase 2: meal plan feeding the shopping list. Design: [`designs/phase-2-meal-plan.md`](designs/phase-2-meal-plan.md) (drafted, not yet reviewed by the author)
+- Phase 2: meal plan feeding the shopping list. Design: [`designs/phase-2-meal-plan.md`](designs/phase-2-meal-plan.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
 - Phase 3: money tracker
 - Phase 4: shared calendar
 - Phase 5: DIY projects
