@@ -2,7 +2,8 @@ import { replayOf, withWriteRecord } from '../api/writeRecord';
 import type { WriteOutcome } from '../api/writeRecord';
 import type { HouseholdContext } from '../household/types';
 import { ConditionFailedError } from '../store';
-import type { Store } from '../store';
+import type { Key, Store } from '../store';
+import { recipeKey } from '../meals/keys';
 import { itemKey, taskKey } from './keys';
 import { needsProposal, otherMemberId } from './ownership';
 import { restoreChange, toTask } from './record';
@@ -16,14 +17,14 @@ export interface RestoreResult {
   toUserId?: string;
 }
 
-// Either member may restore any shopping item. The update applies only to the deletion it saw, so restoring twice does nothing.
-async function restoreItem(store: Store, householdId: string, id: string, nowMs: number): Promise<RestoreStatus> {
-  const item = await store.get(itemKey(householdId, id), { consistent: true });
+// Either member may restore any shopping item or recipe. The update applies only to the deletion it saw, so restoring twice does nothing.
+async function restoreRecord(store: Store, key: Key, nowMs: number): Promise<RestoreStatus> {
+  const item = await store.get(key, { consistent: true });
   if (!item) return 'not_found';
   if (item.deletedAt === undefined) return 'noop';
   try {
     await store.transact([{
-      update: itemKey(householdId, id),
+      update: key,
       set: { updatedAt: Math.max(nowMs, Number(item.updatedAt) + 1) },
       remove: ['deletedAt', 'deletedBy', 'expiresAt'],
       ifEquals: { deletedAt: item.deletedAt },
@@ -38,7 +39,7 @@ async function restoreItem(store: Store, householdId: string, id: string, nowMs:
 // Each entry is its own transaction, applied only to the deletion it saw, so restoring twice does nothing and a restore can never
 // undo a later delete. One write record holds all the results, so a retried batch answers the same.
 export async function restoreEntries(
-  store: Store, ctx: HouseholdContext, input: { entries: { kind: 'task' | 'item'; id: string }[]; mutationId: string }, nowMs: number = Date.now(),
+  store: Store, ctx: HouseholdContext, input: { entries: { kind: 'task' | 'item' | 'recipe'; id: string }[]; mutationId: string }, nowMs: number = Date.now(),
 ): Promise<WriteOutcome<{ results: RestoreResult[] }>> {
   const { householdId } = ctx;
   const replayed = await replayOf<{ results: RestoreResult[] }>(store, householdId, input.mutationId);
@@ -46,8 +47,9 @@ export async function restoreEntries(
 
   const results: RestoreResult[] = [];
   for (const entry of input.entries) {
-    if (entry.kind === 'item') {
-      results.push({ id: entry.id, status: await restoreItem(store, householdId, entry.id, nowMs) });
+    if (entry.kind === 'item' || entry.kind === 'recipe') {
+      const key = entry.kind === 'item' ? itemKey(householdId, entry.id) : recipeKey(householdId, entry.id);
+      results.push({ id: entry.id, status: await restoreRecord(store, key, nowMs) });
       continue;
     }
     const item = await store.get(taskKey(householdId, entry.id), { consistent: true });
