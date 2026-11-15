@@ -45,7 +45,7 @@ export function loanProgress(entries: readonly MoneyEntry[], loanId: string): nu
 }
 
 // Every user id named in the ledger, deleted entries included, in order. A ledger belongs to these people.
-export function participants(entries: readonly MoneyEntry[]): string[] {
+export function participants(entries: readonly Pick<MoneyEntry, 'paidBy' | 'createdBy' | 'proposedBy' | 'agreedBy'>[]): string[] {
   const ids = new Set<string>();
   for (const entry of entries) {
     for (const id of [entry.paidBy, entry.createdBy, entry.proposedBy, entry.agreedBy]) if (id !== undefined) ids.add(id);
