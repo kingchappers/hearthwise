@@ -3,6 +3,8 @@ export interface ShoppingItem {
   text: string;
   // Free text, for example "2 kg". Left out when empty.
   quantity?: string;
+  // Which recipes a line made from the meal plan is for ("Chilli, Pasta bake"). Set on create only, and never changed by an edit.
+  forRecipes?: string;
   ticked: boolean;
   tickedBy?: string;
   // The client time each of text, quantity and ticked was last set (ms), so an older write never overwrites a newer one.
@@ -18,6 +20,8 @@ export interface ItemWrite {
   text?: { value: string; at: number };
   quantity?: { value: string; at: number };
   ticked?: { value: boolean; at: number };
+  // Create only, with no time: an edit of an existing item ignores it.
+  forRecipes?: string;
 }
 
 export type WriteResult = 'created' | 'applied' | 'noop' | 'gone' | 'skipped';

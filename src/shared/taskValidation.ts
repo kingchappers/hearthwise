@@ -157,7 +157,7 @@ export function parseCreateTask(body: Record<string, unknown>): Parsed<CreateTas
   return good(input);
 }
 
-function parseStamped<T>(body: Record<string, unknown>, field: string, parse: (value: unknown) => Parsed<T>): Parsed<{ value: T; at: number } | undefined> {
+export function parseStamped<T>(body: Record<string, unknown>, field: string, parse: (value: unknown) => Parsed<T>): Parsed<{ value: T; at: number } | undefined> {
   if (!(field in body)) return good(undefined);
   const value = parse(body[field]);
   if (!value.ok) return value;
@@ -330,14 +330,14 @@ export function parseProposalBody(body: Record<string, unknown>): Parsed<Proposa
   return good(input);
 }
 
-export function parseRestoreBody(body: Record<string, unknown>): Parsed<{ entries: { kind: 'task' | 'item'; id: string }[]; mutationId: string }> {
+export function parseRestoreBody(body: Record<string, unknown>): Parsed<{ entries: { kind: 'task' | 'item' | 'recipe'; id: string }[]; mutationId: string }> {
   const extra = unknownKey(body, ['entries', ...ENVELOPE_KEYS], '');
   if (extra) return bad(extra);
   if (!Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > MAX_ENTRIES) return bad('entries');
-  const entries: { kind: 'task' | 'item'; id: string }[] = [];
+  const entries: { kind: 'task' | 'item' | 'recipe'; id: string }[] = [];
   for (const [index, raw] of body.entries.entries()) {
     if (!isObject(raw)) return bad(`entries[${index}]`);
-    if (raw.kind !== 'task' && raw.kind !== 'item') return bad(`entries[${index}].kind`);
+    if (raw.kind !== 'task' && raw.kind !== 'item' && raw.kind !== 'recipe') return bad(`entries[${index}].kind`);
     const id = parseUuid(raw.id, `entries[${index}].id`);
     if (!id.ok) return id;
     entries.push({ kind: raw.kind, id: id.value });

@@ -219,6 +219,7 @@ describe('the other request bodies', () => {
     expect(parseRestoreBody({ entries: [], mutationId: MUT })).toEqual(bad('entries'));
     expect(parseRestoreBody({ entries: Array.from({ length: 100 }, (_, n) => entry(n + 1)), mutationId: MUT }).ok).toBe(true);
     expect(parseRestoreBody({ entries: Array.from({ length: 101 }, (_, n) => entry(n + 1)), mutationId: MUT })).toEqual(bad('entries'));
+    expect(parseRestoreBody({ entries: [{ kind: 'recipe', id: uuid(1) }], mutationId: MUT }).ok).toBe(true);
     expect(parseRestoreBody({ entries: [{ kind: 'bin', id: uuid(1) }], mutationId: MUT })).toEqual(bad('entries[0].kind'));
     expect(parseRestoreBody({ entries: [{ kind: 'task', id: 'x' }], mutationId: MUT })).toEqual(bad('entries[0].id'));
   });

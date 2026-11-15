@@ -16,7 +16,7 @@ Each step is its own pull request, in this order. Design: [`designs/phase-1-foun
 
 Each gets its own design document.
 
-- Phase 2: meal plan feeding the shopping list
+- Phase 2: meal plan feeding the shopping list. Design: [`designs/phase-2-meal-plan.md`](designs/phase-2-meal-plan.md) (drafted, not yet reviewed by the author)
 - Phase 3: money tracker
 - Phase 4: shared calendar
 - Phase 5: DIY projects

@@ -200,6 +200,19 @@ describe('acceptInvite', () => {
     await expect(accept(token, B, { confirmMove: true })).rejects.toMatchObject({ extra: { canMove: false } });
   });
 
+  it.each([
+    ['a recipe', 'RECIPE#r1'],
+    ['a deleted recipe', 'RECIPE#r2'],
+    ['a plan day', 'PLAN#2026-11-16'],
+  ])('refuses a move from a household that has %s', async (_name, sk) => {
+    const { token } = await createInvite(store, ctx, NOW);
+    await createHousehold(store, { userId: B, name: 'Theirs', timezone: 'Europe/London', displayName: 'Bea' }, vi.fn());
+    const theirs = await fresh(B);
+    await store.put({ PK: hhPk(theirs.householdId), SK: sk, title: 'Chilli', ...(sk === 'RECIPE#r2' ? { deletedAt: 5 } : {}) });
+    await expect(accept(token, B, { confirmMove: true })).rejects.toMatchObject({ extra: { canMove: false } });
+    expect(await store.get(membershipKey(B))).toMatchObject({ householdId: theirs.householdId });
+  });
+
   describe('CUJ 11: someone who signed up first and made an empty household', () => {
     let oldId: string;
     let token: string;

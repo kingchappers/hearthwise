@@ -2,12 +2,14 @@ import { replayOf, withWriteRecord } from '../api/writeRecord';
 import type { WriteOutcome } from '../api/writeRecord';
 import type { HouseholdContext } from '../household/types';
 import { ConditionFailedError } from '../store';
-import type { Store } from '../store';
+import type { Key, Store } from '../store';
+import { recipeKey } from '../meals/keys';
+import { countLiveRecipes, RECIPE_LIMIT } from '../meals/recipes';
 import { itemKey, taskKey } from './keys';
 import { needsProposal, otherMemberId } from './ownership';
 import { restoreChange, toTask } from './record';
 
-export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found';
+export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found' | 'recipe_limit';
 
 export interface RestoreResult {
   id: string;
@@ -16,14 +18,14 @@ export interface RestoreResult {
   toUserId?: string;
 }
 
-// Either member may restore any shopping item. The update applies only to the deletion it saw, so restoring twice does nothing.
-async function restoreItem(store: Store, householdId: string, id: string, nowMs: number): Promise<RestoreStatus> {
-  const item = await store.get(itemKey(householdId, id), { consistent: true });
+// Either member may restore any shopping item or recipe. The update applies only to the deletion it saw, so restoring twice does nothing.
+async function restoreRecord(store: Store, key: Key, nowMs: number): Promise<RestoreStatus> {
+  const item = await store.get(key, { consistent: true });
   if (!item) return 'not_found';
   if (item.deletedAt === undefined) return 'noop';
   try {
     await store.transact([{
-      update: itemKey(householdId, id),
+      update: key,
       set: { updatedAt: Math.max(nowMs, Number(item.updatedAt) + 1) },
       remove: ['deletedAt', 'deletedBy', 'expiresAt'],
       ifEquals: { deletedAt: item.deletedAt },
@@ -38,16 +40,29 @@ async function restoreItem(store: Store, householdId: string, id: string, nowMs:
 // Each entry is its own transaction, applied only to the deletion it saw, so restoring twice does nothing and a restore can never
 // undo a later delete. One write record holds all the results, so a retried batch answers the same.
 export async function restoreEntries(
-  store: Store, ctx: HouseholdContext, input: { entries: { kind: 'task' | 'item'; id: string }[]; mutationId: string }, nowMs: number = Date.now(),
+  store: Store, ctx: HouseholdContext, input: { entries: { kind: 'task' | 'item' | 'recipe'; id: string }[]; mutationId: string }, nowMs: number = Date.now(),
 ): Promise<WriteOutcome<{ results: RestoreResult[] }>> {
   const { householdId } = ctx;
   const replayed = await replayOf<{ results: RestoreResult[] }>(store, householdId, input.mutationId);
   if (replayed) return replayed;
 
   const results: RestoreResult[] = [];
+  let liveRecipes: number | undefined;
   for (const entry of input.entries) {
     if (entry.kind === 'item') {
-      results.push({ id: entry.id, status: await restoreItem(store, householdId, entry.id, nowMs) });
+      results.push({ id: entry.id, status: await restoreRecord(store, itemKey(householdId, entry.id), nowMs) });
+      continue;
+    }
+    if (entry.kind === 'recipe') {
+      // A restore makes a recipe live, so it is held to the same 200 as a create, counting the restores made earlier in this batch.
+      liveRecipes ??= await countLiveRecipes(store, householdId);
+      if (liveRecipes >= RECIPE_LIMIT) {
+        results.push({ id: entry.id, status: 'recipe_limit' });
+        continue;
+      }
+      const status = await restoreRecord(store, recipeKey(householdId, entry.id), nowMs);
+      if (status === 'restored') liveRecipes += 1;
+      results.push({ id: entry.id, status });
       continue;
     }
     const item = await store.get(taskKey(householdId, entry.id), { consistent: true });

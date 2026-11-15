@@ -47,6 +47,7 @@ export function applyItemWrite(existing: ShoppingItem | undefined, id: string, w
     if (!write.text) return { result: 'noop' };
     const item: ShoppingItem = { id, text: '', ticked: false, fieldTimes: {}, updatedAt: serverNow };
     applyFields(item, write, userId, serverNow);
+    if (write.forRecipes) item.forRecipes = write.forRecipes;
     return { result: 'created', item };
   }
 

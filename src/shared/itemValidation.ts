@@ -3,8 +3,8 @@ import { ENVELOPE_KEYS, parseClientTime, parseEnvelope, parseUuid } from './task
 import { bad, good, isObject, trimmedText, unknownKey } from './validation';
 import type { Parsed } from './validation';
 
-const MAX_TEXT = 200;
-const MAX_QUANTITY = 40;
+export const MAX_TEXT = 200;
+export const MAX_QUANTITY = 40;
 const MAX_ENTRIES = 100;
 const FIELD_KEYS = ['text', 'textAt', 'quantity', 'quantityAt', 'ticked', 'tickedAt'];
 

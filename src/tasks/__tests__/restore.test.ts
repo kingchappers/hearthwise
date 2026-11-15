@@ -7,6 +7,8 @@ import { DEFAULT_SETTINGS } from '../../shared/household';
 import { MemoryStore } from '../../store/memory';
 import { completeCycle } from '../completions';
 import { taskHistory } from '../history';
+import { recipeKey } from '../../meals/keys';
+import { deleteRecipe, putRecipe } from '../../meals/recipes';
 import { taskKey } from '../keys';
 import { acceptProposal, createProposal } from '../proposals';
 import { restoreEntries } from '../restore';
@@ -155,5 +157,50 @@ describe('taskHistory', () => {
 
   it('is not found for a task of another household', async () => {
     await expect(taskHistory(store, ctx1, uuid())).rejects.toMatchObject({ code: 'not_found', status: 404 });
+  });
+});
+
+describe('restoring a recipe', () => {
+  const makeRecipe = async (): Promise<string> => {
+    const id = uuid();
+    await putRecipe(store, ctx1, id, { mutationId: uuid(), write: { title: { value: 'Chilli', at: NOW - 1000 } } }, NOW);
+    return id;
+  };
+
+  it('brings back a deleted recipe, for either member, and clears the tombstone attributes', async () => {
+    const id = await makeRecipe();
+    await deleteRecipe(store, ctx1, id, { mutationId: uuid() }, NOW);
+    const { result } = await restoreEntries(store, ctx2, { entries: [{ kind: 'recipe', id }], mutationId: uuid() }, NOW + 1000);
+    expect(result.results).toEqual([{ id, status: 'restored' }]);
+    const stored = (await store.get(recipeKey(householdId, id)))!;
+    expect(stored).toMatchObject({ title: 'Chilli', updatedAt: NOW + 1000 });
+    for (const name of ['deletedAt', 'deletedBy', 'expiresAt']) expect(Object.keys(stored)).not.toContain(name);
+  });
+
+  it('does nothing the second time, for a live recipe, and for a recipe that is not there', async () => {
+    const id = await makeRecipe();
+    await deleteRecipe(store, ctx1, id, { mutationId: uuid() }, NOW);
+    await restoreEntries(store, ctx1, { entries: [{ kind: 'recipe', id }], mutationId: uuid() }, NOW + 1000);
+    const { result } = await restoreEntries(store, ctx1, { entries: [{ kind: 'recipe', id }, { kind: 'recipe', id: uuid() }], mutationId: uuid() }, NOW + 2000);
+    expect(result.results.map(entry => entry.status)).toEqual(['noop', 'not_found']);
+  });
+
+  it('does not undo a delete made after the one it saw', async () => {
+    const id = await makeRecipe();
+    await deleteRecipe(store, ctx1, id, { mutationId: uuid() }, NOW);
+    await restoreEntries(store, ctx1, { entries: [{ kind: 'recipe', id }], mutationId: uuid() }, NOW + 1000);
+    await deleteRecipe(store, ctx1, id, { mutationId: uuid() }, NOW + 2000);
+    const stored = (await store.get(recipeKey(householdId, id)))!;
+    expect(stored.deletedAt).toBe(NOW + 2000);
+  });
+
+  it('refuses to restore past 200 live recipes, counting restores made earlier in the same batch', async () => {
+    const ids = [await makeRecipe(), await makeRecipe(), await makeRecipe()];
+    for (const id of ids) await deleteRecipe(store, ctx1, id, { mutationId: uuid() }, NOW);
+    // 198 live recipes, so two of the three fit.
+    for (let i = 0; i < 198; i += 1) await store.put({ ...recipeKey(householdId, uuid()), title: `R${i}`, updatedAt: 1 });
+    const { result } = await restoreEntries(store, ctx1, { entries: ids.map(id => ({ kind: 'recipe' as const, id })), mutationId: uuid() }, NOW + 1000);
+    expect(result.results.map(entry => entry.status)).toEqual(['restored', 'restored', 'recipe_limit']);
+    expect((await store.get(recipeKey(householdId, ids[2])))?.deletedAt).toBe(NOW);
   });
 });
