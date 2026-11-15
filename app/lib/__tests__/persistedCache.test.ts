@@ -4,7 +4,7 @@ import { persistQueryClientRestore, persistQueryClientSave } from '@tanstack/rea
 import { ApiError } from '../apiError';
 import { itemMutationKeys, mutationKeys, registerMutations } from '../mutations';
 import {
-  CACHE_SCHEMA_VERSION, cacheKey, clearStoredUser, createUserPersister, pendingWriteCount, readStoredUser, resumeHydratedMutations,
+  CACHE_SCHEMA_VERSION, cacheKey, clearStoredUser, clearUserCache, createUserPersister, pendingWriteCount, readStoredUser, resumeHydratedMutations,
   resetSigningOutForTests, shouldDehydrateMutation, signOutCleanup, storeUser,
 } from '../persistedCache';
 import type { AsyncStorageLike } from '../persistedCache';
@@ -233,5 +233,35 @@ describe('401 and the same person', () => {
     signedIn = true;
     await vi.advanceTimersByTimeAsync(70_000);
     expect(pendingWriteCount(client)).toBe(0);
+  });
+});
+
+describe('device-local keys', () => {
+  const keys = (userId: string): string[] => [`hearthwise.recipeDraft.${userId}`, `hearthwise.cooking.${userId}`, `hearthwise.review.${userId}`];
+
+  beforeEach(() => {
+    for (const userId of [ME, THEM]) for (const key of keys(userId)) window.localStorage.setItem(key, '{}');
+  });
+
+  it('are cleared by signOutCleanup, and only for the person who signed out', async () => {
+    const client = newClient();
+    const { seal } = createUserPersister(ME, storage);
+    await signOutCleanup({ client, userId: ME, seal, storage });
+    for (const key of keys(ME)) expect(window.localStorage.getItem(key)).toBeNull();
+    for (const key of keys(THEM)) expect(window.localStorage.getItem(key)).toBe('{}');
+  });
+
+  it('are cleared when a different person signs in, which calls clearUserCache for the one before', async () => {
+    await clearUserCache(ME, storage);
+    for (const key of keys(ME)) expect(window.localStorage.getItem(key)).toBeNull();
+    for (const key of keys(THEM)) expect(window.localStorage.getItem(key)).toBe('{}');
+  });
+
+  it('do not stop the saved copy being deleted when storage is blocked', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('blocked'); });
+    storage.map.set(cacheKey(ME), 'x');
+    await expect(clearUserCache(ME, storage)).resolves.toBeUndefined();
+    expect(storage.map.has(cacheKey(ME))).toBe(false);
   });
 });

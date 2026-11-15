@@ -4,6 +4,7 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import type { Mutation, QueryClient } from '@tanstack/react-query';
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
 import { del, get, set } from 'idb-keyval';
+import { clearDeviceKeys } from './deviceKeys';
 
 // Raised when the shape of what is saved changes. An older entry keeps its waiting writes (they are replayed) and drops its lists.
 export const CACHE_SCHEMA_VERSION = 1;
@@ -123,6 +124,8 @@ export function resumeHydratedMutations(client: QueryClient): void {
 }
 
 export async function clearUserCache(userId: string, storage: AsyncStorageLike = idbStorage()): Promise<void> {
+  // The drafts, cooking ticks and review state this device kept for the person go with the saved copy.
+  clearDeviceKeys(userId);
   await storage.removeItem(cacheKey(userId));
 }
 
