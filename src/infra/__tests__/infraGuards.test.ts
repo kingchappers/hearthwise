@@ -208,6 +208,49 @@ describe('push keys and the scheduler (infra)', () => {
   });
 });
 
+describe('the two schedules on the push Lambda (infra)', () => {
+  const push = read('push-lambda.tf');
+  const resource = (type: string, name: string): string => {
+    const start = push.indexOf(`resource "${type}" "${name}"`);
+    if (start < 0) throw new Error(`no ${type} ${name}`);
+    const end = push.indexOf('\nresource ', start + 1);
+    return push.slice(start, end < 0 ? undefined : end);
+  };
+
+  it('keeps the hourly rule as it was, with no input', () => {
+    const rule = resource('aws_cloudwatch_event_rule', 'push_hourly');
+    expect(rule).toContain('schedule_expression = "cron(0 * * * ? *)"');
+    expect(resource('aws_cloudwatch_event_target', 'push_hourly')).not.toContain('input');
+  });
+
+  it('adds a five minute rule named after the app, whose target sends only { job = "reminders" }', () => {
+    const rule = resource('aws_cloudwatch_event_rule', 'push_reminders');
+    expect(rule).toContain('name                = "${var.app_name}-push-reminders"');
+    expect(rule).toContain('schedule_expression = "rate(5 minutes)"');
+    const target = resource('aws_cloudwatch_event_target', 'push_reminders');
+    expect(target).toContain('rule  = aws_cloudwatch_event_rule.push_reminders.name');
+    expect(target).toContain('arn   = aws_lambda_function.push.arn');
+    expect(target).toContain('input = jsonencode({ job = "reminders" })');
+  });
+
+  it('lets each rule, and only that rule, invoke the Lambda, with a statement of its own', () => {
+    const hourly = resource('aws_lambda_permission', 'push_eventbridge');
+    expect(hourly).toContain('source_arn    = aws_cloudwatch_event_rule.push_hourly.arn');
+    const reminders = resource('aws_lambda_permission', 'push_reminders_eventbridge');
+    expect(reminders).toContain('statement_id  = "AllowEventBridgeInvokePushReminders"');
+    expect(reminders).toContain('source_arn    = aws_cloudwatch_event_rule.push_reminders.arn');
+    expect(reminders).toContain('principal     = "events.amazonaws.com"');
+    expect(hourly).not.toContain('push_reminders');
+    expect(hourly).not.toContain('AllowEventBridgeInvokePushReminders');
+  });
+
+  it('has exactly two rules and two invoke permissions, and every rule is named after the app', () => {
+    expect(push.match(/resource "aws_cloudwatch_event_rule"/g)).toHaveLength(2);
+    expect(push.match(/resource "aws_lambda_permission"/g)).toHaveLength(2);
+    for (const name of push.matchAll(/resource "aws_cloudwatch_event_rule" "[^"]+" \{\s*name\s*=\s*"([^"]+)"/g)) expect(name[1]).toMatch(/^\$\{var\.app_name\}-/);
+  });
+});
+
 describe('the CI workflow', () => {
   const workflow = readFileSync(join(INFRA, '..', '.github', 'workflows', 'yarnBuild.yml'), 'utf8');
 
