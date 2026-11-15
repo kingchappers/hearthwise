@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, dayInZone, firstOnOrAfter, isDue, isRealDate, nextDueOn } from '../schedule';
+import { addDays, dayInZone, firstOnOrAfter, isDue, isRealDate, nextDueOn, weekStart } from '../schedule';
 import type { Repeat } from '../schedule';
 
 // 2026-03-01 is a Sunday.
@@ -151,5 +151,22 @@ describe('isDue', () => {
     expect(isDue({ dueOn: '2026-03-06', status: 'open' }, '2026-03-05')).toBe(false);
     expect(isDue({ status: 'open' }, '2026-03-05')).toBe(false);
     expect(isDue({ dueOn: '2026-03-01', status: 'done' }, '2026-03-05')).toBe(false);
+  });
+});
+
+describe('weekStart', () => {
+  it.each([
+    ['2026-11-16', '2026-11-16'], // Monday
+    ['2026-11-17', '2026-11-16'],
+    ['2026-11-18', '2026-11-16'],
+    ['2026-11-19', '2026-11-16'],
+    ['2026-11-20', '2026-11-16'],
+    ['2026-11-21', '2026-11-16'],
+    ['2026-11-22', '2026-11-16'], // Sunday
+    ['2026-12-01', '2026-11-30'], // across a month boundary
+    ['2027-01-01', '2026-12-28'], // across a year boundary
+    ['2028-02-29', '2028-02-28'], // a leap day
+  ])('the Monday on or before %s is %s', (day, monday) => {
+    expect(weekStart(day)).toBe(monday);
   });
 });
