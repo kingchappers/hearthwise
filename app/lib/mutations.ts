@@ -4,19 +4,27 @@
 import { MutationObserver, useMutation } from '@tanstack/react-query';
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import type { MealType } from '../../src/meals/types';
+import type { MoneyChange, MoneyKind } from '../../src/money/types';
 import type { Repeat } from '../../src/shared/schedule';
 import { needsProposal } from '../../src/tasks/ownership';
 import type { Caller } from '../../src/tasks/ownership';
 import type { Change, ChecklistStep, Task } from '../../src/tasks/types';
 import { ApiError } from './apiError';
 import type { TasksData } from './overlay';
+import { HOUSEHOLD_KEY } from './household';
+import type { HouseholdData } from './household';
 import { ITEMS_KEY } from './items';
+import { MONEY_KEY, moneyMutationKeys } from './moneyKeys';
+import type { MoneyMutationKind } from './moneyKeys';
 import { noteMutationSettled, TASKS_KEY } from './queries';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
 import type { RecipeChanges } from './recipeFields';
 import { PLAN_KEY } from './planKeys';
 import { RECIPES_KEY } from './recipeKeys';
 import { retryDelay, shouldRetry } from './retryRules';
+
+export { moneyMutationKeys };
+export type { MoneyMutationKind };
 
 export type MutationKind =
   | 'create' | 'edit' | 'schedule' | 'delete' | 'complete' | 'uncomplete' | 'tick' | 'restore'
@@ -115,6 +123,28 @@ export interface MealMutationVars {
   recipeRestore: Common & { recipeIds: string[] };
   // A dinner on a plan day, or null to clear the day.
   planSet: Common & { day: string; meal: { recipeId?: string; title: string; servings?: number } | null };
+}
+
+export interface NewMoneyEntry extends MoneyChange {
+  id: string;
+  kind: MoneyKind;
+  description: string;
+  // YYYY-MM-DD.
+  on: string;
+}
+
+export interface MoneyMutationVars {
+  moneyAdd: Common & { entry: NewMoneyEntry };
+  // The money group goes with the version it was based on; the description and date are sent only when they changed.
+  moneyEdit: Common & { entryId: string; money?: MoneyChange; baseVersion?: number; description?: string; on?: string };
+  moneyRespond: Common & { entryId: string; response: 'agree' | 'decline'; version: number };
+  // The request is named by this write's own mutation id, which is what the other person answers.
+  moneyChange: Common & { entryId: string; version: number; money?: MoneyChange; delete?: true };
+  moneyChangeRespond: Common & { entryId: string; response: 'agree' | 'decline'; requestId: string };
+  moneyChangeWithdraw: Common & { entryId: string; requestId: string };
+  moneyDelete: Common & { entryId: string };
+  // Each entry with the deletion the person saw, so a restore queued before a later change applies nothing they did not see.
+  moneyRestore: Common & { entries: { id: string; deletedAt: number }[] };
 }
 
 type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
@@ -234,13 +264,50 @@ const MEAL_RUNNERS: { [K in MealMutationKind]: (vars: MealMutationVars[K], reque
   planSet: (v, request) => send(request, 'PUT', `/api/hh/plan/${v.day}`, { mutationId: v.mutationId, clientAt: v.at, meal: v.meal, mealAt: v.at }),
 };
 
+const moneyPath = (id: string): string => `/api/hh/money/${id}`;
+
+const MONEY_RUNNERS: { [K in MoneyMutationKind]: (vars: MoneyMutationVars[K], request: Request) => Promise<unknown> } = {
+  moneyAdd: (v, request) => {
+    const { id, description, on, ...unit } = v.entry;
+    return send(request, 'PUT', moneyPath(id), { ...unit, description, descriptionAt: v.at, on, onAt: v.at, mutationId: v.mutationId, clientAt: v.at });
+  },
+  moneyEdit: (v, request) => send(request, 'PUT', moneyPath(v.entryId), {
+    mutationId: v.mutationId, clientAt: v.at,
+    ...(v.money === undefined ? {} : { ...v.money, baseVersion: v.baseVersion }),
+    ...(v.description === undefined ? {} : { description: v.description, descriptionAt: v.at }),
+    ...(v.on === undefined ? {} : { on: v.on, onAt: v.at }),
+  }),
+  moneyRespond: (v, request) => send(request, 'POST', `${moneyPath(v.entryId)}/respond`, { mutationId: v.mutationId, clientAt: v.at, response: v.response, version: v.version }),
+  moneyChange: (v, request) => send(request, 'POST', `${moneyPath(v.entryId)}/change`, {
+    mutationId: v.mutationId, clientAt: v.at, version: v.version, ...(v.money === undefined ? {} : { money: v.money }), ...(v.delete === undefined ? {} : { delete: true }),
+  }),
+  moneyChangeRespond: (v, request) =>
+    send(request, 'POST', `${moneyPath(v.entryId)}/change/respond`, { mutationId: v.mutationId, clientAt: v.at, response: v.response, requestId: v.requestId }),
+  moneyChangeWithdraw: (v, request) => send(request, 'POST', `${moneyPath(v.entryId)}/change/withdraw`, { mutationId: v.mutationId, clientAt: v.at, requestId: v.requestId }),
+  moneyDelete: (v, request) => send(request, 'DELETE', moneyPath(v.entryId), { mutationId: v.mutationId, clientAt: v.at }),
+  moneyRestore: (v, request) => send(request, 'POST', '/api/hh/restore', {
+    mutationId: v.mutationId, clientAt: v.at, entries: v.entries.map(entry => ({ kind: 'money', id: entry.id, deletedAt: entry.deletedAt })),
+  }),
+};
+
+const MONEY_WORDS: Record<string, (otherName: string | undefined) => string> = {
+  entry_changed: () => 'That entry changed. Please look at it again.',
+  needs_agreement: name => `Ask ${name ?? 'them'} to agree to this change.`,
+  needs_two: () => 'Adding or agreeing needs the two people this ledger is between.',
+  pair_changed: () => 'Adding or agreeing needs the two people this ledger is between.',
+  money_limit: () => 'This household has reached 2,000 entries.',
+};
+
 // What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
 // error that is still being retried says nothing (retryRules.ts); one that has used up its tries, or that the server refused, does.
 // A write dropped because someone else is now signed in says nothing.
-export function describeFailure(error: unknown, kind?: string): string | undefined {
+export function describeFailure(error: unknown, kind?: string, otherName?: string): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
   if (error.code === 'wrong_user') return undefined;
   if (error.code === 'recipe_limit') return 'This household has reached 200 recipes.';
+  // The money codes come before the generic 409 text, which says less.
+  const money = error.code === undefined ? undefined : MONEY_WORDS[error.code];
+  if (money && kind?.startsWith('money')) return money(otherName);
   if (error.status === 400 && (kind === 'recipeAdd' || kind === 'recipeEdit')) return "That recipe couldn't be saved. Please check its length.";
   if (error.status === 409) return 'This changed on another phone. Please check it and try again.';
   if (error.status === 410) return 'That was deleted on another phone.';
@@ -296,7 +363,7 @@ interface MutationSet {
   // What to refresh when a write of this kind settles.
   invalidate: (kind: string) => QueryKey[];
   onError: (kind: string, error: unknown, variables: never) => void;
-  onSuccess?: (kind: string, variables: never) => void;
+  onSuccess?: (kind: string, variables: never, data: unknown) => void;
 }
 
 // Registers every kind of one set the same way: household scope, the offline defaults, the owner guard, and a refresh of the set's own
@@ -307,7 +374,7 @@ function registerSet(client: QueryClient, request: Request, guard: OwnerGuard | 
       ...OFFLINE_DEFAULTS,
       scope: { id: 'household' },
       mutationFn: guarded(guard, (variables: Common) => set.run(kind, variables as never, withNotify(request, variables.notify))),
-      onSuccess: (_data: unknown, variables: Common) => set.onSuccess?.(kind, variables as never),
+      onSuccess: (data: unknown, variables: Common) => set.onSuccess?.(kind, variables as never, data),
       onError: (error: unknown, variables: Common) => set.onError(kind, error, variables as never),
       onSettled: () => {
         noteMutationSettled();
@@ -315,6 +382,13 @@ function registerSet(client: QueryClient, request: Request, guard: OwnerGuard | 
       },
     });
   }
+}
+
+const RESTORE_REFUSALS = ['entry_changed', 'needs_two', 'pair_changed', 'money_limit'];
+
+function otherMemberName(client: QueryClient): string | undefined {
+  const household = client.getQueryData<HouseholdData>(HOUSEHOLD_KEY);
+  return household?.members.find(member => member.userId !== household.me.userId)?.displayName;
 }
 
 export function registerMutations(
@@ -375,6 +449,26 @@ export function registerMutations(
       else if (kind === 'recipeEdit') markRefused(variables.by, (variables as MealMutationVars['recipeEdit']).recipeId, message);
     },
   });
+
+  registerSet(client, request, guard, {
+    keys: moneyMutationKeys,
+    run: (kind, variables: MoneyMutationVars[MoneyMutationKind], send) =>
+      (MONEY_RUNNERS[kind as MoneyMutationKind] as (vars: MoneyMutationVars[MoneyMutationKind], request: Request) => Promise<unknown>)(variables, send),
+    invalidate: () => [MONEY_KEY],
+    // A restore is answered with a status for each entry rather than an error, so the refusals are read from the answer.
+    onSuccess: (kind, _variables, data) => {
+      if (kind !== 'moneyRestore') return;
+      const results = (data as { results?: { status: string }[] } | undefined)?.results ?? [];
+      const refused = results.find(result => RESTORE_REFUSALS.includes(result.status));
+      if (!refused) return;
+      const message = describeFailure(new ApiError(409, 'Conflict', refused.status), kind, otherMemberName(client));
+      if (message) report(message);
+    },
+    onError: (kind, error) => {
+      const message = describeFailure(error, kind, otherMemberName(client));
+      if (message) report(message);
+    },
+  });
 }
 
 // The one way a component runs a household mutation: by key. Its function is the registered default.
@@ -388,6 +482,10 @@ export function useItemMutation<K extends ItemMutationKind>(kind: K) {
 
 export function useMealMutation<K extends MealMutationKind>(kind: K) {
   return useMutation<unknown, Error, MealMutationVars[K]>({ mutationKey: mealMutationKeys[kind] });
+}
+
+export function useMoneyMutation<K extends MoneyMutationKind>(kind: K) {
+  return useMutation<unknown, Error, MoneyMutationVars[K]>({ mutationKey: moneyMutationKeys[kind] });
 }
 
 export type PlannedMutation =
