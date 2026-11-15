@@ -219,6 +219,54 @@ describe('GET /api/hh/money', () => {
   });
 });
 
+describe('restore', () => {
+  const deleteOne = async (): Promise<{ id: string; deletedAt: number }> => {
+    const made = await create(U1, expenseBody());
+    const deleted = await call(U1, 'DELETE', `/api/hh/money/${made.id}`, mut());
+    return { id: made.id, deletedAt: deleted.json.entry.deletedAt };
+  };
+
+  it('restores a deleted money entry as waiting, with the other person to agree', async () => {
+    const gone = await deleteOne();
+    const res = await call(U2, 'POST', '/api/hh/restore', mut({ entries: [{ kind: 'money', ...gone }] }));
+    expect(res).toEqual({ status: 200, json: { results: [{ id: gone.id, status: 'restored' }] } });
+    const entry = (await call(U1, 'GET', '/api/hh/money')).json.entries[0];
+    expect(entry).toMatchObject({ status: 'waiting', proposedBy: U2, version: 2 });
+    expect(entry.deletedAt).toBeUndefined();
+  });
+
+  it('refuses a money entry with no deletedAt, naming the field', async () => {
+    const gone = await deleteOne();
+    expect(await call(U2, 'POST', '/api/hh/restore', mut({ entries: [{ kind: 'money', id: gone.id }] }))).toEqual({ status: 400, json: { error: 'invalid', field: 'entries[0].deletedAt' } });
+  });
+
+  it('answers entry_changed for a deletion the person did not see', async () => {
+    const gone = await deleteOne();
+    const res = await call(U2, 'POST', '/api/hh/restore', mut({ entries: [{ kind: 'money', id: gone.id, deletedAt: gone.deletedAt - 1 }] }));
+    expect(res.json.results).toEqual([{ id: gone.id, status: 'entry_changed' }]);
+  });
+
+  it('tells the other person once, only when something was restored', async () => {
+    const gone = await deleteOne();
+    const body = mut({ entries: [{ kind: 'money', ...gone }], notify: true, clientAt: AT });
+    await call(U1, 'POST', '/api/hh/restore', body);
+    await call(U1, 'POST', '/api/hh/restore', body);
+    await call(U1, 'POST', '/api/hh/restore', mut({ entries: [{ kind: 'money', ...gone }], notify: true, clientAt: AT }));
+    expect(sent.map(item => item.payload.title)).toEqual(['Sam added a money entry']);
+    expect(sent[0].payload.url).toBe('/money');
+  });
+
+  it('logs the restore with pence and no text', async () => {
+    const gone = await deleteOne();
+    logs.length = 0;
+    const body = mut({ entries: [{ kind: 'money', ...gone }] });
+    await call(U2, 'POST', '/api/hh/restore', body);
+    expect(logs.map(line => JSON.parse(line))).toEqual([{
+      event: 'money_write', householdId, mutationId: body.mutationId, action: 'restore', kind: 'expense', amountPence: 6340, sharePence: 3170, status: 'waiting',
+    }]);
+  });
+});
+
 describe('notifications', () => {
   const recipientOnly = (): void => expect(sent.map(item => item.endpoint)).toEqual([`https://fcm.googleapis.com/fcm/send/${U2}`]);
 

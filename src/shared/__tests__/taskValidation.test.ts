@@ -223,4 +223,13 @@ describe('the other request bodies', () => {
     expect(parseRestoreBody({ entries: [{ kind: 'bin', id: uuid(1) }], mutationId: MUT })).toEqual(bad('entries[0].kind'));
     expect(parseRestoreBody({ entries: [{ kind: 'task', id: 'x' }], mutationId: MUT })).toEqual(bad('entries[0].id'));
   });
+
+  it('parseRestoreBody needs the deletedAt a person saw for a money entry, and refuses it on the others', () => {
+    expect(parseRestoreBody({ entries: [{ kind: 'money', id: uuid(1), deletedAt: 1_795_000_000_000 }], mutationId: MUT }))
+      .toEqual(ok({ entries: [{ kind: 'money', id: uuid(1), deletedAt: 1_795_000_000_000 }], mutationId: MUT }));
+    expect(parseRestoreBody({ entries: [{ kind: 'money', id: uuid(1) }], mutationId: MUT })).toEqual(bad('entries[0].deletedAt'));
+    expect(parseRestoreBody({ entries: [{ kind: 'money', id: uuid(1), deletedAt: 1.5 }], mutationId: MUT })).toEqual(bad('entries[0].deletedAt'));
+    expect(parseRestoreBody({ entries: [{ kind: 'money', id: uuid(1), deletedAt: -1 }], mutationId: MUT })).toEqual(bad('entries[0].deletedAt'));
+    expect(parseRestoreBody({ entries: [{ kind: 'task', id: uuid(1), deletedAt: 5 }], mutationId: MUT })).toEqual(bad('entries[0].deletedAt'));
+  });
 });
