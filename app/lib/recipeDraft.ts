@@ -17,16 +17,20 @@ export interface RecipeDraft {
 const isDraft = (value: unknown): value is RecipeDraft =>
   typeof value === 'object' && value !== null && typeof (value as RecipeDraft).recipeId === 'string' && 'fields' in value && 'base' in value;
 
+// Everything here is kept under the person's user id and removed with it at sign-out, so with no user id nothing is read or kept.
 export function readDraft(userId: string, recipeId: string): RecipeDraft | undefined {
+  if (userId === '') return undefined;
   const draft = readObject(recipeDraftKey(userId))[recipeId];
   return isDraft(draft) ? draft : undefined;
 }
 
 export function saveDraft(userId: string, recipeId: string, draft: RecipeDraft): void {
+  if (userId === '') return;
   writeObject(recipeDraftKey(userId), { ...readObject(recipeDraftKey(userId)), [recipeId]: draft });
 }
 
 export function removeDraft(userId: string, recipeId: string): void {
+  if (userId === '') return;
   const all = readObject(recipeDraftKey(userId));
   if (!(recipeId in all)) return;
   delete all[recipeId];
@@ -35,6 +39,7 @@ export function removeDraft(userId: string, recipeId: string): void {
 
 // The draft a refusal is about: stored under the recipe's id, or under `new` when it holds that id.
 export function markRefused(userId: string, recipeId: string, message: string): void {
+  if (userId === '') return;
   const all = readObject(recipeDraftKey(userId));
   const key = isDraft(all[recipeId]) ? recipeId : isDraft(all[NEW_DRAFT]) && (all[NEW_DRAFT] as RecipeDraft).recipeId === recipeId ? NEW_DRAFT : undefined;
   if (key === undefined) return;

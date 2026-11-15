@@ -6,11 +6,11 @@ export interface RecipeListProps {
   recipes: Recipe[];
   // Whether a filter is set, so an empty list can say why.
   filtered: boolean;
-  // Where a row goes. Step 2 opens the editor; the cooking view takes over the row in step 3.
+  // Where a row goes. By default, to the recipe's cooking view.
   hrefFor?: (recipe: Recipe) => string;
 }
 
-export function RecipeList({ recipes, filtered, hrefFor = recipe => `/recipes/${recipe.id}/edit` }: RecipeListProps) {
+export function RecipeList({ recipes, filtered, hrefFor = recipe => `/recipes/${recipe.id}` }: RecipeListProps) {
   if (recipes.length === 0) {
     return filtered
       ? <Text>No recipes match.</Text>

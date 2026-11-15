@@ -73,4 +73,12 @@ describe('recipe drafts', () => {
     window.localStorage.setItem(`hearthwise.recipeDraft.${ME}`, '[1,2]');
     expect(readDraft(ME, 'r1')).toBeUndefined();
   });
+
+  it('are never kept without a person to clean them up after: an empty user id reads and writes nothing', () => {
+    saveDraft('', 'r1', draft('x'));
+    expect(readDraft('', 'r1')).toBeUndefined();
+    markRefused('', 'r1', 'Nope');
+    removeDraft('', 'r1');
+    expect(Object.keys(window.localStorage)).toEqual([]);
+  });
 });

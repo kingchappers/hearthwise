@@ -1,4 +1,4 @@
-import { Stack, Title } from '@mantine/core';
+import { Group, Loader, Stack, Title } from '@mantine/core';
 import { useNavigate } from 'react-router';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { RecipeForm } from '~/components/meals/RecipeForm';
@@ -15,10 +15,13 @@ function NewRecipeContent() {
   const actions = useRecipeActions();
   const pending = usePendingRecipeSaves();
   const navigate = useNavigate();
+  const userId = household.data?.me.userId;
+  // Drafts are kept under the person's id, so the form waits until it is known.
+  if (!userId) return <Group justify="center" py="xl" role="status" aria-label="Loading"><Loader /></Group>;
   return (
     <Stack maw={640}>
       <Title order={1} size="h3">New recipe</Title>
-      <RecipeForm userId={household.data?.me.userId ?? ''} pendingIds={pending} onAdd={actions.add} onEdit={actions.edit} onDone={() => navigate('/recipes')} />
+      <RecipeForm userId={userId} pendingIds={pending} onAdd={actions.add} onEdit={actions.edit} onDone={() => navigate('/recipes')} />
     </Stack>
   );
 }
