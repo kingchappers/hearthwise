@@ -46,23 +46,26 @@ function toMeta(item: Item): HouseholdMeta {
   };
 }
 
-// The caller's household, read from their membership. Undefined when they have none, or the records disagree (a membership
-// whose household or member record is missing is treated as no household, never as a partial one).
-export async function loadContext(store: Store, userId: string): Promise<HouseholdContext | undefined> {
-  const membership = await store.get(membershipKey(userId), { consistent: true });
-  if (!membership) return undefined;
-  const householdId = String(membership.householdId);
-
+// A household read from its id alone: for a job that starts from an index and has no caller.
+export async function loadHousehold(store: Store, householdId: string): Promise<{ householdId: string; household: HouseholdMeta; members: Member[] } | undefined> {
   const [meta, memberItems] = await Promise.all([
     store.get(metaKey(householdId), { consistent: true }),
     store.query(hhPk(householdId), { skPrefix: MEMBER_PREFIX }),
   ]);
   if (!meta) return undefined;
+  return { householdId, household: toMeta(meta), members: memberItems.map(toMember) };
+}
 
-  const members = memberItems.map(toMember);
-  const member = members.find(candidate => candidate.userId === userId);
+// The caller's household, read from their membership. Undefined when they have none, or the records disagree (a membership
+// whose household or member record is missing is treated as no household, never as a partial one).
+export async function loadContext(store: Store, userId: string): Promise<HouseholdContext | undefined> {
+  const membership = await store.get(membershipKey(userId), { consistent: true });
+  if (!membership) return undefined;
+  const loaded = await loadHousehold(store, String(membership.householdId));
+  if (!loaded) return undefined;
+  const member = loaded.members.find(candidate => candidate.userId === userId);
   if (!member) return undefined;
-  return { userId, householdId, household: toMeta(meta), member, members };
+  return { userId, ...loaded, member };
 }
 
 // Wraps a household route. The household id is taken from the caller's membership and nowhere else: not from the URL, the
