@@ -34,6 +34,7 @@ export function ResponsiveSheet({ opened, onClose, title, children }: Responsive
       styles={{
         content: {
           flex: '0 0 auto',
+          width: '100%',
           height: 'auto',
           maxHeight: '90dvh',
           borderTopLeftRadius: 'var(--mantine-radius-lg)',

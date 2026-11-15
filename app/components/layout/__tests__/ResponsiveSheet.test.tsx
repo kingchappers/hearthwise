@@ -38,6 +38,12 @@ describe('ResponsiveSheet', () => {
     expect(screen.getByText('Sheet body')).toBeInTheDocument();
   });
 
+  it('spans the full width of a narrow screen instead of sizing to its contents', () => {
+    renderSheet();
+    const content = document.querySelector<HTMLElement>('.mantine-Drawer-content');
+    expect(content?.style.width).toBe('100%');
+  });
+
   it('is a centred modal on wide screens', () => {
     const original = window.matchMedia;
     window.matchMedia = ((query: string) => ({ ...original(query), matches: true })) as typeof window.matchMedia;
