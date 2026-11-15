@@ -194,6 +194,18 @@ export function runStoreContract(name: string, backend: ContractBackend, options
         expect(await store.query(PK, { skPrefix: 'POT#', attributes: [] })).toEqual([{ PK, SK: 'POT#a', categoryId: 'a' }]);
       });
 
+      it('keeps recipes and plan days apart, and projects deletedAt only where it is set', async () => {
+        const PK = `HH#${crypto.randomUUID()}`;
+        await store.put({ PK, SK: 'RECIPE#a', title: 'Chilli', ingredients: ['2 onions'], fieldTimes: { title: 1 } });
+        await store.put({ PK, SK: 'RECIPE#b', title: 'Soup', deletedAt: 5 });
+        await store.put({ PK, SK: 'PLAN#2026-11-16', meal: { title: 'Chilli', recipeId: 'a', servings: 2 }, expiresAt: 1_800_000_000 });
+        await store.put({ PK, SK: 'ITEM#i', text: 'Milk' });
+        expect(await store.query(PK, { skPrefix: 'RECIPE#', attributes: ['SK', 'deletedAt'] })).toEqual([{ SK: 'RECIPE#a' }, { SK: 'RECIPE#b', deletedAt: 5 }]);
+        const plan = await store.query(PK, { skPrefix: 'PLAN#' });
+        expect(plan).toEqual([{ PK, SK: 'PLAN#2026-11-16', meal: { title: 'Chilli', recipeId: 'a', servings: 2 }, expiresAt: 1_800_000_000 }]);
+        expect((await store.get({ PK, SK: 'RECIPE#a' }))?.ingredients).toEqual(['2 onions']);
+      });
+
       it('rejects skPrefix and skEquals together', async () => {
         await expect(store.query(newUser(), { skPrefix: 'A', skEquals: 'B' })).rejects.toThrow('not both');
       });

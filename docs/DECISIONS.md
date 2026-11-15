@@ -138,3 +138,10 @@ The spike (`e2e/offline/`, Chromium) passed: TanStack Query's built-in persisten
 | Quiet hours "end" | The first quarter-hour whose local hour equals the end hour, searched forward from now | Works for time zones with half-hour offsets |
 | The push Lambda's table access | Query, GetItem, UpdateItem, PutItem, DeleteItem on the table only (no Scan); the API role gained read of the one VAPID parameter | `infraGuards.test.ts` pins both |
 | Push payload parsing in the worker | `app/lib/pushPayload.ts`: a non-JSON push shows as text; the address a push opens is always a path in this app | The step 5 review flagged a throw on a non-JSON payload |
+
+## Phase 2, step 1: foundation (2026-11-15)
+
+| Spec says | Built | Why |
+|---|---|---|
+| A restore of a recipe is not checked against the 200-recipe limit | A restore is held to the same 200 as a create, counting restores made earlier in the same request; past it the entry's status is `recipe_limit` and the recipe stays deleted | Security review: nothing on the server limits a restore to the 50 listed tombstones, so a cycle of delete, create and restore could take the live count, and the list, past Lambda's response limit |
+| A create with no title becomes `TaskError('title_required', 400)` | The same, with `{ field: 'title' }` as its extra, so the answer names the field as every other 400 does | Consistent with the item route's missing-text answer |

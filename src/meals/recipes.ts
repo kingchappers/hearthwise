@@ -65,7 +65,7 @@ function opsFor(householdId: string, raw: StoreItem | undefined, outcome: { resu
 }
 
 // Live recipes only: the query reads the sort key and `deletedAt`, so it does not pull every recipe's text.
-async function countLive(store: Store, householdId: string): Promise<number> {
+export async function countLiveRecipes(store: Store, householdId: string): Promise<number> {
   const rows = await store.query(hhPk(householdId), { skPrefix: RECIPE_PREFIX, attributes: ['SK', 'deletedAt'] });
   return rows.filter(row => row.deletedAt === undefined).length;
 }
@@ -82,7 +82,7 @@ export async function putRecipe(
     const outcome = applyRecipeWrite(raw ? toRecipe(raw) : undefined, id, input.write, ctx.userId, nowMs);
     if (outcome.result === 'gone') throw new TaskError('gone', 410);
     if (!raw && outcome.result === 'noop') throw new TaskError('title_required', 400, { field: 'title' });
-    if (!raw && (await countLive(store, householdId)) >= RECIPE_LIMIT) throw new TaskError('recipe_limit', 409);
+    if (!raw && (await countLiveRecipes(store, householdId)) >= RECIPE_LIMIT) throw new TaskError('recipe_limit', 409);
     const recipe = outcome.recipe ?? toRecipe(raw!);
     const ops = opsFor(householdId, raw, outcome);
     try {

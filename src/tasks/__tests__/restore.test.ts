@@ -193,4 +193,14 @@ describe('restoring a recipe', () => {
     const stored = (await store.get(recipeKey(householdId, id)))!;
     expect(stored.deletedAt).toBe(NOW + 2000);
   });
+
+  it('refuses to restore past 200 live recipes, counting restores made earlier in the same batch', async () => {
+    const ids = [await makeRecipe(), await makeRecipe(), await makeRecipe()];
+    for (const id of ids) await deleteRecipe(store, ctx1, id, { mutationId: uuid() }, NOW);
+    // 198 live recipes, so two of the three fit.
+    for (let i = 0; i < 198; i += 1) await store.put({ ...recipeKey(householdId, uuid()), title: `R${i}`, updatedAt: 1 });
+    const { result } = await restoreEntries(store, ctx1, { entries: ids.map(id => ({ kind: 'recipe' as const, id })), mutationId: uuid() }, NOW + 1000);
+    expect(result.results.map(entry => entry.status)).toEqual(['restored', 'restored', 'recipe_limit']);
+    expect((await store.get(recipeKey(householdId, ids[2])))?.deletedAt).toBe(NOW);
+  });
 });
