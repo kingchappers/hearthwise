@@ -12,13 +12,15 @@ interface Stub {
   // What landed for recipes and plan days, once for each mutation id, as the real routes record each write once.
   recipes: { user: string; id: string; mutationId: string }[];
   planDays: { user: string; day: string; mutationId: string }[];
+  money: { user: string; id: string; mutationId: string }[];
+  moneyRequests: number;
   recipeRequests: number;
   planRequests: number;
   calls: number;
 }
 
 function newStub(): Stub {
-  return { mode: 'ok', items: { a: [], b: [] }, seen: new Set(), addRequests: [], recipes: [], planDays: [], recipeRequests: 0, planRequests: 0, calls: 0 };
+  return { mode: 'ok', items: { a: [], b: [] }, seen: new Set(), addRequests: [], recipes: [], planDays: [], money: [], moneyRequests: 0, recipeRequests: 0, planRequests: 0, calls: 0 };
 }
 
 const userOf = (route: Route): string | undefined => {
@@ -62,6 +64,16 @@ async function install(context: BrowserContext, stub: Stub): Promise<void> {
         stub.recipes.push({ user, id: recipe[1], mutationId: body.mutationId });
       }
       return route.fulfill({ json: { recipe: { id: recipe[1] } } });
+    }
+    const moneyEntry = /^\/api\/hh\/money\/([^/]+)$/.exec(url.pathname);
+    if (moneyEntry && route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as { mutationId: string };
+      stub.moneyRequests += 1;
+      if (!stub.seen.has(body.mutationId)) {
+        stub.seen.add(body.mutationId);
+        stub.money.push({ user, id: moneyEntry[1], mutationId: body.mutationId });
+      }
+      return route.fulfill({ json: { entry: { id: moneyEntry[1] } } });
     }
     const planDay = /^\/api\/hh\/plan\/(\d{4}-\d{2}-\d{2})$/.exec(url.pathname);
     if (planDay && route.request().method() === 'PUT') {
@@ -135,6 +147,29 @@ test.describe('offline spike', () => {
     expect(stub.planDays[0].day).toBe('2026-11-16');
     // Each mutation id is stored once, even if it was sent more than once.
     expect(new Set([...stub.recipes, ...stub.planDays].map(write => write.mutationId)).size).toBe(2);
+  });
+
+  test('a money entry written offline is kept when the page is closed, and is stored once when it reopens', async ({ context }) => {
+    const stub = newStub();
+    await install(context, stub);
+    let page = await context.newPage();
+    await signIn(page, 'a');
+
+    stub.mode = 'down';
+    await page.getByTestId('money-button').click();
+    // It fails at once and is waiting for its retry, so the page is in the middle of its backoff.
+    await page.waitForTimeout(300);
+    await expect(page.getByTestId('pending-count')).toHaveText('1');
+    await page.close();
+    expect(stub.money).toEqual([]);
+
+    stub.mode = 'ok';
+    page = await context.newPage();
+    await page.goto('/');
+    await expect(page.getByTestId('status')).toHaveText('signed in');
+    await expect(page.getByTestId('pending-count')).toHaveText('0', { timeout: 15_000 });
+    expect(stub.money).toHaveLength(1);
+    expect(new Set(stub.money.map(write => write.mutationId)).size).toBe(1);
   });
 
   test('a write made a moment before the page is closed is still pending when it reopens, and is saved once', async ({ context }) => {

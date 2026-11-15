@@ -23,12 +23,20 @@ Each step is its own pull request, in this order. Design: [`designs/phase-2-meal
 5. **Add to the shopping list** (built): the review, merged shopping lines labelled with their recipes, "On the list".
 6. **Finish** (built, except the real-phone checks): wording test, offline case, docs, and the release checklist in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md).
 
+## Phase 3: money
+
+Each step is its own pull request, in this order. Design: [`designs/phase-3-money-tracker.md`](designs/phase-3-money-tracker.md).
+
+1. **The ledger on the server** (built): the pure ledger rules, money entries, change requests, the routes, restore, the logs.
+2. **The app** (built): the Money tab and page, the add sheet, entries, change requests, offline use, the Deleted page group.
+3. **Finish** (built, except the real-phone checks): `yarn store-cli money-total`, the offline e2e case, and the release checklist in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md).
+
 ## Later phases
 
 Each gets its own design document.
 
 - Phase 2: meal plan feeding the shopping list. Design: [`designs/phase-2-meal-plan.md`](designs/phase-2-meal-plan.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
-- Phase 3: money tracker
+- Phase 3: money tracker. Design: [`designs/phase-3-money-tracker.md`](designs/phase-3-money-tracker.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
 - Phase 4: shared calendar
 - Phase 5: DIY projects
 - Unscheduled: integration with the sibling budgeting app
