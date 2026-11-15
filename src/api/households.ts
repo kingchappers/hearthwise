@@ -117,7 +117,7 @@ async function removeMemberRoute(event: APIGatewayProxyEventV2, ctx: HouseholdCo
   try {
     await removeMember(getStore(), ctx, params.userId);
     // The member is gone either way: a failure here leaves their data hidden, and the sweep deletes it later.
-    await purgeNonMemberData(getStore(), ctx.householdId);
+    await purgeNonMemberData(getStore(), ctx.householdId, params.userId);
     return NO_CONTENT;
   } catch (error) {
     return householdErrorResponse(error);

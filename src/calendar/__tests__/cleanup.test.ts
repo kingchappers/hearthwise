@@ -132,3 +132,27 @@ describe('a member who is still valid', () => {
     expect(Object.keys((await store.get(eventKey(householdId, shared)))!.reminders as object)).toEqual([U3]);
   });
 });
+
+describe('purgeNonMemberData: stale and failing reads', () => {
+  it('treats the removed user as a non-member even when the member query still lists them', async () => {
+    const id = await make(ctx2, true);
+    // No `leave`: the member list a read returns still holds Alex, as a non-consistent query can just after a removal.
+    const result = await purgeNonMemberData(store, householdId, U2);
+    expect(result.deleted).toBe(1);
+    expect(await store.get(eventKey(householdId, id))).toBeUndefined();
+  });
+
+  it('still keeps everyone else the current records list', async () => {
+    const mine = await make(ctx1, true);
+    await purgeNonMemberData(store, householdId, U2);
+    expect(await store.get(eventKey(householdId, mine))).toBeDefined();
+  });
+
+  it('never throws when a query rejects, and logs only the error name', async () => {
+    vi.spyOn(store, 'query').mockRejectedValue(new Error('SENTINEL boom'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(purgeNonMemberData(store, householdId, U2)).resolves.toEqual({ deleted: 0, trimmed: 0, failed: 1 });
+    expect(JSON.stringify(errors.mock.calls)).not.toContain('SENTINEL');
+    expect(errors).toHaveBeenCalled();
+  });
+});
