@@ -8,7 +8,7 @@ import { initStore } from './src/store';
 
 // The hourly rule sends the default scheduled event, which has no `job`; the five-minute rule sends { job: 'reminders' }.
 // A run of one kind never does the other's work, so digests and nudges are never sent twice.
-export const handler = async (input?: { job?: unknown }): Promise<void> => {
+export const handler = async (input?: Record<string, unknown>): Promise<void> => {
   const job = input?.job;
   if (job !== undefined && job !== 'reminders') {
     console.error('The scheduler was started with a job it does not know');
