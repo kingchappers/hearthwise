@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { mealMutationKeys, registerMutations } from '~/lib/mutations';
+import { applyPendingPlan } from '~/lib/planOverlay';
 import { applyPendingRecipes } from '~/lib/recipeOverlay';
 
 const APP = join(__dirname, '..');
@@ -55,10 +56,16 @@ describe('the meal mutations', () => {
     recipeRestore: { recipeIds: ['r1'] },
   };
 
-  it.each(Object.entries(mealMutationKeys))('%s has an overlay that changes the data', (kind, key) => {
+  it.each(Object.entries(mealMutationKeys).filter(([kind]) => kind !== 'planSet'))('%s has an overlay that changes the data', (kind, key) => {
     // A restore only changes a deleted recipe, so it starts from one.
     const start = { recipes: [kind === 'recipeRestore' ? { ...recipe, deletedAt: 5 } : recipe], serverTime: 0 };
     const result = applyPendingRecipes(start, [{ mutationKey: key, variables: { mutationId: 'm', at: 1_800_000_000_000, by: 'u', ...variables[kind] } }]);
+    expect(result).not.toEqual(start);
+  });
+
+  it('planSet has an overlay that changes the data', () => {
+    const start = { days: [], serverTime: 0 };
+    const result = applyPendingPlan(start, [{ mutationKey: mealMutationKeys.planSet, variables: { mutationId: 'm', at: 1_800_000_000_000, by: 'u', day: '2026-11-16', meal: { title: 'Soup' } } }]);
     expect(result).not.toEqual(start);
   });
 });
