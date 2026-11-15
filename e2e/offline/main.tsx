@@ -1,5 +1,6 @@
-// The offline spike: the smallest version of the step 5 setup that can prove it works in a real browser. It builds a persister, two
-// registered mutations and the retry rule, and talks to a stub API the tests control. It does not use any app code.
+// The offline spike: the smallest version of the step 5 setup that can prove it works in a real browser. It builds a persister, four
+// registered mutations (two for shopping-style lines, one for a recipe and one for a plan day) and the retry rule, and talks to a stub
+// API the tests control. It does not use any app code.
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, useMutation, useMutationState, useQuery } from '@tanstack/react-query';
@@ -37,15 +38,22 @@ const retryDelay = (count: number): number => Math.min(1000 * 2 ** count, 60_000
 // never sent, so a write can never go out under another person's name.
 function createClient(ownerId: string): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } });
-  for (const kind of ['add', 'rename'] as const) {
+  // Where each kind is sent. The recipe and plan kinds use the routes the app uses, so the stub can tell them apart.
+  const where = (kind: string, variables: { id: string; day?: string }): { path: string; method: string } => {
+    if (kind === 'recipeAdd') return { path: `/api/hh/recipes/${variables.id}`, method: 'PUT' };
+    if (kind === 'planSet') return { path: `/api/hh/plan/${variables.day}`, method: 'PUT' };
+    return { path: `/api/${kind}`, method: 'POST' };
+  };
+  for (const kind of ['add', 'rename', 'recipeAdd', 'planSet'] as const) {
     client.setMutationDefaults(['household', kind], {
       scope: { id: 'household' },
       networkMode: 'online',
       retry: shouldRetry,
       retryDelay,
-      mutationFn: async (variables: { id: string; text: string; mutationId: string }) => {
+      mutationFn: async (variables: { id: string; text: string; mutationId: string; day?: string }) => {
         if (currentUser() !== ownerId) throw new ApiError(403);
-        return call(`/api/${kind}`, { method: 'POST', body: JSON.stringify(variables) });
+        const target = where(kind, variables);
+        return call(target.path, { method: target.method, body: JSON.stringify(variables) });
       },
       onSettled: () => { void client.invalidateQueries({ queryKey: ['list'] }); },
     });
@@ -67,6 +75,8 @@ function Screen({ client, ownerId, restored, onSignOut }: { client: QueryClient;
   const list = useQuery({ queryKey: ['list'], queryFn: () => call('/api/list') as Promise<{ items: string[] }>, enabled: signedIn });
   const pending = useMutationState({ filters: { status: 'pending' } }).length;
   const adding = useMutation<unknown, Error, { id: string; text: string; mutationId: string }>({ mutationKey: ['household', 'add'] });
+  const recipe = useMutation<unknown, Error, { id: string; text: string; mutationId: string }>({ mutationKey: ['household', 'recipeAdd'] });
+  const plan = useMutation<unknown, Error, { id: string; text: string; mutationId: string; day: string }>({ mutationKey: ['household', 'planSet'] });
 
   // "Signing in": it works only if the stub accepts the token, so a cold launch with no signal or an expired token stays signed out.
   useEffect(() => {
@@ -96,6 +106,8 @@ function Screen({ client, ownerId, restored, onSignOut }: { client: QueryClient;
       <ul data-testid="saved-list">{(list.data?.items ?? []).map(item => <li key={item}>{item}</li>)}</ul>
       <input data-testid="text" value={text} onChange={event => setText(event.target.value)} />
       <button data-testid="add-button" onClick={() => adding.mutate({ id: crypto.randomUUID(), text, mutationId: crypto.randomUUID() })}>add</button>
+      <button data-testid="recipe-button" onClick={() => recipe.mutate({ id: crypto.randomUUID(), text: 'Soup', mutationId: crypto.randomUUID() })}>add recipe</button>
+      <button data-testid="plan-button" onClick={() => plan.mutate({ id: crypto.randomUUID(), text: 'Chilli', mutationId: crypto.randomUUID(), day: '2026-11-16' })}>plan a day</button>
       <button data-testid="sign-out" onClick={() => { void onSignOut(); }}>sign out</button>
     </div>
   );

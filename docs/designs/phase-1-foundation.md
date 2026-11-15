@@ -754,7 +754,7 @@ Each decision below is recorded in [`discussion_summary.md`](../../discussion_su
     - Push payloads contain only a short description ("Sam hoovered"), never notes.
     - The new local-auth and invite code gets a dedicated security review before merge (Claude Code's `/security-review` command, plus a human read-through).
 *   **Performance & Cost**:
-    - Polling makes 2 requests every 10 seconds per visible device: 720 requests an hour. Two devices open for 3 hours a day make about 130,000 requests a month.
+    - Polling makes 2 requests every 10 seconds per visible device: 720 requests an hour. Phase 2 adds the plan, so it is now 3 requests every 10 seconds (tasks, shopping items and plan days), about 1,080 an hour: see [`phase-2-meal-plan.md`](phase-2-meal-plan.md). Two devices open for 3 hours a day make about 130,000 requests a month.
     - Lambda: 1 million requests a month are permanently free, so polling uses about 13% of the allowance.
     - API Gateway HTTP API: 1 million calls a month are free for the first 12 months only. After that it's about US$1 per million, so about US$0.13 a month at this rate.
     - DynamoDB: the table uses on-demand capacity, as Hoardwise's does (`billing_mode = "PAY_PER_REQUEST"`), so the permanently free provisioned capacity doesn't apply. Each poll reads a whole list. With 500 records of about 1 KB, a pair of polls reads about 63 read request units (eventually consistent), or about 4 million a month. At about US$0.125–0.15 per million read units, that's under US$1 a month. Writes are a few thousand a month and cost under US$0.01. Storage stays inside the free 25 GB.

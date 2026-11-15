@@ -30,7 +30,19 @@ Record the date, the app version and the result of each line in the pull request
 - [ ] CUJ 7: tick "I did this today" on the other person's chore. They are told only if the box was ticked.
 - [ ] CUJ 8: one person has the full list with a digest, the other "next thing" with reminders off. Each sees their own view of the same tasks. Only the first gets the digest.
 
+## Meals (phase 2)
+
+- [ ] Type a recipe from a real card (Hello Fresh, a website or from memory) on a phone, and time it. Pasting the ingredient list works, and the reading under each line is right or easy to correct.
+- [ ] Plan a week on one phone. The other phone shows it within 15 seconds. Both phones show the same dinner for Tonight.
+- [ ] Open Tonight and then the cooking view on a real phone. The screen stays awake while you cook, and the ticks are still there after you lock and unlock the phone.
+- [ ] Read a recipe, the plan and the shopping list in airplane mode. The last copy each phone saved shows, and a plan change made offline goes through when the signal returns, once.
+- [ ] Add a planned week to the shopping list and check the review lines, and the shopping lines they become, against a hand count. The merged amounts, the "for" label and the "already on the list" hints are right, and a line typed by hand is untouched.
+- [ ] Add the same week twice by hand (a new review each time): each add makes its own shopping lines, and nothing is lost or doubled by one add.
+- [ ] Check that no screen relies on colour alone: the low-energy mark, "On the list", "Not adding" and "Not scaled" all say it in words.
+- [ ] The month-later check (the success measure): after a month, the whiteboard is gone and neither person has to decide at 5pm what to eat. If not, note what is still missing.
+
 ## Reading and touch
 
 - [ ] Every screen at the largest text size and with reduce motion on (Settings): nothing is cut off, no two controls overlap, and every button is easy to hit with a thumb.
 - [ ] No screen uses the words overdue, missed or streak.
+- [ ] Phase 2 screens (Plan, Recipes, the cooking view, the add review): the same, and none says forgot, skipped, incomplete, missing or unplanned.
