@@ -148,6 +148,8 @@ function lex(source: string): Lexed {
   return { kept: kept.join(''), blanked: blanked.join('') };
 }
 
+// A non-test file must not import from a test folder or a test file.
+const isTestPath = (specifier: string): boolean => /(^|\/)__tests__(\/|$)|\.test(\.|$)/.test(specifier);
 const moduleName = (specifier: string): string => specifier.replace(/^node:/, '').split('/')[0];
 const isNetworkModule = (specifier: string): boolean => !/^[./]/.test(specifier) && NETWORK_MODULES.has(moduleName(specifier));
 
@@ -169,18 +171,25 @@ export function findNetworkUse(source: string): NetworkUse[] {
   for (const match of blanked.matchAll(/(?<![\w$.])(require|import)\s*\(/g)) {
     const specifier = plainArgument(kept.slice(match.index + match[0].length));
     if (specifier === undefined) add(`<computed ${match[1]}>`, match.index);
+    else if (isTestPath(specifier)) add('<test import>', match.index);
     else if (isNetworkModule(specifier)) add(moduleName(specifier), match.index);
   }
   for (const match of blanked.matchAll(/(?<![\w$.])require\b(?!\s*[(.])/g)) add('<require alias>', match.index);
   for (const match of blanked.matchAll(/\bmodule\s*\.\s*require\b/g)) add('<module.require>', match.index);
   for (const match of blanked.matchAll(/\bcreateRequire\b/g)) add('<createRequire>', match.index);
-  for (const match of blanked.matchAll(/\bprocess\s*\.\s*(binding|dlopen|_linkedBinding)\b/g)) add(`<process.${match[1]}>`, match.index);
+  for (const match of blanked.matchAll(/\bprocess\s*\.\s*(binding|dlopen|_linkedBinding|getBuiltinModule)\b/g)) add(`<process.${match[1]}>`, match.index);
+  // process['getBuiltinModule'](...) and the like: any computed access on process.
+  for (const match of blanked.matchAll(/(?<![\w$.])process\s*\[/g)) add('<process[...]>', match.index);
+  // The global object handed around or aliased (const g = globalThis; g.fetch(...)) hides a fetch from the name scan.
+  for (const match of blanked.matchAll(/(?<![\w$.])(globalThis|self|window|global)\b(?!\s*(?:\.\s*[\w$]|:))/g)) add(`<${match[1]} alias>`, match.index);
   for (const match of blanked.matchAll(/(?<![\w$.])eval\s*\(|(?<![\w$.])Function\s*\(|\bnew\s+Function\b/g)) add('<dynamic code>', match.index);
 
   // import 'x' and import ... from 'x' and export ... from 'x' (a type-only one has no effect at run time).
   for (const match of blanked.matchAll(/(?<![\w$.])import\s*(['"`])/g)) {
     const specifier = plainArgument(kept.slice(match.index + match[0].length - 1), false);
-    if (specifier !== undefined && isNetworkModule(specifier)) add(moduleName(specifier), match.index);
+    if (specifier === undefined) continue;
+    if (isTestPath(specifier)) add('<test import>', match.index);
+    else if (isNetworkModule(specifier)) add(moduleName(specifier), match.index);
   }
   for (const match of blanked.matchAll(/(?<![\w$.])from\s*(['"`])/g)) {
     const before = blanked.slice(0, match.index);
@@ -190,7 +199,9 @@ export function findNetworkUse(source: string): NetworkUse[] {
     if (!/^[\s\w$*{},]*$/.test(between)) continue;
     if (/^\s+type\b(?!\s*,)/.test(between) && /^\s+type\s*[{*\w]/.test(between)) continue;
     const specifier = plainArgument(kept.slice(match.index + match[0].length - 1), false);
-    if (specifier !== undefined && isNetworkModule(specifier)) add(moduleName(specifier), match.index);
+    if (specifier === undefined) continue;
+    if (isTestPath(specifier)) add('<test import>', match.index);
+    else if (isNetworkModule(specifier)) add(moduleName(specifier), match.index);
   }
   // import x = require('y') is covered by the require scan above.
 
