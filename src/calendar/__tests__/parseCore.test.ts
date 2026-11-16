@@ -274,6 +274,10 @@ describe('parseCore: repeat rules', () => {
     expect(starts(rule('RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=4'))).toEqual(['2026-06-01T09:00Z', '2026-06-03T09:00Z', '2026-06-15T09:00Z', '2026-06-17T09:00Z']);
   });
 
+  it('accepts WKST, as Outlook writes it', () => {
+    expect(starts(rule('RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO;WKST=MO;COUNT=2'))).toEqual(['2026-06-01T09:00Z', '2026-06-15T09:00Z']);
+  });
+
   it('expands a rule that began years ago without losing the window', () => {
     const daily = occurrencesOf(calendar(vevent('SUMMARY:Old', 'DTSTART:20150101T090000Z', 'RRULE:FREQ=DAILY')));
     expect(daily).toHaveLength(134);
@@ -466,5 +470,62 @@ describe('parseCore: hostile files', () => {
       if (occurrence.allDay) expect(occurrence.endOn <= '2027-07-02').toBe(true);
       else expect(occurrence.endMs - occurrence.startMs).toBeLessThanOrEqual(366 * DAY);
     }
+  });
+});
+
+describe('parseCore: one slow step of the library', () => {
+  const run = (rrule: string): { elapsed: number; result: ReturnType<typeof parseCore> } => {
+    const started = Date.now();
+    const result = parseCore(calendar(vevent('SUMMARY:X', 'DTSTART:20260601T090000Z', rrule)), JUNE);
+    return { elapsed: Date.now() - started, result };
+  };
+
+  it.each([
+    'FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30',
+    'FREQ=DAILY;BYMONTH=2;BYMONTHDAY=-30',
+    'FREQ=YEARLY;BYMONTH=4,6,9,11;BYMONTHDAY=31',
+    'FREQ=MONTHLY;BYMONTH=2;BYMONTHDAY=30,31',
+  ])('rejects %s before the library sees it', rrule => {
+    const { elapsed, result } = run(`RRULE:${rrule}`);
+    expect(result).toMatchObject({ ok: true, occurrences: [], counts: { skipped: 1 } });
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it.each([
+    'FREQ=DAILY;INTERVAL=319;BYMONTH=7,5,4;BYWEEKNO=52,-12',
+    'FREQ=WEEKLY;BYWEEKNO=20',
+    'FREQ=MONTHLY;BYWEEKNO=20;BYDAY=MO',
+    'FREQ=DAILY;BYYEARDAY=100',
+    'FREQ=WEEKLY;BYMONTHDAY=3',
+    'FREQ=WEEKLY;BYDAY=2MO',
+    'FREQ=DAILY;BYDAY=-1FR',
+    'FREQ=DAILY;BYSETPOS=1',
+    'FREQ=DAILY;BYMONTHDAY=-26;BYDAY=MO;BYHOUR=1',
+    'FREQ=DAILY;INTERVAL=154;BYMONTH=5;BYMONTHDAY=11,26,1;BYDAY=MO;BYHOUR=1;COUNT=79',
+    'FREQ=DAILY;INTERVAL=2;BYDAY=MO',
+  ])('rejects %s, which the standard does not allow and the library can spin on', rrule => {
+    const { elapsed, result } = run(`RRULE:${rrule}`);
+    expect(result).toMatchObject({ ok: true, occurrences: [], counts: { skipped: 1 } });
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('still follows a month and day that do meet', () => {
+    expect(run('RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29,30;COUNT=1').result).toMatchObject({ ok: true, counts: { skipped: 0 } });
+    expect(starts(occurrencesOf(calendar(vevent('SUMMARY:L', 'DTSTART:20260601T090000Z', 'RRULE:FREQ=MONTHLY;BYMONTHDAY=31;COUNT=3'))))).toEqual(['2026-06-01T09:00Z', '2026-07-31T09:00Z', '2026-08-31T09:00Z']);
+  });
+
+  it('stops a file of impossible rules and a file of huge EXDATE lists within the budget', () => {
+    for (const name of ['impossibleDay', 'manyExdates', 'spinningRules']) {
+      const started = Date.now();
+      const result = parseCore(HOSTILE[name](), JUNE, { budgetMs: 1500 });
+      expect(result, name).toMatchObject({ ok: true });
+      expect(Date.now() - started, name).toBeLessThan(3500);
+    }
+  });
+
+  it('keeps at most 500 EXDATE values for one event and counts the event', () => {
+    const exdates = Array.from({ length: 600 }, (_, i) => `EXDATE:2026${String(6 + Math.floor(i / 28) % 4).padStart(2, '0')}${String(1 + (i % 28)).padStart(2, '0')}T090000Z`).join('\r\n');
+    const result = parseCore(calendar(vevent('SUMMARY:X', 'DTSTART:20260601T090000Z', 'RRULE:FREQ=DAILY', exdates)), JUNE);
+    expect(result).toMatchObject({ ok: true, counts: { skipped: 1 } });
   });
 });
