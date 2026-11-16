@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // A feed's link is a bearer secret. It is stored encrypted (AES-256-GCM) in its own item, with the household and the feed as
@@ -117,8 +117,22 @@ export async function loadCalendarKey(env: NodeJS.ProcessEnv, deps: CalendarKeyD
   try {
     if (existsSync(file)) return parseKey(readFileSync(file, 'utf8')) ?? missing('invalid');
     const created = randomBytes(KEY_BYTES);
-    writeFileSync(file, created.toString('base64') + '\n', { mode: 0o600, flag: 'wx' });
-    chmodSync(file, 0o600);
+    // Written whole to a private temporary file, then linked into place: the key file appears complete or not at all, and a key that
+    // another start made first is never overwritten (the link fails, and that key is read instead).
+    const temporary = `${file}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`;
+    try {
+      writeFileSync(temporary, created.toString('base64') + '\n', { mode: 0o600, flag: 'wx' });
+      linkSync(temporary, file);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      return parseKey(readFileSync(file, 'utf8')) ?? missing('invalid');
+    } finally {
+      try {
+        unlinkSync(temporary);
+      } catch {
+        // never made, or already gone
+      }
+    }
     log(`Calendar key created in the data folder (${FILE})`);
     return created;
   } catch (error) {
