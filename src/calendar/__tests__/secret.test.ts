@@ -1,9 +1,23 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptLink, encryptLink, loadCalendarKey, SecretError } from '../secret';
+
+const crash = vi.hoisted(() => ({ on: false }));
+vi.mock('node:fs', async importOriginal => {
+  const original = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...original,
+    writeFileSync: (...args: Parameters<typeof original.writeFileSync>) => {
+      if (!crash.on) return original.writeFileSync(...args);
+      // A crash part-way through a write: the file is created, and nothing is put in it.
+      original.writeFileSync(args[0], '', args[2]);
+      throw new Error('crash');
+    },
+  };
+});
 
 const LINK = 'https://calendar.google.com/calendar/ical/me%40example.com/private-SENTINEL/basic.ics';
 const AAD = { householdId: 'hh-1', feedId: 'feed-1' };
@@ -81,6 +95,8 @@ describe('encryptLink and decryptLink', () => {
   });
 });
 
+const parseKeyFile = (dir: string): Buffer => Buffer.from(readFileSync(join(dir, 'calendar.key'), 'utf8').trim(), 'base64');
+
 describe('loadCalendarKey', () => {
   let dir: string;
   const good = randomBytes(32).toString('base64');
@@ -132,6 +148,48 @@ describe('loadCalendarKey', () => {
     const second = await loadCalendarKey({}, { dataDir: dir, log });
     expect(second?.equals(first as Buffer)).toBe(true);
     expect(JSON.stringify(log.mock.calls)).not.toContain(first!.toString('base64'));
+  });
+
+  it('gives two loaders that start together the same key, and leaves no temporary file', async () => {
+    const [a, b, c] = await Promise.all([loadCalendarKey({}, { dataDir: dir, log }), loadCalendarKey({}, { dataDir: dir, log }), loadCalendarKey({}, { dataDir: dir, log })]);
+    expect(a).toHaveLength(32);
+    expect(b?.equals(a as Buffer)).toBe(true);
+    expect(c?.equals(a as Buffer)).toBe(true);
+    expect(readdirSync(dir)).toEqual(['calendar.key']);
+    expect(parseKeyFile(dir).equals(a as Buffer)).toBe(true);
+  });
+
+  it('never leaves a key file that is empty or half written: the file appears whole or not at all', async () => {
+    const seen: number[] = [];
+    const watcher = setInterval(() => {
+      try {
+        seen.push(readFileSync(join(dir, 'calendar.key'), 'utf8').length);
+      } catch {
+        // not there yet
+      }
+    }, 0);
+    await loadCalendarKey({}, { dataDir: dir, log });
+    clearInterval(watcher);
+    expect(seen.every(length => length === 45)).toBe(true);
+  });
+
+  it('leaves no calendar.key at all when the process dies while writing it, so the next start makes a good one', async () => {
+    crash.on = true;
+    try {
+      expect(await loadCalendarKey({}, { dataDir: dir, log })).toBeUndefined();
+    } finally {
+      crash.on = false;
+    }
+    expect(existsSync(join(dir, 'calendar.key'))).toBe(false);
+    const key = await loadCalendarKey({}, { dataDir: dir, log });
+    expect(key).toHaveLength(32);
+  });
+
+  it('ignores a stale temporary file from a crash, and does not treat it as the key', async () => {
+    writeFileSync(join(dir, 'calendar.key.tmp-stale'), '');
+    const key = await loadCalendarKey({}, { dataDir: dir, log });
+    expect(key).toHaveLength(32);
+    expect(parseKeyFile(dir).equals(key as Buffer)).toBe(true);
   });
 
   it('is off (calendar_key_missing) with no parameter, no variable and no data folder', async () => {
