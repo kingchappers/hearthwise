@@ -1,6 +1,7 @@
 import ICAL from 'ical.js';
 import { addDays, dayInZone, isRealDate } from '../shared/schedule';
 import { zonedInstant, zonedWall } from '../shared/zoned';
+import { expandRule, type DayRule, type Frequency } from './expandRule';
 import { windowsZoneToIana } from './windowsZones';
 
 // Reads the text of a calendar file into the occurrences that fall in a window. A plain function: the worker calls it, and the unit
@@ -23,6 +24,9 @@ const MAX_LIST = 400;
 // EXDATE or RDATE values kept for one event, and wall-clock conversions for the whole file.
 const MAX_DATE_VALUES = 500;
 const MAX_CONVERSIONS = 40_000;
+// Periods (days, weeks, months or years) a rule may step through before the window, for one event and for the file.
+const MAX_PERIODS = 60_000;
+const MAX_FILE_PERIODS = 600_000;
 const MIN_YEAR = 1970;
 const MAX_YEAR = 2100;
 const DAY_MS = 86_400_000;
@@ -160,6 +164,7 @@ class BudgetError extends Error {}
 // Time limits shared by the whole parse.
 interface Budget {
   steps: number;
+  periods: number;
   conversions: number;
   deadline: number;
 }
@@ -263,51 +268,22 @@ function durationSeconds(value: unknown): number | undefined {
 
 // ---- Repeat rules ----
 
-type Frequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 const FREQUENCIES: readonly string[] = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
 const FINER: readonly string[] = ['SECONDLY', 'MINUTELY', 'HOURLY'];
-const BY_RANGES: Record<string, { min: number; max: number; zero: boolean }> = {
-  bysecond: { min: 0, max: 60, zero: true },
-  byminute: { min: 0, max: 59, zero: true },
-  byhour: { min: 0, max: 23, zero: true },
-  bymonthday: { min: -31, max: 31, zero: false },
-  byyearday: { min: -366, max: 366, zero: false },
-  byweekno: { min: -53, max: 53, zero: false },
-  bymonth: { min: 1, max: 12, zero: true },
-  bysetpos: { min: -366, max: 366, zero: false },
-};
 const WEEKDAY_NUMBERS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-const WEEKDAY = /^[+-]?(\d{1,2})?(SU|MO|TU|WE|TH|FR|SA)$/i;
+const WEEKDAY = /^([+-]?\d{1,2})?(SU|MO|TU|WE|TH|FR|SA)$/i;
+// The only parts of a rule we follow. A rule with any other BY part is refused, not guessed at.
+const FOLLOWED = new Set(['freq', 'interval', 'count', 'until', 'wkst', 'bymonth', 'bymonthday', 'byday']);
 
-interface Rule {
-  frequency: Frequency;
-  interval: number;
-  count?: number;
-  // True when nothing but the frequency, interval and count shapes the series, so every period gives exactly one occurrence.
-  plain: boolean;
+interface Rule extends DayRule {
   until?: string;
-  data: Record<string, unknown>;
 }
 
-// A month and a day of the month that can never fall together (February 30) make the library search for years inside one call, which
-// nothing can interrupt, so the rule is refused here.
+// A month and a day of the month that can never fall together (February 30) would never match.
 function monthAndDayCanMeet(months: number[] | undefined, days: number[] | undefined): boolean {
   if (months === undefined || days === undefined) return true;
   return days.some(day => months.some(month => Math.abs(day) <= DAYS_IN_MONTH[month - 1]));
-}
-
-// The combinations RFC 5545 allows. The library does not refuse the others: it can search inside one call for as long as it likes.
-function partsAllowedWith(frequency: Frequency, raw: Record<string, unknown>, data: Record<string, unknown>): boolean {
-  const has = (key: string): boolean => raw[key] !== undefined;
-  if (has('byweekno') && frequency !== 'YEARLY') return false;
-  if (has('byyearday') && frequency !== 'YEARLY') return false;
-  if (has('bymonthday') && frequency === 'WEEKLY') return false;
-  const ordinal = (data.byday as string[] | undefined)?.some(day => /\d/.test(day)) ?? false;
-  if (ordinal && frequency !== 'MONTHLY' && frequency !== 'YEARLY') return false;
-  if (ordinal && has('byweekno')) return false;
-  if (has('bysetpos') && !['bysecond', 'byminute', 'byhour', 'byday', 'bymonthday', 'byyearday', 'byweekno', 'bymonth'].some(has)) return false;
-  return true;
 }
 
 function asList(value: unknown): unknown[] {
@@ -319,54 +295,76 @@ const asInteger = (value: unknown): number | undefined => {
   return typeof number === 'number' && Number.isInteger(number) ? number : undefined;
 };
 
-// A repeat rule we can follow, with every number inside a range the iterator can take, or why not. The iterator can spin for a
-// very long time on values such as an interval of 99999999999, so nothing reaches it unchecked.
+function integers(value: unknown, min: number, max: number): number[] | undefined {
+  const list = asList(value);
+  if (list.length > MAX_LIST) return undefined;
+  const numbers = list.map(asInteger);
+  if (numbers.some(n => n === undefined || n < min || n > max || n === 0)) return undefined;
+  return numbers as number[];
+}
+
+// Reads a rule from the library's jCal. This is an allow-list: only DAILY, WEEKLY, MONTHLY and YEARLY with INTERVAL, COUNT, UNTIL, WKST,
+// BYMONTH, BYMONTHDAY and BYDAY are followed, in the combinations the standard allows and our expansion handles. Anything else (BYSETPOS,
+// BYWEEKNO, BYYEARDAY, BYHOUR and the rest, a day of the week with a number the frequency does not take) is 'invalid', and the event
+// is skipped and counted. A finer frequency than daily is 'finer'.
 function readRule(value: unknown): Rule | 'finer' | 'invalid' {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'invalid';
   const raw = value as Record<string, unknown>;
-  const frequency = typeof raw.freq === 'string' ? raw.freq.toUpperCase() : '';
-  if (FINER.includes(frequency)) return 'finer';
-  if (!FREQUENCIES.includes(frequency)) return 'invalid';
+  const name = typeof raw.freq === 'string' ? raw.freq.toUpperCase() : '';
+  if (FINER.includes(name)) return 'finer';
+  if (!FREQUENCIES.includes(name)) return 'invalid';
+  const frequency = name as Frequency;
+  if (Object.keys(raw).some(key => key.startsWith('by') && !FOLLOWED.has(key))) return 'invalid';
 
-  const data: Record<string, unknown> = { freq: frequency };
   const interval = raw.interval === undefined ? 1 : asInteger(raw.interval);
   if (interval === undefined || interval < 1 || interval > MAX_INTERVAL) return 'invalid';
-  data.interval = interval;
   let count: number | undefined;
   if (raw.count !== undefined) {
     const parsed = asInteger(raw.count);
     if (parsed === undefined || parsed < 1) return 'invalid';
     count = Math.min(parsed, MAX_COUNT);
-    data.count = count;
   }
-  let plain = true;
-  for (const [key, range] of Object.entries(BY_RANGES)) {
-    if (raw[key] === undefined) continue;
-    plain = false;
-    const list = asList(raw[key]);
-    if (list.length > MAX_LIST) return 'invalid';
-    const numbers = list.map(asInteger);
-    if (numbers.some(n => n === undefined || n < range.min || n > range.max || (!range.zero && n === 0))) return 'invalid';
-    data[key] = numbers;
-  }
-  if (raw.byday !== undefined) {
-    plain = false;
-    const list = asList(raw.byday);
-    if (list.length > MAX_LIST || list.some(day => typeof day !== 'string' || !WEEKDAY.test(day) || Number(WEEKDAY.exec(day)?.[1] ?? 0) > 53)) return 'invalid';
-    data.byday = list;
-  }
+  const until = typeof raw.until === 'string' ? raw.until : undefined;
+  if (raw.until !== undefined && until === undefined) return 'invalid';
+
+  let wkst = 1;
   if (raw.wkst !== undefined) {
     // The library hands WKST back as a number (1 is Sunday); a name is turned into the same number.
     const named = typeof raw.wkst === 'string' ? WEEKDAY_NUMBERS.indexOf(raw.wkst.toUpperCase()) : -1;
     const number = named >= 0 ? named + 1 : asInteger(raw.wkst);
     if (number === undefined || number < 1 || number > 7) return 'invalid';
-    data.wkst = number;
+    wkst = number - 1;
   }
-  if (!partsAllowedWith(frequency as Frequency, raw, data)) return 'invalid';
-  if (!monthAndDayCanMeet(data.bymonth as number[] | undefined, data.bymonthday as number[] | undefined)) return 'invalid';
-  const until = typeof raw.until === 'string' ? raw.until : undefined;
-  if (raw.until !== undefined && until === undefined) return 'invalid';
-  return { frequency: frequency as Frequency, interval, ...(count === undefined ? {} : { count }), plain, ...(until === undefined ? {} : { until }), data };
+
+  const bymonth = raw.bymonth === undefined ? undefined : integers(raw.bymonth, 1, 12);
+  const bymonthday = raw.bymonthday === undefined ? undefined : integers(raw.bymonthday, -31, 31);
+  if ((raw.bymonth !== undefined && !bymonth) || (raw.bymonthday !== undefined && !bymonthday)) return 'invalid';
+  if (bymonthday && frequency === 'WEEKLY') return 'invalid';
+  if (bymonthday?.some(day => day < 0) && frequency === 'DAILY') return 'invalid';
+  if (!monthAndDayCanMeet(bymonth, bymonthday)) return 'invalid';
+
+  let byday: Array<{ n: number; wd: number }> | undefined;
+  if (raw.byday !== undefined) {
+    const list = asList(raw.byday);
+    if (list.length > MAX_LIST) return 'invalid';
+    byday = [];
+    for (const item of list) {
+      const match = typeof item === 'string' ? WEEKDAY.exec(item) : null;
+      if (!match) return 'invalid';
+      const n = match[1] === undefined ? 0 : Number(match[1]);
+      // A number is the nth such day of the month, so only a monthly rule takes one, and a yearly rule only within its months.
+      if (n !== 0 && (Math.abs(n) > 5 || (frequency !== 'MONTHLY' && !(frequency === 'YEARLY' && bymonth)))) return 'invalid';
+      byday.push({ n, wd: WEEKDAY_NUMBERS.indexOf(match[2].toUpperCase()) });
+    }
+  }
+  return {
+    frequency, interval, wkst,
+    ...(count === undefined ? {} : { count }),
+    ...(until === undefined ? {} : { until }),
+    ...(bymonth ? { bymonth } : {}),
+    ...(bymonthday ? { bymonthday } : {}),
+    ...(byday ? { byday } : {}),
+  };
 }
 
 // UNTIL as a time on the wall clock of the event's start. A time in universal time is converted to that clock; a date covers all of
@@ -534,49 +532,35 @@ function occurrenceAt(parsed: Parsed, wall: Wall, context: Context): ParsedOccur
   return { allDay: false, startMs, endMs, title: parsed.title, free: parsed.free, approx };
 }
 
-// Where to start the iterator so a long-running daily or weekly series does not use up its steps before the window. The start
-// moves forward by whole periods, so the series is the same from there on. A COUNT can only be carried forward for a plain rule.
-function fastForward(start: Wall, rule: Rule, length: number, context: Context): { day: string; count?: number } | undefined {
-  if (rule.frequency !== 'DAILY' && rule.frequency !== 'WEEKLY') return undefined;
-  if (rule.count !== undefined && !rule.plain) return undefined;
-  const span = start.allDay ? length : Math.ceil(length / DAY_MS) + 1;
-  const target = addDays(context.fromDay, -(span + 2));
-  const period = rule.interval * (rule.frequency === 'DAILY' ? 1 : 7);
-  const periods = Math.floor(daysBetween(start.day, target) / period);
-  if (periods <= 0) return undefined;
-  const count = rule.count === undefined ? undefined : rule.count - periods;
-  return { day: addDays(start.day, periods * period), ...(count === undefined ? {} : { count }) };
-}
-
-// The wall-clock starts of a repeat rule, one iterator step each, up to the end of the window. Returns false when the step limit
-// stopped it.
+// The wall-clock starts of a repeat rule from our own expansion, up to the end of the window. Returns false when a limit stopped it.
 function walkRule(parsed: Parsed, start: Wall, rule: Rule, context: Context, visit: (day: string, seconds: number) => void): boolean {
-  const given = rule.until === undefined ? undefined : untilOnWall(rule.until, start);
-  if (rule.until !== undefined && given === undefined) return false;
-  // The rule never runs past the window: an end the library can see stops a search that would otherwise go on for years.
-  const bound = start.allDay ? addDays(context.toDay, 2) : `${addDays(context.toDay, 2)}T23:59:59`;
-  const until = given !== undefined && given < bound ? given : bound;
-  const forward = fastForward(start, rule, parsed.length, context);
-  if (forward?.count !== undefined && forward.count < 1) return true;
-  const first = forward?.day ?? start.day;
-  const [year, month, day] = first.split('-').map(Number);
-  const data: Record<string, unknown> = { ...rule.data };
-  if (forward?.count !== undefined) data.count = forward.count;
-  data.until = until;
-  const iterator = ICAL.Recur.fromData(data as never).iterator(
-    ICAL.Time.fromData({ year, month, day, hour: Math.floor(start.seconds / 3600), minute: Math.floor((start.seconds % 3600) / 60), second: start.seconds % 60, isDate: start.allDay }),
-  );
-  const lastDay = addDays(context.toDay, 1);
-  for (let steps = 0; ; steps += 1) {
-    if (steps >= MAX_EVENT_STEPS || context.budget.steps >= MAX_FILE_STEPS) return false;
-    if (Date.now() > context.budget.deadline) return false;
-    context.budget.steps += 1;
-    const next = iterator.next();
-    if (!next || next.year > MAX_YEAR) return true;
-    const nextDay = `${String(next.year).padStart(4, '0')}-${pad(next.month)}-${pad(next.day)}`;
-    if (nextDay > lastDay) return true;
-    visit(nextDay, next.hour * 3600 + next.minute * 60 + next.second);
-  }
+  const until = rule.until === undefined ? undefined : untilOnWall(rule.until, start);
+  if (rule.until !== undefined && until === undefined) return false;
+  const clock = `${pad(Math.floor(start.seconds / 3600))}:${pad(Math.floor((start.seconds % 3600) / 60))}:${pad(start.seconds % 60)}`;
+  // How far back an occurrence can start and still reach the window.
+  const span = start.allDay ? parsed.length : Math.ceil(parsed.length / DAY_MS) + 1;
+  let eventSteps = 0;
+  let periods = 0;
+  return expandRule({
+    rule,
+    startDay: start.day,
+    fromDay: addDays(context.fromDay, -(span + 2)),
+    lastDay: addDays(context.toDay, 1),
+    pastUntil: day => until !== undefined && (start.allDay ? day > until : `${day}T${clock}` > until),
+    emit: day => {
+      if (eventSteps >= MAX_EVENT_STEPS || context.budget.steps >= MAX_FILE_STEPS) return false;
+      eventSteps += 1;
+      context.budget.steps += 1;
+      visit(day, start.seconds);
+      return true;
+    },
+    tick: () => {
+      periods += 1;
+      context.budget.periods += 1;
+      if (periods > MAX_PERIODS || context.budget.periods > MAX_FILE_PERIODS) return false;
+      return periods % 256 !== 0 || Date.now() <= context.budget.deadline;
+    },
+  });
 }
 
 function expandMaster(parsed: Parsed, start: Wall, overridden: Excluded | undefined, context: Context): ParsedOccurrence[] {
@@ -652,7 +636,7 @@ export function parseCore(input: string, span: ParseWindow, limits: ParseLimits 
   if (scanned === 'not_calendar' || scanned === 'too_big') return { ok: false, internal: scanned };
 
   const zone = canonicalZone(span.zone) as string;
-  const budget: Budget = { steps: 0, conversions: 0, deadline: Date.now() + (limits.budgetMs ?? DEFAULT_BUDGET_MS) };
+  const budget: Budget = { steps: 0, periods: 0, conversions: 0, deadline: Date.now() + (limits.budgetMs ?? DEFAULT_BUDGET_MS) };
   const zones = new Zones(zone, budget);
   const counts: ParseCounts = { events: scanned.events.length, skipped: 0, approx: 0, truncated: false };
   const context: Context = { zones, range: span, fromDay: dayInZone(span.from, zone), toDay: dayInZone(span.to, zone), counts, budget };

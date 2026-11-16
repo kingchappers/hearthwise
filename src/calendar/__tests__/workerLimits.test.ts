@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
@@ -7,9 +7,8 @@ import { parseIcs, startWorker } from '../parseIcs';
 import type { ParseWindow } from '../parseCore';
 import { GOOD_FILE } from './hostile';
 
-// One call of the repeat library cannot be interrupted from inside its own thread, so the protection that holds for every rule is
-// the worker's time limit: the worker is stopped and the answer is `parse`. These run the real worker (bundled from the source, since
-// a worker cannot load TypeScript) on rules found to make the library search without end.
+// The real worker, bundled from the source (a worker cannot load TypeScript). Rules the repeat library spins on are refused before any
+// loop (we expand rules ourselves), and the worker's time and memory limits are the backstop for anything else.
 const NOW = Date.UTC(2026, 5, 15);
 const WINDOW: ParseWindow = { from: NOW - 14 * 86_400_000, to: NOW + 120 * 86_400_000, now: NOW, zone: 'Europe/London' };
 let dir = '';
@@ -27,26 +26,37 @@ const withRule = (rrule: string, start = '20200229T110000Z'): string =>
   `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:spin@test\r\nSUMMARY:Spin\r\nDTSTART:${start}\r\n${rrule}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
 const parse = (text: string): ReturnType<typeof parseIcs> => parseIcs(text, WINDOW, { createWorker: input => startWorker(file, input), timeoutMs: 1500 });
 
-describe('the worker is the backstop for a rule the library never finishes', () => {
-  it('reads a good file in the real worker', async () => {
+describe('the real worker', () => {
+  it('reads a good file', async () => {
     await expect(parse(GOOD_FILE)).resolves.toMatchObject({ ok: true, occurrences: [{ title: 'Still works' }] });
   });
 
   it.each([
     'RRULE:FREQ=DAILY;INTERVAL=154;BYMONTH=5;BYMONTHDAY=11,26,1;BYDAY=MO;BYHOUR=1;COUNT=79',
-    'RRULE:FREQ=DAILY;BYMONTHDAY=-26;BYDAY=MO;BYHOUR=1',
+    'RRULE:FREQ=DAILY;BYMONTHDAY=-1',
     'RRULE:FREQ=WEEKLY;INTERVAL=2;BYMONTH=2;BYMONTHDAY=30',
     'RRULE:FREQ=YEARLY;INTERVAL=2;BYMONTH=2;BYMONTHDAY=30;BYDAY=MO',
     'RRULE:FREQ=MONTHLY;INTERVAL=12;BYSETPOS=5;BYDAY=MO;BYMONTH=2',
-  ])('stops %s within the deadline, and the next file is read', async rrule => {
+  ])('refuses %s at once, counts it, and reads the next file', async rrule => {
     const started = Date.now();
-    const result = await parse(withRule(rrule));
-    expect(Date.now() - started).toBeLessThan(4000);
-    expect(result.ok === true || result.internal === 'parse').toBe(true);
+    await expect(parse(withRule(rrule))).resolves.toMatchObject({ ok: true, occurrences: [], counts: { skipped: 1 } });
+    expect(Date.now() - started).toBeLessThan(2000);
     await expect(parse(GOOD_FILE)).resolves.toMatchObject({ ok: true });
   });
 
-  it('answers parse, and no events, for a rule the library spins on', async () => {
-    await expect(parse(withRule('RRULE:FREQ=DAILY;INTERVAL=154;BYMONTH=5;BYMONTHDAY=11,26,1;BYDAY=MO;BYHOUR=1;COUNT=79'))).resolves.toEqual({ ok: false, internal: 'parse' });
+  it('is stopped by the time limit when it never answers, and the process stays healthy', async () => {
+    const spinner = join(dir, 'spinner.cjs');
+    writeFileSync(spinner, 'for (;;) {}');
+    const started = Date.now();
+    await expect(parseIcs(GOOD_FILE, WINDOW, { createWorker: input => startWorker(spinner, input), timeoutMs: 500 })).resolves.toEqual({ ok: false, internal: 'parse' });
+    expect(Date.now() - started).toBeLessThan(3000);
+    await expect(parse(GOOD_FILE)).resolves.toMatchObject({ ok: true });
+  });
+
+  it('is stopped by its memory ceiling, and the process stays healthy', async () => {
+    const hog = join(dir, 'hog.cjs');
+    writeFileSync(hog, 'const keep = []; for (;;) keep.push(new Array(1e6).fill(Math.random()));');
+    await expect(parseIcs(GOOD_FILE, WINDOW, { createWorker: input => startWorker(hog, input), timeoutMs: 10_000 })).resolves.toEqual({ ok: false, internal: 'parse' });
+    await expect(parse(GOOD_FILE)).resolves.toMatchObject({ ok: true });
   });
 });
