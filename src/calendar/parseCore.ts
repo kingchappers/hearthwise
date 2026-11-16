@@ -303,10 +303,6 @@ function partsAllowedWith(frequency: Frequency, raw: Record<string, unknown>, da
   if (has('byweekno') && frequency !== 'YEARLY') return false;
   if (has('byyearday') && frequency !== 'YEARLY') return false;
   if (has('bymonthday') && frequency === 'WEEKLY') return false;
-  // A daily rule that steps over days and then filters them can step for ever without landing on one that passes.
-  if (frequency === 'DAILY' && Number(data.interval) > 1 && ['bymonth', 'bymonthday', 'byday'].some(has)) return false;
-  // The library never finishes a daily rule counted from the end of the month.
-  if (frequency === 'DAILY' && (data.bymonthday as number[] | undefined)?.some(day => day < 0)) return false;
   const ordinal = (data.byday as string[] | undefined)?.some(day => /\d/.test(day)) ?? false;
   if (ordinal && frequency !== 'MONTHLY' && frequency !== 'YEARLY') return false;
   if (ordinal && has('byweekno')) return false;

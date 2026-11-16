@@ -23,15 +23,18 @@ export interface ParseDeps {
   timeoutMs?: number;
 }
 
-// The compiled worker sits beside this file in every build.
-function realWorker(input: WorkerInput): WorkerLike {
-  return new Worker(path.join(__dirname, 'parseWorker.js'), {
+// Starts the worker file with the limits every parse gets: no environment, no inherited flags, and a memory ceiling.
+export function startWorker(file: string, input: WorkerInput): WorkerLike {
+  return new Worker(file, {
     workerData: input,
     env: {},
     execArgv: [],
     resourceLimits: { maxOldGenerationSizeMb: OLD_SPACE_MB, maxYoungGenerationSizeMb: 16, stackSizeMb: 2 },
   });
 }
+
+// The compiled worker sits beside this file in every build.
+const realWorker = (input: WorkerInput): WorkerLike => startWorker(path.join(__dirname, 'parseWorker.js'), input);
 
 function isResult(value: unknown): value is ParseResult {
   return typeof value === 'object' && value !== null && typeof (value as { ok?: unknown }).ok === 'boolean';

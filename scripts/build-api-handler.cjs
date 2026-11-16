@@ -11,7 +11,7 @@ if (!fs.existsSync(apiBuildDir)) {
 // Compile TypeScript handler to JavaScript
 console.log('Compiling API handler...');
 execSync(
-  'tsc api-handler.ts --outDir build/api --module commonjs --skipLibCheck --strict --target es2020 --resolveJsonModule --esModuleInterop',
+  'tsc api-handler.ts src/calendar/parseIcs.ts src/calendar/parseWorker.ts --outDir build/api --module commonjs --skipLibCheck --strict --target es2020 --resolveJsonModule --esModuleInterop',
   { cwd: path.join(__dirname, '..'), stdio: 'inherit' }
 );
 
@@ -35,6 +35,8 @@ const packageJson = {
     '@aws-sdk/client-sns': '^3.0.0',
     '@aws-sdk/client-ssm': '^3.0.0',
     'web-push': '^3.6.7',
+    // Exact, not a range: the parser reads hostile files.
+    'ical.js': '2.2.1',
   },
 };
 fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
@@ -44,7 +46,8 @@ console.log('Installing Lambda dependencies...');
 execSync('npm install --production --ignore-scripts', { cwd: apiBuildDir, stdio: 'inherit' });
 
 // Clean up package.json and package-lock.json (not needed in Lambda)
-fs.unlinkSync(packageJsonPath);
+// The marker lets the compiled CommonJS run (and its worker start) from inside this repository, which is "type": "module".
+fs.writeFileSync(packageJsonPath, JSON.stringify({ type: 'commonjs' }) + '\n');
 const lockFilePath = path.join(apiBuildDir, 'package-lock.json');
 if (fs.existsSync(lockFilePath)) {
   fs.unlinkSync(lockFilePath);

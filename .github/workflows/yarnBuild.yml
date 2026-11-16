@@ -69,6 +69,11 @@ jobs:
         VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
       run: yarn run build
 
+    - name: Start the calendar worker from the API, push and container builds
+      run: |
+        yarn build:container
+        yarn test:build
+
     - name: Install OpenTofu
       uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f  # v1.0.8
       with:
