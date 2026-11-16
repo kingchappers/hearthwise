@@ -26,6 +26,12 @@ export const HOSTILE: Record<string, () => string> = {
   hugeDtstart: () => wrap(event('SUMMARY:h', 'DTSTART:99991231T235959Z', 'DTEND:99991231T235959Z') + event('SUMMARY:h2', 'DTSTART:00010101T000000Z', 'RRULE:FREQ=DAILY') + event('SUMMARY:h3', 'DTSTART:2026070100000000000Z')),
   badTzid: () => wrap(event('SUMMARY:z', `DTSTART;TZID=${'Q'.repeat(100_000)}:20260701T090000`, 'DTEND;TZID=Not/A/Zone/At/All:20260701T100000')),
   manyTzids: () => wrap(Array.from({ length: 3000 }, (_, i) => event(`SUMMARY:z${i}`, `DTSTART;TZID=europe/LoNdOn${i % 2 ? '' : '/'}${i}:20260701T090000`)).join('')),
+  // A month and day that never meet: one next() call of the library can spend a minute looking for the next match.
+  impossibleDay: () => wrap(Array.from({ length: 3000 }, (_, i) => event(`UID:${i}@t`, 'SUMMARY:i', 'DTSTART:20260101T090000Z', i % 2 ? 'RRULE:FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30' : 'RRULE:FREQ=YEARLY;BYMONTH=4,6,9,11;BYMONTHDAY=31')).join('')),
+  // Hundreds of events, each with hundreds of distinct EXDATE and RDATE values and a recurrence id in another zone.
+  manyExdates: () => wrap(Array.from({ length: 170 }, (_, i) => event(`UID:${i}@t`, 'SUMMARY:x', 'DTSTART;TZID=America/New_York:20260101T090000', 'RRULE:FREQ=DAILY', `EXDATE;TZID=Europe/Paris:${Array.from({ length: 700 }, (_, j) => `2026${String(1 + (j % 12)).padStart(2, '0')}${String(1 + (j % 28)).padStart(2, '0')}T${String((i + j) % 24).padStart(2, '0')}${String(j % 60).padStart(2, '0')}00`).join(',')}`)).join('')),
+  // Rules found to make the library spin inside one call.
+  spinningRules: () => wrap(Array.from({ length: 2000 }, (_, i) => event(`UID:${i}@t`, 'SUMMARY:s', 'DTSTART:20200229T110000Z', 'RRULE:' + ['FREQ=DAILY;INTERVAL=154;BYMONTH=5;BYMONTHDAY=11,26,1;BYDAY=MO;BYHOUR=1;COUNT=79', 'FREQ=DAILY;INTERVAL=319;BYMONTH=7,5,4;BYWEEKNO=52,-12', 'FREQ=DAILY;BYMONTHDAY=-26;BYDAY=MO;BYHOUR=1', 'FREQ=DAILY;INTERVAL=99999999999'][i % 4])).join('')),
   byteOrderMark: () => '﻿' + GOOD_FILE,
   controlCharacters: () => wrap(event('SUMMARY:' + '\u0000\u0007\u001B‮​'.repeat(50) + 'visible', 'DTSTART:20260701T090000Z')),
   // Deeply nested blocks, and an unterminated one.
