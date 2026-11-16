@@ -5,10 +5,10 @@ const HOUR = 3600;
 const options = { backupHour: 3, backupKeep: 7 };
 const at = (hour: number) => new Date(2026, 9, 10, hour, 0, 0);
 
-type Fake = MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number; schedules: number; reminders: number };
+type Fake = MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number; schedules: number; reminders: number; refreshes: number };
 
 function deps(ageSeconds: number): Fake {
-  const state = { logs: [] as string[], backups: [] as Date[], purges: 0, schedules: 0, reminders: 0 };
+  const state = { logs: [] as string[], backups: [] as Date[], purges: 0, schedules: 0, reminders: 0, refreshes: 0 };
   return Object.assign(state, {
     purgeExpired: () => { state.purges += 1; return 0; },
     backup: (now: Date) => { state.backups.push(now); },
@@ -16,6 +16,7 @@ function deps(ageSeconds: number): Fake {
     log: (message: string) => { state.logs.push(message); },
     runScheduler: async () => { state.schedules += 1; },
     runReminders: async () => { state.reminders += 1; },
+    runCalendarRefresh: async () => { state.refreshes += 1; },
   });
 }
 
@@ -51,6 +52,40 @@ describe('the reminder scheduler', () => {
     d.purgeExpired = () => { throw new Error('disk'); };
     await runTick(d, options, at(10));
     expect(d.schedules).toBe(1);
+  });
+});
+
+describe('the calendar feed refresh', () => {
+  it('runs on every hourly tick, after the scheduler', async () => {
+    const d = deps(0);
+    const order: string[] = [];
+    d.runScheduler = async () => { order.push('scheduler'); };
+    d.runCalendarRefresh = async () => { order.push('refresh'); };
+    await runTick(d, options, at(10));
+    expect(order).toEqual(['scheduler', 'refresh']);
+  });
+
+  it('is not run by the five-minute reminder tick', async () => {
+    const d = deps(0);
+    await runReminderTick(d, at(10));
+    expect(d.refreshes).toBe(0);
+  });
+
+  it('is logged by name when it fails, and never stops the scheduler or the backup', async () => {
+    const d = deps(25 * HOUR);
+    d.runCalendarRefresh = async () => { throw Object.assign(new TypeError('SENTINEL-link detail'), { code: 'ECONNRESET' }); };
+    await runTick(d, options, at(3));
+    expect(d.schedules).toBe(1);
+    expect(d.backups).toHaveLength(1);
+    expect(d.logs.join('\n')).toContain('Calendar refresh failed: TypeError (ECONNRESET)');
+    expect(d.logs.join('\n')).not.toContain('SENTINEL');
+  });
+
+  it('runs even when the scheduler fails', async () => {
+    const d = deps(0);
+    d.runScheduler = async () => { throw new Error('x'); };
+    await runTick(d, options, at(10));
+    expect(d.refreshes).toBe(1);
   });
 });
 

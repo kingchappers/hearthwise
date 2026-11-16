@@ -7,6 +7,8 @@ export interface MaintenanceDeps {
   runScheduler(now: Date): Promise<void>;
   // Calendar reminders people asked for, every five minutes. The hourly tick never runs them and this one never runs the scheduler.
   runReminders(now: Date): Promise<void>;
+  // Calendar feeds: fetched again, and what a removed member left behind cleared. Hourly, after the scheduler.
+  runCalendarRefresh(now: Date): Promise<void>;
 }
 
 export interface MaintenanceOptions {
@@ -65,6 +67,7 @@ export async function runTick(deps: MaintenanceDeps, options: MaintenanceOptions
   attempt(deps, 'Expired-item purge', () => { deps.purgeExpired(); });
   backupIfDue(deps, options, now);
   await attemptAsync(deps, 'Reminder scheduler', () => deps.runScheduler(now));
+  await attemptAsync(deps, 'Calendar refresh', () => deps.runCalendarRefresh(now));
 }
 
 export async function runReminderTick(deps: MaintenanceDeps, now: Date): Promise<void> {

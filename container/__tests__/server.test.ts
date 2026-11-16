@@ -71,6 +71,35 @@ describe('push keys', () => {
   });
 });
 
+describe('the calendar key', () => {
+  it('is made once with mode 0600 in the data folder, kept across restarts, and never logged or served', async () => {
+    const base = await start();
+    const file = join(dir, 'data', 'calendar.key');
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    const key = readFileSync(file, 'utf8').trim();
+    expect(Buffer.from(key, 'base64')).toHaveLength(32);
+    expect(await (await fetch(`${base}/config.json`)).text()).not.toContain(key);
+    expect(logSpy.mock.calls.map((call: unknown[]) => String(call[0])).join('\n')).not.toContain(key);
+    await running?.close();
+    running = undefined;
+    await start();
+    expect(readFileSync(file, 'utf8').trim()).toBe(key);
+  });
+
+  it('is read from CALENDAR_KEY when that is set, and no file is made', async () => {
+    await start({ CALENDAR_KEY: Buffer.alloc(32, 3).toString('base64') });
+    expect(existsSync(join(dir, 'data', 'calendar.key'))).toBe(false);
+  });
+
+  it('keeps serving without calendars when the key file cannot be read', async () => {
+    mkdirSync(join(dir, 'data'), { recursive: true });
+    writeFileSync(join(dir, 'data', 'calendar.key'), 'not a key');
+    const base = await start();
+    expect((await fetch(`${base}/healthz`)).status).toBe(200);
+    expect(readFileSync(join(dir, 'data', 'calendar.key'), 'utf8')).toBe('not a key');
+  });
+});
+
 describe('serving', () => {
   it('serves health, the runtime config (not the built file) and the app shell with a CSP header', async () => {
     const base = await start();
