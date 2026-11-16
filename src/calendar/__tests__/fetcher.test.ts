@@ -9,6 +9,16 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createFetcher, fetchFeed, pinnedLookup, userCodeFor, type FetcherDeps, type RequestFn } from '../fetcher';
 import { createTestPki, type TestPki } from './testPki';
 
+const gunzips = vi.hoisted(() => [] as Array<{ destroyed: boolean }>);
+vi.mock('node:zlib', async importOriginal => {
+  const original = await importOriginal<typeof import('node:zlib')>();
+  return { ...original, createGunzip: (...args: Parameters<typeof original.createGunzip>) => {
+    const stream = original.createGunzip(...args);
+    gunzips.push(stream);
+    return stream;
+  } };
+});
+
 const LINK = 'https://calendar.google.com/calendar/ical/a/b/basic.ics';
 const ICS = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n';
 const PUBLIC = '93.184.216.34';
@@ -535,6 +545,17 @@ describe('size limits', () => {
     await expectRefusal(make().fetcher(LINK), 'too_big', 'too_big');
     expect(Date.now() - started).toBeLessThan(2500);
     await vi.waitFor(() => expect(closed).toBe(true));
+  });
+
+  it('destroys the decompressor when the output limit trips, so it does no more work', async () => {
+    gunzips.length = 0;
+    handler = (_req, res) => {
+      res.writeHead(200, { 'Content-Encoding': 'gzip' });
+      res.end(gzipSync(Buffer.alloc(50 * MB, 'a'), { level: 9 }));
+    };
+    await expectRefusal(make().fetcher(LINK), 'too_big', 'too_big');
+    expect(gunzips).toHaveLength(1);
+    expect(gunzips[0].destroyed).toBe(true);
   });
 
   it('refuses a compressed body of more than 2 MB before it is decoded, with no length given', async () => {

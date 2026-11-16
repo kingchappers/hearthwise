@@ -222,7 +222,13 @@ export function createFetcher(deps: FetcherDeps): (link: string) => Promise<Fetc
     });
   }
 
-  function readBody(res: IncomingMessage, fail: (error: Refusal) => void, succeed: (result: HopResult) => void): void {
+  function readBody(res: IncomingMessage, failHop: (error: Refusal) => void, succeed: (result: HopResult) => void): void {
+    let gunzip: ReturnType<typeof createGunzip> | undefined;
+    // Every way out also destroys the decompressor, so it does no more work.
+    const fail = (error: Refusal): void => {
+      gunzip?.destroy();
+      failHop(error);
+    };
     const encodingHeader = res.headers['content-encoding'];
     const encoding = (typeof encodingHeader === 'string' ? encodingHeader : '').trim().toLowerCase();
     const gzip = encoding === 'gzip' || encoding === 'x-gzip';
@@ -267,23 +273,24 @@ export function createFetcher(deps: FetcherDeps): (link: string) => Promise<Fetc
     }
 
     // Count what comes in as well as what comes out, and stop reading the moment either passes the limit, so a bomb is never expanded.
-    const gunzip = createGunzip();
-    gunzip.on('error', () => fail(refusal('not_calendar')));
-    gunzip.on('data', (chunk: Buffer) => take(chunk));
-    gunzip.on('end', done);
+    const decoder = createGunzip();
+    gunzip = decoder;
+    decoder.on('error', () => fail(refusal('not_calendar')));
+    decoder.on('data', (chunk: Buffer) => take(chunk));
+    decoder.on('end', done);
     res.on('data', (chunk: Buffer) => {
       received += chunk.length;
       if (received > MAX_BYTES) {
-        gunzip.destroy();
+        decoder.destroy();
         fail(refusal('too_big'));
         return;
       }
-      if (!gunzip.write(chunk)) {
+      if (!decoder.write(chunk)) {
         res.pause();
-        gunzip.once('drain', () => res.resume());
+        decoder.once('drain', () => res.resume());
       }
     });
-    res.on('end', () => gunzip.end());
+    res.on('end', () => decoder.end());
   }
 
   async function run(link: string, deadline: Promise<never>): Promise<FetchResult> {
