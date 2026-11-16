@@ -398,20 +398,20 @@ describe('parseCore: rules it will not follow', () => {
 });
 
 describe('parseCore: expansion limits', () => {
-  it('stops one event at 1,000 steps and counts it', () => {
-    const result = parseCore(calendar(vevent('SUMMARY:Busy', 'DTSTART:20260601T000000Z', 'RRULE:FREQ=DAILY;BYHOUR=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23')), JUNE);
-    expect(result).toMatchObject({ ok: true, counts: { skipped: 1 } });
-    expect(result.ok && result.occurrences.length).toBeLessThanOrEqual(1000);
-    expect(result.ok && result.occurrences.length).toBeGreaterThan(900);
+  it('stops the whole file at 20,000 steps and counts the events it did not finish', () => {
+    const events = Array.from({ length: 300 }, (_, i) => vevent(`SUMMARY:E${i}`, 'DTSTART:20260601T090000Z', 'RRULE:FREQ=DAILY'));
+    const result = parseCore(calendar(...events), JUNE);
+    if (!result.ok) throw new Error('failed');
+    // About 134 steps an event: 20,000 is reached in the 150th.
+    expect(result.counts.skipped).toBeGreaterThanOrEqual(150);
+    expect(result.counts.skipped).toBeLessThanOrEqual(152);
   });
 
-  it('stops the whole file at 20,000 steps', () => {
-    const rule = 'RRULE:FREQ=DAILY;BYHOUR=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23';
-    const events = Array.from({ length: 40 }, (_, i) => vevent(`SUMMARY:E${i}`, 'DTSTART:20260601T000000Z', rule));
-    const result = parseCore(calendar(...events), JUNE);
+  it('steps through years of daily periods to count a COUNT, and stops if there are too many', () => {
+    const started = Date.now();
+    const result = parseCore(calendar(vevent('SUMMARY:Old', 'DTSTART:19700101T090000Z', 'RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA,SU;COUNT=1000000000')), JUNE);
     expect(result).toMatchObject({ ok: true });
-    expect(result.ok && result.counts.skipped).toBeGreaterThanOrEqual(20);
-    expect(result.ok && result.occurrences.length).toBeLessThanOrEqual(20_000);
+    expect(Date.now() - started).toBeLessThan(3000);
   });
 
   it('keeps the 2,000 occurrences nearest to now, in order, and says so', () => {
@@ -439,8 +439,7 @@ describe('parseCore: expansion limits', () => {
 import { GOOD_FILE, HOSTILE } from './hostile';
 
 describe('parseCore: hostile files', () => {
-  // spinningRules is for the worker only: nothing in this thread can interrupt it.
-  it.each(Object.keys(HOSTILE).filter(name => name !== 'spinningRules'))('returns a result for %s and still reads a good file after it', name => {
+  it.each(Object.keys(HOSTILE))('returns a result for %s and still reads a good file after it', name => {
     const text = HOSTILE[name]();
     expect(text.length).toBeLessThanOrEqual(2 * 1024 * 1024 + 4096);
     const result = parseCore(text, JUNE, { budgetMs: 1500 });
@@ -513,7 +512,7 @@ describe('parseCore: one slow step of the library', () => {
   });
 
   it('stops a file of impossible rules and a file of huge EXDATE lists within the budget', () => {
-    for (const name of ['impossibleDay', 'manyExdates']) {
+    for (const name of ['impossibleDay', 'manyExdates', 'spinningRules']) {
       const started = Date.now();
       const result = parseCore(HOSTILE[name](), JUNE, { budgetMs: 1500 });
       expect(result, name).toMatchObject({ ok: true });
@@ -525,5 +524,57 @@ describe('parseCore: one slow step of the library', () => {
     const exdates = Array.from({ length: 600 }, (_, i) => `EXDATE:2026${String(6 + Math.floor(i / 28) % 4).padStart(2, '0')}${String(1 + (i % 28)).padStart(2, '0')}T090000Z`).join('\r\n');
     const result = parseCore(calendar(vevent('SUMMARY:X', 'DTSTART:20260601T090000Z', 'RRULE:FREQ=DAILY', exdates)), JUNE);
     expect(result).toMatchObject({ ok: true, counts: { skipped: 1 } });
+  });
+});
+
+describe('parseCore: only the rule shapes it follows', () => {
+  const run = (rrule: string, start = '20260601T090000Z'): ReturnType<typeof parseCore> => parseCore(calendar(vevent('SUMMARY:X', `DTSTART:${start}`, rrule)), JUNE);
+
+  it.each(['20260101', '20261101', '20200229'])('refuses a daily rule counted from the end of the month (start %s) without spinning', day => {
+    expect(run('RRULE:FREQ=DAILY;BYMONTHDAY=-1', `${day}T090000Z`)).toMatchObject({ ok: true, occurrences: [], counts: { skipped: 1 } });
+  });
+
+  it.each([
+    'FREQ=YEARLY;BYWEEKNO=20;BYDAY=MO',
+    'FREQ=YEARLY;BYWEEKNO=53;BYDAY=MO',
+    'FREQ=YEARLY;BYWEEKNO=20',
+    'FREQ=MONTHLY;BYDAY=53MO',
+    'FREQ=MONTHLY;BYDAY=6MO',
+    'FREQ=MONTHLY;BYDAY=0MO',
+    'FREQ=YEARLY;BYDAY=2MO',
+    'FREQ=WEEKLY;BYDAY=1MO',
+    'FREQ=MONTHLY;BYDAY=MO;BYSETPOS=-1',
+    'FREQ=DAILY;BYHOUR=9',
+    'FREQ=DAILY;BYMINUTE=5',
+    'FREQ=DAILY;BYSECOND=5',
+    'FREQ=YEARLY;BYYEARDAY=100',
+  ])('refuses %s and counts it, instead of giving wrong dates', rrule => {
+    expect(run(`RRULE:${rrule}`)).toMatchObject({ ok: true, occurrences: [], counts: { skipped: 1 } });
+  });
+
+  const dates = (rrule: string, start: string): string[] => starts(occurrencesOf(calendar(vevent('SUMMARY:R', `DTSTART:${start}`, `RRULE:${rrule}`))));
+
+  it('gives the first Monday of each month', () => {
+    expect(dates('FREQ=MONTHLY;BYDAY=1MO', '20260105T090000Z').slice(0, 3)).toEqual(['2026-06-01T09:00Z', '2026-07-06T09:00Z', '2026-08-03T09:00Z']);
+  });
+
+  it('gives the last day of each month, and skips months without a 31st', () => {
+    expect(dates('FREQ=MONTHLY;BYMONTHDAY=-1', '20260131T090000Z').slice(0, 3)).toEqual(['2026-06-30T09:00Z', '2026-07-31T09:00Z', '2026-08-31T09:00Z']);
+    expect(dates('FREQ=MONTHLY;BYMONTHDAY=31', '20260131T090000Z')).toEqual(['2026-07-31T09:00Z', '2026-08-31T09:00Z']);
+  });
+
+  it('gives the last Sunday of August every year, and a leap day only in leap years', () => {
+    expect(dates('FREQ=YEARLY;BYMONTH=8;BYDAY=-1SU', '20200101T090000Z')).toEqual(['2026-08-30T09:00Z']);
+    expect(dates('FREQ=YEARLY', '20240229T090000Z')).toEqual([]);
+  });
+
+  it('steps by INTERVAL months', () => {
+    expect(dates('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15', '20260115T090000Z')).toEqual(['2026-07-15T09:00Z', '2026-09-15T09:00Z']);
+  });
+
+  it('starts weeks on WKST', () => {
+    // Fortnightly Sunday and Monday: with weeks starting on Monday, Sunday 7 June closes the week of Monday 1 June.
+    expect(dates('FREQ=WEEKLY;INTERVAL=2;BYDAY=SU,MO;WKST=MO;COUNT=4', '20260601T090000Z')).toEqual(['2026-06-01T09:00Z', '2026-06-07T09:00Z', '2026-06-15T09:00Z', '2026-06-21T09:00Z']);
+    expect(dates('FREQ=WEEKLY;INTERVAL=2;BYDAY=SU,MO;WKST=SU;COUNT=4', '20260601T090000Z')).toEqual(['2026-06-01T09:00Z', '2026-06-14T09:00Z', '2026-06-15T09:00Z', '2026-06-28T09:00Z']);
   });
 });
