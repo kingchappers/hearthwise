@@ -10,6 +10,10 @@ import { saveSubscription } from '../../push/subscriptions';
 import { DEFAULT_SETTINGS } from '../../shared/household';
 import { getStore, setStore } from '../../store';
 import { MemoryStore } from '../../store/memory';
+import { CALFEEDS } from '../../calendar/keys';
+import { setFeedDeps } from '../../calendar/feedRuntime';
+import type { FeedDeps } from '../../calendar/feeds';
+import { fetchedFixtureDeps } from '../../calendar/__tests__/feedFixtures';
 import { registerCalendarRoutes } from '../calendar';
 import { registerHouseholdRoutes } from '../households';
 import { createRouter, type Router } from '../router';
@@ -19,6 +23,7 @@ const NOW = Date.parse('2026-11-14T10:00:00.000Z');
 const U1 = 'auth0|u1';
 const U2 = 'auth0|u2';
 const SECRET = 'SENTINEL-counselling';
+const HOUR = 3_600_000;
 const AT = NOW - 1000;
 let n = 0;
 const uuid = (): string => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
@@ -29,9 +34,10 @@ let logged: unknown[][];
 const sender: PushSender = { send: async (sub, payload) => { sent.push({ endpoint: sub.endpoint, payload }); return { status: 201 }; } };
 
 function event(method: string, path: string, body?: unknown): APIGatewayProxyEventV2 {
+  const [rawPath, query = ''] = path.split('?');
   return {
-    rawPath: path, requestContext: { http: { method } }, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
-    headers: { host: 'hearth.example.com' }, queryStringParameters: {}, isBase64Encoded: false,
+    rawPath, requestContext: { http: { method } }, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
+    headers: { host: 'hearth.example.com' }, queryStringParameters: Object.fromEntries(new URLSearchParams(query)), isBase64Encoded: false,
   } as unknown as APIGatewayProxyEventV2;
 }
 async function call(userId: string, method: string, path: string, body?: unknown) {
@@ -63,7 +69,7 @@ beforeEach(async () => {
   await getStore().put({ ...membershipKey(U2), householdId });
   for (const user of [U1, U2]) await saveSubscription(getStore(), user, { endpoint: `https://fcm.googleapis.com/fcm/send/${user}`, p256dh: 'p', auth: 'a', createdAt: NOW });
 });
-afterEach(() => { setStore(undefined); setSender(undefined); vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => { setStore(undefined); setSender(undefined); setFeedDeps(undefined); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('who may call', () => {
   const some = uuid();
@@ -337,5 +343,198 @@ describe('removing a member', () => {
     expect(await getStore().get(membershipKey(U2))).toBeUndefined();
     expect((await call(U1, 'GET', '/api/hh/calendar')).json.events).toEqual([]);
     expect(JSON.stringify(logged)).not.toContain('SENTINEL');
+  });
+});
+
+
+describe('feeds', () => {
+  const LINK = 'https://calendar.google.com/calendar/ical/SENTINEL-link/SENTINEL-private/basic.ics';
+  const FEED = '11111111-1111-4111-8111-111111111111';
+  const LABEL = 'SENTINEL-label';
+  const WINDOW = '?from=2026-11-10&to=2026-11-30';
+  let deps: FeedDeps;
+  const addBody = (extra: Record<string, unknown> = {}) => ({ id: FEED, link: LINK, label: LABEL, ...extra });
+  const everythingSaid = (): string => JSON.stringify(logged);
+  const stored = async (): Promise<string> => {
+    const rows: unknown[] = [];
+    for (const pk of [hhPk(householdId), CALFEEDS, 'CALRATE']) rows.push(...await getStore().query(pk));
+    return JSON.stringify(rows);
+  };
+
+  beforeEach(() => {
+    deps = fetchedFixtureDeps({ parse: vi.fn(async () => ({
+      ok: true as const,
+      occurrences: [{ allDay: false as const, startMs: Date.parse('2026-11-17T14:00:00Z'), endMs: Date.parse('2026-11-17T15:00:00Z'), title: 'SENTINEL-meeting', free: false, approx: false }],
+      counts: { events: 1, skipped: 0, approx: 0, truncated: false },
+    })) });
+    setFeedDeps(deps);
+  });
+
+  it.each([
+    ['GET', '/api/hh/calendar/feeds'], ['POST', '/api/hh/calendar/feeds'], ['GET', '/api/hh/calendar/imported?from=2026-11-10&to=2026-11-30'],
+    ['POST', `/api/hh/calendar/feeds/${FEED}/replace`], ['PATCH', `/api/hh/calendar/feeds/${FEED}`], ['POST', `/api/hh/calendar/feeds/${FEED}/refresh`], ['DELETE', `/api/hh/calendar/feeds/${FEED}`],
+  ])('%s %s answers 403 no_household to someone with no household', async (method, path) => {
+    expect((await call('auth0|nobody', method, path)).json).toEqual({ error: 'no_household' });
+  });
+
+  it('adds a feed, answers 201 with its state and the host for its owner, and never the link', async () => {
+    const res = await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    expect(res.status).toBe(201);
+    expect(res.json.feed).toMatchObject({ id: FEED, label: LABEL, mine: true, host: 'calendar.google.com', share: 'busy', status: 'ok', eventCount: 1 });
+    expect(res.text).not.toMatch(/SENTINEL-link|SENTINEL-private|ical/);
+    expect(await stored()).not.toContain('SENTINEL-link');
+    expect(everythingSaid()).not.toContain('SENTINEL-link');
+  });
+
+  it('answers a repeat of the same add with 200 and the stored state, and fetches nothing more', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    (deps.readLink as ReturnType<typeof vi.fn>).mockClear();
+    const again = await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    expect(again.status).toBe(200);
+    expect(deps.readLink).not.toHaveBeenCalled();
+  });
+
+  it('tells the other person who owns it and that it is busy only, and not its label or host', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    const res = await call(U2, 'GET', '/api/hh/calendar/feeds');
+    expect(res.json.feeds).toEqual([{ id: FEED, label: "Sam's calendar", owner: 'Sam', mine: false, share: 'busy', status: 'ok', fetchedAt: NOW }]);
+    expect(res.text).not.toMatch(/SENTINEL|google/);
+  });
+
+  it('gives the other person busy times from the window, and never the title', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    const theirs = await call(U2, 'GET', `/api/hh/calendar/imported${WINDOW}`);
+    expect(theirs.status).toBe(200);
+    expect(theirs.json.occurrences).toEqual([{ feedId: FEED, owner: 'Sam', busy: true, allDay: false, startMs: Date.parse('2026-11-17T14:00:00Z'), endMs: Date.parse('2026-11-17T15:00:00Z') }]);
+    expect(theirs.text).not.toContain('SENTINEL');
+    const mine = await call(U1, 'GET', `/api/hh/calendar/imported${WINDOW}`);
+    expect(mine.json.occurrences[0]).toMatchObject({ title: 'SENTINEL-meeting' });
+    expect(mine.json.feeds[0]).toMatchObject({ id: FEED, fetchedAt: NOW });
+  });
+
+  it('shows the other person the title once the owner chooses to show details', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    const patched = await call(U1, 'PATCH', `/api/hh/calendar/feeds/${FEED}`, mut({ share: 'details' }));
+    expect(patched.json.feed).toMatchObject({ share: 'details' });
+    expect((await call(U2, 'GET', `/api/hh/calendar/imported${WINDOW}`)).json.occurrences[0]).toMatchObject({ title: 'SENTINEL-meeting' });
+    expect((await call(U2, 'GET', '/api/hh/calendar/feeds')).json.feeds[0]).toMatchObject({ label: LABEL });
+  });
+
+  it('does not let the imported route be cached, or take a window that is not two real days', async () => {
+    expect((await router.dispatch(event('GET', '/api/hh/calendar/imported', undefined), U1)).statusCode).toBe(400);
+    const res = await router.dispatch({ ...event('GET', '/api/hh/calendar/imported'), queryStringParameters: { from: '2026-11-10', to: '2026-11-30' } }, U1);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers?.['Cache-Control']).toBe('no-store');
+    const wide = await router.dispatch({ ...event('GET', '/api/hh/calendar/imported'), queryStringParameters: { from: '2026-01-01', to: '2026-12-30' } }, U1);
+    expect(JSON.parse(wide.body!)).toEqual({ error: 'invalid', field: 'to' });
+  });
+
+  it('says what happened when the link cannot be read, with a code and nothing of the link', async () => {
+    (deps.readLink as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, internal: 'connect', code: 'unreachable' });
+    const res = await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    expect(res.status).toBe(422);
+    expect(res.json).toEqual({ error: 'feed_failed', code: 'unreachable' });
+    expect(await stored()).not.toContain('CALFEED#');
+  });
+
+  it('refuses a link at a site that is not one of the four, without fetching', async () => {
+    const res = await call(U1, 'POST', '/api/hh/calendar/feeds', addBody({ link: 'https://evil.example.com/SENTINEL-link' }));
+    expect(res.json).toEqual({ error: 'feed_failed', code: 'not_supported' });
+    expect(res.text).not.toContain('SENTINEL');
+    expect(deps.readLink).not.toHaveBeenCalled();
+    expect(everythingSaid()).not.toContain('SENTINEL');
+  });
+
+  it('never echoes the link in a 400, in the body or the logs', async () => {
+    for (const bad of [addBody({ label: '' }), addBody({ extra: LINK }), addBody({ share: LINK }), { ...addBody(), id: LINK }]) {
+      const res = await call(U1, 'POST', '/api/hh/calendar/feeds', bad);
+      expect(res.status).toBe(400);
+      expect(res.text).not.toContain('SENTINEL');
+    }
+    expect((await call(U1, 'POST', '/api/hh/calendar/feeds', `{"link":"${LINK}"`)).text).not.toContain('SENTINEL');
+    expect(everythingSaid()).not.toContain('SENTINEL');
+  });
+
+  it('answers 503 calendar_key_missing when no key is set up', async () => {
+    deps.loadKey = async () => undefined;
+    const res = await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    expect(res).toMatchObject({ status: 503, json: { error: 'calendar_key_missing' } });
+  });
+
+  it('answers the limits with their codes', async () => {
+    for (const index of [1, 2, 3]) await call(U1, 'POST', '/api/hh/calendar/feeds', addBody({ id: `00000000-0000-4000-9000-00000000000${index}` }));
+    expect((await call(U1, 'POST', '/api/hh/calendar/feeds', addBody({ id: `00000000-0000-4000-9000-000000000004` }))).json).toEqual({ error: 'feed_limit' });
+  });
+
+  it('answers a rate limit with 429 slow_down', async () => {
+    await getStore().patch({ PK: hhPk(householdId), SK: 'META' }, { createdAt: '2026-01-01T00:00:00.000Z' });
+    await getStore().put({ PK: 'CALRATE', SK: `${U1}#${Math.floor(NOW / 3_600_000)}`, count: 10, expiresAt: 9_999_999_999 });
+    expect((await call(U1, 'POST', '/api/hh/calendar/feeds', addBody())).status).toBe(429);
+  });
+
+  it('replaces the link, for its owner only, with the replace id making a retry harmless', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    const replaceId = uuid();
+    const link = 'https://outlook.office365.com/owa/calendar/SENTINEL-two/calendar.ics';
+    expect((await call(U2, 'POST', `/api/hh/calendar/feeds/${FEED}/replace`, { replaceId, link })).status).toBe(403);
+    const done = await call(U1, 'POST', `/api/hh/calendar/feeds/${FEED}/replace`, { replaceId, link });
+    expect(done.json.feed).toMatchObject({ host: 'outlook.office365.com', status: 'ok' });
+    expect(done.text).not.toContain('SENTINEL-two');
+    (deps.readLink as ReturnType<typeof vi.fn>).mockClear();
+    expect((await call(U1, 'POST', `/api/hh/calendar/feeds/${FEED}/replace`, { replaceId, link })).status).toBe(200);
+    expect(deps.readLink).not.toHaveBeenCalled();
+    expect(await stored()).not.toContain('SENTINEL-two');
+    expect(await stored()).not.toContain('SENTINEL-link');
+  });
+
+  it('refreshes now at most once in 5 minutes', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    expect((await call(U1, 'POST', `/api/hh/calendar/feeds/${FEED}/refresh`, mut())).status).toBe(429);
+    vi.setSystemTime(NOW + 6 * 60_000);
+    const res = await call(U1, 'POST', `/api/hh/calendar/feeds/${FEED}/refresh`, mut());
+    expect(res.status).toBe(200);
+    expect(res.json.feed).toMatchObject({ fetchedAt: NOW + 6 * 60_000 });
+  });
+
+  it('answers a feed that stopped working with its status, and keeps the events', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    (deps.readLink as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, internal: 'status', code: 'link_stopped' });
+    vi.setSystemTime(NOW + HOUR);
+    const res = await call(U1, 'POST', `/api/hh/calendar/feeds/${FEED}/refresh`, mut());
+    expect(res.json.feed).toMatchObject({ status: 'link_stopped', fetchedAt: NOW });
+    expect((await call(U1, 'GET', `/api/hh/calendar/imported${WINDOW}`)).json.occurrences).toHaveLength(1);
+  });
+
+  it('removes a feed, for its owner only, and deletes everything of it', async () => {
+    await call(U1, 'POST', '/api/hh/calendar/feeds', addBody());
+    expect((await call(U2, 'DELETE', `/api/hh/calendar/feeds/${FEED}`, mut())).status).toBe(403);
+    const mutationId = uuid();
+    expect((await call(U1, 'DELETE', `/api/hh/calendar/feeds/${FEED}`, { mutationId })).status).toBe(200);
+    expect((await call(U1, 'DELETE', `/api/hh/calendar/feeds/${FEED}`, { mutationId })).status).toBe(200);
+    expect((await call(U1, 'DELETE', `/api/hh/calendar/feeds/${FEED}`, mut())).status).toBe(404);
+    const rows = await stored();
+    expect(rows).not.toMatch(/CALFEED#|CALSECRET#|CALSNAP#/);
+    expect(await getStore().query(CALFEEDS)).toEqual([]);
+  });
+
+  it('answers 404 for a feed id that is not a UUID', async () => {
+    expect((await call(U1, 'PATCH', '/api/hh/calendar/feeds/nope', mut({ label: 'x' }))).status).toBe(404);
+    expect((await call(U1, 'DELETE', '/api/hh/calendar/feeds/nope', mut())).status).toBe(404);
+  });
+
+  it('never lets a link into a 500 or the log when the store fails under an add', async () => {
+    vi.spyOn(getStore(), 'transact').mockRejectedValue(new Error(`store down ${LINK}`));
+    await expect(call(U1, 'POST', '/api/hh/calendar/feeds', addBody())).rejects.toThrow();
+    const error = await call(U1, 'POST', '/api/hh/calendar/feeds', addBody()).catch((caught: unknown) => caught);
+    expect(String((error as Error).message) + String((error as Error).stack)).not.toContain('SENTINEL');
+    expect(everythingSaid()).not.toContain('SENTINEL');
+  });
+
+  it('removes the leaving member\'s feed with the rest of their data', async () => {
+    await getStore().patch({ PK: hhPk(householdId), SK: 'META' }, { memberCount: 2 });
+    await call(U2, 'POST', '/api/hh/calendar/feeds', addBody());
+    expect((await call(U1, 'DELETE', `/api/hh/members/${encodeURIComponent(U2)}`, mut())).status).toBe(204);
+    expect(await stored()).not.toMatch(/CALFEED#|CALSECRET#|CALSNAP#/);
+    expect(await getStore().query(CALFEEDS)).toEqual([]);
   });
 });
