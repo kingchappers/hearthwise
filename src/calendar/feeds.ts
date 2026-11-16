@@ -1,6 +1,7 @@
 import { replayOf, withWriteRecord } from '../api/writeRecord';
 import { hhPk } from '../household/keys';
 import type { HouseholdContext } from '../household/types';
+import { MAX_IMPORTED_DAYS } from '../shared/calendarValidation';
 import { dayInZone, isRealDate } from '../shared/schedule';
 import { ConditionFailedError } from '../store';
 import type { Item, Store, TxOp } from '../store';
@@ -25,7 +26,6 @@ export const ADDS_PER_PERSON_PER_HOUR = 10;
 export const ADDS_PER_NEW_HOUSEHOLDS_PER_HOUR = 30;
 export const NEW_HOUSEHOLD_DAYS = 7;
 export const REFRESH_NOW_SPACING_MS = 5 * 60_000;
-export const MAX_IMPORTED_DAYS = 62;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 const WINDOW_BACK_DAYS = 14;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEventDelete, parseEventPut, parseRemindersPut } from '../calendarValidation';
+import { parseEventDelete, parseEventPut, parseFeedAdd, parseFeedPatch, parseFeedReplace, parseImportedQuery, parseRemindersPut } from '../calendarValidation';
 import { parseRestoreBody } from '../taskValidation';
 
 const ID = '00000000-0000-4000-8000-000000000001';
@@ -208,5 +208,55 @@ describe('parseRestoreBody with events', () => {
 
   it('needs the deletion time for an event', () => {
     expect(parseRestoreBody({ mutationId: ID, entries: [{ kind: 'event', id: ID }] }).ok).toBe(false);
+  });
+});
+
+describe('feed bodies', () => {
+  const FEED = '00000000-0000-4000-8000-0000000000f1';
+  const LINK = 'https://calendar.google.com/calendar/ical/SENTINEL-link/basic.ics';
+
+  it('reads an add: the id, the link, a label and who sees what', () => {
+    expect(parseFeedAdd({ id: FEED, link: LINK, label: ' Sam\'s work ', share: 'details' })).toEqual({ ok: true, value: { id: FEED, link: LINK, label: 'Sam\'s work', share: 'details' } });
+  });
+
+  it('shows only busy times unless told otherwise', () => {
+    expect(parseFeedAdd({ id: FEED, link: LINK, label: 'Work' })).toMatchObject({ ok: true, value: { share: 'busy' } });
+  });
+
+  it.each([
+    [{ link: LINK, label: 'x' }, 'id'], [{ id: 'nope', link: LINK, label: 'x' }, 'id'], [{ id: FEED, label: 'x' }, 'link'], [{ id: FEED, link: 5, label: 'x' }, 'link'],
+    [{ id: FEED, link: '', label: 'x' }, 'link'], [{ id: FEED, link: 'x'.repeat(4001), label: 'x' }, 'link'], [{ id: FEED, link: LINK }, 'label'],
+    [{ id: FEED, link: LINK, label: '' }, 'label'], [{ id: FEED, link: LINK, label: 'x'.repeat(61) }, 'label'], [{ id: FEED, link: LINK, label: 'x', share: 'all' }, 'share'],
+    [{ id: FEED, link: LINK, label: 'x', mutationId: FEED }, 'mutationId'], [{ id: FEED, link: LINK, label: 'x', notify: true }, 'notify'], [{ id: FEED, link: LINK, label: 'x', clientAt: 1 }, 'clientAt'],
+  ])('refuses %j, naming %s', (body, name) => {
+    expect(parseFeedAdd(body as never)).toEqual({ ok: false, field: name });
+  });
+
+  it('never repeats the link in a refusal', () => {
+    const parsed = parseFeedAdd({ id: FEED, link: LINK, label: '', extra: LINK });
+    expect(JSON.stringify(parsed)).not.toContain('SENTINEL');
+  });
+
+  it('reads a replace: a replace id and a link', () => {
+    expect(parseFeedReplace({ replaceId: FEED, link: LINK })).toEqual({ ok: true, value: { replaceId: FEED, link: LINK } });
+    expect(parseFeedReplace({ link: LINK })).toEqual({ ok: false, field: 'replaceId' });
+    expect(parseFeedReplace({ replaceId: FEED })).toEqual({ ok: false, field: 'link' });
+    expect(parseFeedReplace({ replaceId: FEED, link: LINK, label: 'x' })).toEqual({ ok: false, field: 'label' });
+  });
+
+  it('reads a rename or a change of who sees what, with a mutation id and at least one change', () => {
+    expect(parseFeedPatch({ mutationId: ID, label: 'Work', share: 'busy' })).toEqual({ ok: true, value: { mutationId: ID, label: 'Work', share: 'busy' } });
+    expect(parseFeedPatch({ mutationId: ID })).toEqual({ ok: false, field: 'label' });
+    expect(parseFeedPatch({ label: 'x' })).toEqual({ ok: false, field: 'mutationId' });
+    expect(parseFeedPatch({ mutationId: ID, link: LINK })).toEqual({ ok: false, field: 'link' });
+    expect(parseFeedPatch({ mutationId: ID, share: 'x' })).toEqual({ ok: false, field: 'share' });
+  });
+
+  it('reads the window of imported days', () => {
+    expect(parseImportedQuery({ from: '2026-11-09', to: '2026-12-21' })).toEqual({ ok: true, value: { from: '2026-11-09', to: '2026-12-21' } });
+    expect(parseImportedQuery({ to: '2026-12-21' })).toEqual({ ok: false, field: 'from' });
+    expect(parseImportedQuery({ from: '2026-02-30', to: '2026-12-21' })).toEqual({ ok: false, field: 'from' });
+    expect(parseImportedQuery({ from: '2026-12-21', to: '2026-11-09' })).toEqual({ ok: false, field: 'to' });
+    expect(parseImportedQuery({ from: '2026-01-01', to: '2026-03-05' })).toEqual({ ok: false, field: 'to' });
   });
 });
