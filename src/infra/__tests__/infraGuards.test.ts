@@ -154,6 +154,7 @@ describe('the app stack (infra)', () => {
     expect(read('backend.hcl')).toContain('key    = "hearthwise/terraform.tfstate"');
     expect(read('initialSetup', 'backend.hcl')).toContain('key    = "hearthwise-infra-setup/terraform.tfstate"');
     expect(all).toContain('/hearthwise/vapid-private-key');
+    expect(all).toContain('/hearthwise/calendar-key');
   });
 
   it('locks its state, so two deploys can never write it at once', () => {
@@ -185,18 +186,40 @@ describe('push keys and the scheduler (infra)', () => {
     expect(policy).toContain('Resource = aws_dynamodb_table.hearthwise_data.arn');
   });
 
-  it('lets the scheduler read the one VAPID parameter and no other', () => {
+  const parameterLines = (policy: string): string[] => policy.split('\n').filter(line => line.includes('parameter${'));
+
+  it('lets the scheduler read exactly two parameters, the VAPID key and the calendar key, and no wildcard', () => {
     const policy = block(push, 'push_ssm');
+    expect(policy).toContain('ssm:GetParameter');
+    expect(policy).not.toMatch(/ssm:(\*|GetParameters|GetParametersByPath|Describe)/);
     expect(policy).toContain('parameter${local.vapid_private_key_parameter}');
+    expect(policy).toContain('parameter${local.calendar_key_parameter}');
+    expect(parameterLines(policy)).toHaveLength(2);
     expect(policy).not.toMatch(/parameter\/?\*|Resource\s*=\s*"\*"/);
   });
 
-  it('lets the API read the same one parameter, and hands it the three VAPID settings', () => {
+  it('lets the API read the same two parameters, and hands it the three VAPID settings and the calendar key name', () => {
     const policy = block(api, 'api_ssm');
     expect(policy).toContain('ssm:GetParameter');
+    expect(policy).not.toMatch(/ssm:(\*|GetParameters|GetParametersByPath|Describe)/);
     expect(policy).toContain('parameter${local.vapid_private_key_parameter}');
+    expect(policy).toContain('parameter${local.calendar_key_parameter}');
+    expect(parameterLines(policy)).toHaveLength(2);
     expect(policy).not.toMatch(/parameter\/?\*|Resource\s*=\s*"\*"/);
     for (const name of ['VAPID_PUBLIC_KEY', 'VAPID_SUBJECT', 'VAPID_PRIVATE_KEY_PARAMETER']) expect(api).toContain(name);
+    expect(api).toMatch(/CALENDAR_KEY_PARAMETER\s+= local\.calendar_key_parameter/);
+  });
+
+  it('names the calendar key under /hearthwise/ and passes its name, never its value, to the push Lambda', () => {
+    expect(push).toContain('calendar_key_parameter = "/hearthwise/calendar-key"');
+    expect(push).toMatch(/CALENDAR_KEY_PARAMETER\s+= local\.calendar_key_parameter/);
+    for (const file of rootFiles) expect(read(file)).not.toMatch(/calendar_key\s*=\s*var\.|variable "calendar_key/);
+  });
+
+  it('gives the push Lambda 512 MB for the calendar parser, and leaves the API at 512 MB', () => {
+    const lambda = push.slice(push.indexOf('resource "aws_lambda_function" "push"'), push.indexOf('# On the hour'));
+    expect(lambda).toMatch(/memory_size\s*=\s*512/);
+    expect(api).toMatch(/memory_size\s*=\s*512/);
   });
 
   it('keeps the private key out of every variable, output and the repository', () => {

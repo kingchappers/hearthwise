@@ -33,6 +33,16 @@ scripts/setup-vapid-keys.sh
 
 It creates a key pair, puts the private half in SSM (`/hearthwise/vapid-private-key`) and the public half in the repository secret `VAPID_PUBLIC_KEY`. Neither is printed or written to disk. Re-running with `--force` replaces the keys and silently ends reminders on every installed phone, so don't.
 
+### Calendar key
+
+Calendar links are encrypted before they are stored. The key is 32 random bytes in SSM, made once by hand, **before** the deploy that adds this step (until it exists, adding a calendar answers "Calendars are not set up on this server" and nothing else changes):
+
+```bash
+aws ssm put-parameter --name /hearthwise/calendar-key --type SecureString --value "$(openssl rand -base64 32)"
+```
+
+The value is not printed. Both Lambdas read only this parameter and the push key. Do not run it again with `--overwrite`: a new key makes every stored link unreadable, and each person has to paste their links again. There is no rotation in this phase. In the container the key is `CALENDAR_KEY`, or the file `calendar.key` in the data directory (made on first start, mode 0600); keep it apart from backups, which hold only the encrypted links.
+
 ## 4. Repository settings
 
 In GitHub, Settings, Secrets and variables, Actions:
