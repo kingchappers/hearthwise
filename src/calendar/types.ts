@@ -101,3 +101,72 @@ export interface EventPutInput extends EventWrite {
   mutationId: string;
   clientAt?: number;
 }
+
+// ---- Feeds: a subscription to one outside calendar through its link ----
+
+export type FeedShare = 'busy' | 'details';
+
+// What a feed last did, in the words the person sees. `link_needed` is not a fetch result: the stored link cannot be read (the key
+// was lost), so the person pastes it again.
+export type FeedStatus = 'ok' | 'not_https' | 'bad_link' | 'not_supported' | 'unreachable' | 'link_stopped' | 'provider_busy' | 'not_calendar' | 'too_big' | 'link_needed';
+
+export interface Feed {
+  id: string;
+  label: string;
+  ownerId: string;
+  // For display ("calendar.google.com"). Shown to the owner only. Never the link.
+  host: string;
+  share: FeedShare;
+  status: FeedStatus;
+  // The finer internal value, for the logs and `calendar-feeds`.
+  lastOutcome: string;
+  fetchedAt?: number;
+  lastAttemptAt: number;
+  lastGoodAt?: number;
+  nextFetchAt: number;
+  consecutiveFailures: number;
+  eventCount: number;
+  skippedCount: number;
+  approxCount: number;
+  truncated: boolean;
+  snapshotId: string;
+  lastReplaceId?: string;
+  createdAt: number;
+}
+
+// A feed as one person may see it. The other person gets no host, no counts, and the label only if the feed shows details.
+export interface FeedView {
+  id: string;
+  label: string;
+  owner: string;
+  mine: boolean;
+  share: FeedShare;
+  status: FeedStatus;
+  fetchedAt?: number;
+  host?: string;
+  eventCount?: number;
+  skippedCount?: number;
+  approxCount?: number;
+  truncated?: boolean;
+}
+
+// One imported occurrence as one person may see it. Busy has no title; a timed one has instants, an all-day one has dates.
+export interface ImportedView {
+  feedId: string;
+  owner: string;
+  busy?: true;
+  title?: string;
+  allDay: boolean;
+  startMs?: number;
+  endMs?: number;
+  startOn?: string;
+  endOn?: string;
+  free?: true;
+  approx?: true;
+}
+
+export interface ImportedData {
+  occurrences: ImportedView[];
+  feeds: FeedView[];
+  serverTime: number;
+}
