@@ -67,6 +67,17 @@ describe('the scanner (so the guard below cannot pass by being blind)', () => {
     ["const r = createRequire(import.meta.url);", 'createRequire'],
     ["process.binding('tcp_wrap');", 'process.binding'],
     ["process.dlopen(m, f);", 'process.dlopen'],
+    ["const https = process.getBuiltinModule('https');", 'process.getBuiltinModule'],
+    ["process['getBuiltinModule']('node:https');", 'process bracket access'],
+    ["const g = globalThis; g.fetch(url);", 'a globalThis alias'],
+    ["const g = self; g['fetch'](url);", 'a self alias'],
+    ["const { fetch: f } = window;", 'a destructured window'],
+    ["const w = global; w.fetch(u);", 'a global alias'],
+    ["Reflect.get(globalThis, 'fetch')(u);", 'globalThis passed on'],
+    ["import { helper } from '../calendar/__tests__/helper';", 'an import from a __tests__ path'],
+    ["const h = require('./__tests__/helper');", 'a require from a __tests__ path'],
+    ["const h = await import('../x/__tests__/helper');", 'a dynamic import from a __tests__ path'],
+    ["import { h } from './thing.test';", 'an import of a test file'],
     ["module.require('https');", 'module.require'],
     ["require.resolve('x'); eval('1');", 'eval'],
     ["new Function('return 1')();", 'Function constructor'],
@@ -110,6 +121,11 @@ describe('the scanner (so the guard below cannot pass by being blind)', () => {
     "const t = `fetch(${x}) import('net')`;",
     "const x = a / b; // fetch(url)\nconst y = 1;",
     "const re = /fetch/;",
+    "const t = globalThis.setTimeout; const x = self.name;",
+    "const key = 'globalThis'; // self global window",
+    "const owner = { self: 1 }; owner.self;",
+    "import { x } from './tests';",
+    "import { x } from './latest';",
   ])('does not flag %j', source => {
     expect(findNetworkUse(source)).toEqual([]);
   });
@@ -124,7 +140,7 @@ describe('the scanner (so the guard below cannot pass by being blind)', () => {
 });
 
 describe('nothing but the fetcher reaches the network', () => {
-  const files = [...sourceFiles(join(ROOT, 'src')), ...sourceFiles(join(ROOT, 'container')), ...readdirSync(ROOT).filter(name => /\.(ts|cjs|mjs|js)$/.test(name) && !/\.config\./.test(name)).map(name => join(ROOT, name))];
+  const files = [...sourceFiles(join(ROOT, 'src')), ...sourceFiles(join(ROOT, 'container')), ...readdirSync(ROOT).filter(name => /\.(ts|cjs|mjs|js)$/.test(name) && !/\.(config|setup)\./.test(name)).map(name => join(ROOT, name))];
 
   it('scans the files it should', () => {
     const names = files.map(file => relative(ROOT, file));
