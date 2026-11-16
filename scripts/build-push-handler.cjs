@@ -10,7 +10,7 @@ if (!fs.existsSync(pushBuildDir)) {
 
 console.log('Compiling push scheduler handler...');
 execSync(
-  'tsc push-handler.ts --outDir build/push --module commonjs --skipLibCheck --strict --target es2020 --resolveJsonModule --esModuleInterop',
+  'tsc push-handler.ts src/calendar/parseIcs.ts src/calendar/parseWorker.ts --outDir build/push --module commonjs --skipLibCheck --strict --target es2020 --resolveJsonModule --esModuleInterop',
   { cwd: path.join(__dirname, '..'), stdio: 'inherit' }
 );
 
@@ -30,13 +30,16 @@ fs.writeFileSync(packageJsonPath, JSON.stringify({
     '@aws-sdk/client-dynamodb': '^3.0.0',
     '@aws-sdk/lib-dynamodb': '^3.0.0',
     '@aws-sdk/client-ssm': '^3.0.0',
+    // Exact, not a range: the parser reads hostile files.
+    'ical.js': '2.2.1',
   },
 }, null, 2));
 
 console.log('Installing Lambda dependencies...');
 execSync('npm install --production', { cwd: pushBuildDir, stdio: 'inherit' });
 
-fs.unlinkSync(packageJsonPath);
+// The marker lets the compiled CommonJS run (and its worker start) from inside this repository, which is "type": "module".
+fs.writeFileSync(packageJsonPath, JSON.stringify({ type: 'commonjs' }) + '\n');
 const lockFilePath = path.join(pushBuildDir, 'package-lock.json');
 if (fs.existsSync(lockFilePath)) {
   fs.unlinkSync(lockFilePath);

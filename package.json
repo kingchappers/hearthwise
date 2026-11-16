@@ -10,6 +10,7 @@
     "typecheck": "react-router typegen && tsc",
     "build:container": "node scripts/build-container.cjs",
     "test": "vitest run",
+    "test:build": "REQUIRE_BUILD_OUTPUT=1 vitest run src/calendar/__tests__/buildOutputs.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "store-cli": "node scripts/build-store-cli.cjs && node build/store-cli/store-cli.js"
