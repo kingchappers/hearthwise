@@ -16,6 +16,18 @@ const MONEY_PHRASES = [
   'Change not made', 'Everything is settled', 'No money entries yet. Add one when you share a cost or lend money.', 'Delete waiting for', 'Payments recorded against this loan will stay in the total.',
   'That entry changed. Please look at it again.', 'to agree to this change.', 'Adding or agreeing needs the two people this ledger is between.', 'This household has reached 2,000 entries.',
 ];
+// Phase 4 also avoids these in the calendar files: nothing there reads as an alarm or a failure.
+// Single words in quotes (a status of 'error') are code, so only a sentence is held to the rule.
+const BANNED_PHASE_4 = /\b(failed|failure|error|errors|alert|warning)\b/i;
+const SENTENCE = /\s/;
+const TIMELINE_WORDS = join(APP, '..', 'src', 'shared', 'timeline.ts');
+const CALENDAR_LIB = ['calendar', 'calendarKeys', 'calendarOverlay', 'calendarForm', 'calendarText'];
+// The fixed fragments of the design's Wording table that this step builds, each of which must appear in what a person can read.
+const CALENDAR_PHRASES = [
+  'Not saved yet', 'Nothing more today', 'Now: nothing on', 'Only you can see the details.', 'sees that you are busy.', 'Busy', 'Times are shown in', 'Nothing on', 'Due: ',
+  'Dinner: ', 'Skip this day', 'Not saved: this event is now private.', 'This household has reached 500 events.', 'Open the calendar', 'Now and next', 'Dinners', 'Calendar',
+  'Add a title.', 'Block, a routine like Wind down', 'Both of you', 'Loading the calendar',
+];
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];
 // The fixed phrases the design promises, each of which must appear in what a person can read in the meal files.
 const FIXED_PHRASES = [
@@ -58,6 +70,19 @@ function moneyFiles(): string[] {
       || /^routes\/money[^/]*\.tsx$/.test(path)
       || MONEY_LIB.some(name => path === `lib/${name}.ts`)
       || path === 'hooks/useMoneyActions.tsx';
+  });
+}
+
+// The files of the shared calendar: the screens, the routes, the client data and the actions.
+function calendarFiles(): string[] {
+  // The timeline's own words ("Busy", "Due: ", "Dinner: ") are made in shared code, so it is read with the app's files.
+  return [TIMELINE_WORDS, ...sourceFiles(APP)].filter(file => {
+    if (file === TIMELINE_WORDS) return true;
+    const path = relative(APP, file).split('\\').join('/');
+    return path.startsWith('components/calendar/')
+      || /^routes\/plan\.calendar\.tsx$/.test(path)
+      || CALENDAR_LIB.some(name => path === `lib/${name}.ts`)
+      || path === 'hooks/useCalendarActions.tsx';
   });
 }
 
@@ -157,3 +182,55 @@ describe('wording', () => {
     expect(hits).toEqual([]);
   });
 });
+
+describe('wording: the calendar', () => {
+  it('finds the files of the calendar, and not others', () => {
+    const files = calendarFiles().map(file => relative(APP, file).split('\\').join('/'));
+    expect(files).toEqual(expect.arrayContaining([
+      'components/calendar/DayView.tsx', 'components/calendar/WeekView.tsx', 'components/calendar/TimelineList.tsx', 'components/calendar/EventSheet.tsx',
+      'components/calendar/EventDetail.tsx', 'components/calendar/NowAndNext.tsx', 'components/calendar/PlanSwitch.tsx', 'routes/plan.calendar.tsx', 'lib/calendar.ts',
+      'lib/calendarForm.ts', 'lib/calendarKeys.ts', 'lib/calendarOverlay.ts', 'lib/calendarText.ts', 'hooks/useCalendarActions.tsx',
+    ]));
+    expect(files).not.toContain('components/money/AddSheet.tsx');
+  });
+
+  it('keeps failed, error, alert and warning out of what a person reads in the calendar', () => {
+    const found = (text: string): boolean => readableText(text).some(line => SENTENCE.test(line) && BANNED_PHASE_4.test(line));
+    expect(found(`const a = 'The sync failed';`)).toBe(true);
+    expect(found('<p>An error happened</p>')).toBe(true);
+    expect(found(`const status = 'error';`)).toBe(false);
+    expect(found(`// failed is fine in a comment\nconst a = 1;`)).toBe(false);
+    const hits = calendarFiles().flatMap(file =>
+      readableText(readFileSync(file, 'utf8')).filter(line => SENTENCE.test(line) && BANNED_PHASE_4.test(line)).map(line => `${relative(APP, file)}: ${line}`),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps forgot, skipped, incomplete, missing and unplanned out of the calendar', () => {
+    const hits = calendarFiles().flatMap(file =>
+      readableText(readFileSync(file, 'utf8')).filter(line => BANNED_PHASE_2.test(line)).map(line => `${relative(APP, file)}: ${line}`),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps the words of the first test out of the calendar files\' comments too', () => {
+    const hits = calendarFiles().flatMap(file =>
+      readFileSync(file, 'utf8').split('\n').filter(line => BANNED.test(line)).map(line => `${relative(APP, file)}: ${line.trim()}`),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('uses every fixed phrase of the calendar wording table in at least one file', () => {
+    const text = calendarFiles().flatMap(file => readableText(readFileSync(file, 'utf8')));
+    const absent = CALENDAR_PHRASES.filter(phrase => !text.some(line => line.includes(phrase)));
+    expect(absent).toEqual([]);
+  });
+
+  it('uses no red in the calendar files', () => {
+    const hits = calendarFiles().flatMap(file =>
+      readFileSync(file, 'utf8').split('\n').filter(line => /\b(red|crimson|#f00|#ff0000|c="red"|color="red")\b|color=["']red/i.test(line)).map(line => `${relative(APP, file)}: ${line.trim()}`),
+    );
+    expect(hits).toEqual([]);
+  });
+});
+

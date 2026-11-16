@@ -3,6 +3,7 @@
 // them from this one place. A household write defined anywhere else would be lost on a reload.
 import { MutationObserver, useMutation } from '@tanstack/react-query';
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
+import type { EventKind, People, Reminder, Schedule } from '../../src/calendar/types';
 import type { MealType } from '../../src/meals/types';
 import type { MoneyChange, MoneyKind } from '../../src/money/types';
 import type { Repeat } from '../../src/shared/schedule';
@@ -10,6 +11,9 @@ import { needsProposal } from '../../src/tasks/ownership';
 import type { Caller } from '../../src/tasks/ownership';
 import type { Change, ChecklistStep, Task } from '../../src/tasks/types';
 import { ApiError } from './apiError';
+import { CALENDAR_KEY, calendarMutationKeys } from './calendarKeys';
+import type { CalendarMutationKind } from './calendarKeys';
+import { calendarFailureText } from './calendarText';
 import type { TasksData } from './overlay';
 import { HOUSEHOLD_KEY } from './household';
 import type { HouseholdData } from './household';
@@ -24,8 +28,8 @@ import { PLAN_KEY } from './planKeys';
 import { RECIPES_KEY } from './recipeKeys';
 import { retryDelay, shouldRetry } from './retryRules';
 
-export { moneyMutationKeys };
-export type { MoneyMutationKind };
+export { calendarMutationKeys, moneyMutationKeys };
+export type { CalendarMutationKind, MoneyMutationKind };
 
 export type MutationKind =
   | 'create' | 'edit' | 'schedule' | 'delete' | 'complete' | 'uncomplete' | 'tick' | 'restore'
@@ -146,6 +150,27 @@ export interface MoneyMutationVars {
   moneyDelete: Common & { entryId: string };
   // Each entry with the deletion the person saw, so a restore queued before a later change applies nothing they did not see.
   moneyRestore: Common & { entries: { id: string; deletedAt: number }[] };
+}
+
+export interface NewEvent {
+  id: string;
+  kind: EventKind;
+  title: string;
+  place?: string;
+  notes?: string;
+  schedule: Schedule;
+  people: People;
+}
+
+export interface CalendarMutationVars {
+  createEvent: Common & { event: NewEvent };
+  // Only the groups the person changed. An empty `place` or `notes` clears it.
+  editEvent: Common & { eventId: string; title?: string; place?: string; notes?: string; schedule?: Schedule; people?: People };
+  deleteEvent: Common & { eventId: string };
+  // The caller's own list: it replaces their reminders on the event, and an empty one clears them.
+  setReminders: Common & { eventId: string; list: Reminder[] };
+  // Each event with the deletion the person saw, so a restore queued before a later change applies nothing they did not see.
+  eventRestore: Common & { entries: { id: string; deletedAt: number }[] };
 }
 
 type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
@@ -291,6 +316,41 @@ const MONEY_RUNNERS: { [K in MoneyMutationKind]: (vars: MoneyMutationVars[K], re
   }),
 };
 
+const calendarPath = (id: string): string => `/api/hh/calendar/${id}`;
+
+function scheduleBody(schedule: Schedule, at: number): Record<string, unknown> {
+  return { ...schedule, scheduleAt: at };
+}
+
+function peopleBody(people: People, at: number): Record<string, unknown> {
+  return { who: people.who, private: people.private, peopleAt: at };
+}
+
+const CALENDAR_RUNNERS: { [K in CalendarMutationKind]: (vars: CalendarMutationVars[K], request: Request) => Promise<unknown> } = {
+  createEvent: (v, request) => {
+    const { id, kind, title, place, notes, schedule, people } = v.event;
+    return send(request, 'PUT', calendarPath(id), {
+      mutationId: v.mutationId, clientAt: v.at, kind, title, titleAt: v.at,
+      ...(place === undefined ? {} : { place, placeAt: v.at }),
+      ...(notes === undefined ? {} : { notes, notesAt: v.at }),
+      ...scheduleBody(schedule, v.at), ...peopleBody(people, v.at),
+    });
+  },
+  editEvent: (v, request) => send(request, 'PUT', calendarPath(v.eventId), {
+    mutationId: v.mutationId, clientAt: v.at,
+    ...(v.title === undefined ? {} : { title: v.title, titleAt: v.at }),
+    ...(v.place === undefined ? {} : { place: v.place, placeAt: v.at }),
+    ...(v.notes === undefined ? {} : { notes: v.notes, notesAt: v.at }),
+    ...(v.schedule === undefined ? {} : scheduleBody(v.schedule, v.at)),
+    ...(v.people === undefined ? {} : peopleBody(v.people, v.at)),
+  }),
+  deleteEvent: (v, request) => send(request, 'DELETE', calendarPath(v.eventId), { mutationId: v.mutationId, clientAt: v.at }),
+  setReminders: (v, request) => send(request, 'PUT', `${calendarPath(v.eventId)}/reminders`, { mutationId: v.mutationId, clientAt: v.at, list: v.list }),
+  eventRestore: (v, request) => send(request, 'POST', '/api/hh/restore', {
+    mutationId: v.mutationId, clientAt: v.at, entries: v.entries.map(entry => ({ kind: 'event', id: entry.id, deletedAt: entry.deletedAt })),
+  }),
+};
+
 // What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
 // error that is still being retried says nothing (retryRules.ts); one that has used up its tries, or that the server refused, does.
 // A write dropped because someone else is now signed in says nothing.
@@ -298,6 +358,8 @@ export function describeFailure(error: unknown, kind?: string, otherName?: strin
   if (!(error instanceof ApiError)) return undefined;
   if (error.code === 'wrong_user') return undefined;
   if (error.code === 'recipe_limit') return 'This household has reached 200 recipes.';
+  const calendar = kind !== undefined && kind in calendarMutationKeys && error.code !== undefined ? calendarFailureText(error.code) : undefined;
+  if (calendar) return calendar;
   // The money codes come before the generic 409 text, which says less.
   const money = kind?.startsWith('money') && error.code !== undefined ? moneyFailureText(error.code, otherName) : undefined;
   if (money) return money;
@@ -378,6 +440,7 @@ function registerSet(client: QueryClient, request: Request, guard: OwnerGuard | 
 }
 
 const RESTORE_REFUSALS = ['entry_changed', 'needs_two', 'pair_changed', 'money_limit'];
+const EVENT_RESTORE_REFUSALS = ['entry_changed', 'event_limit'];
 
 function otherMemberName(client: QueryClient): string | undefined {
   const household = client.getQueryData<HouseholdData>(HOUSEHOLD_KEY);
@@ -462,6 +525,26 @@ export function registerMutations(
       if (message) report(message);
     },
   });
+
+  registerSet(client, request, guard, {
+    keys: calendarMutationKeys,
+    run: (kind, variables: CalendarMutationVars[CalendarMutationKind], send) =>
+      (CALENDAR_RUNNERS[kind as CalendarMutationKind] as (vars: CalendarMutationVars[CalendarMutationKind], request: Request) => Promise<unknown>)(variables, send),
+    invalidate: () => [CALENDAR_KEY],
+    // A restore is answered with a status for each event rather than an error, so the refusals are read from the answer.
+    onSuccess: (kind, _variables, data) => {
+      if (kind !== 'eventRestore') return;
+      const results = (data as { results?: { status: string }[] } | undefined)?.results ?? [];
+      const refused = results.find(result => EVENT_RESTORE_REFUSALS.includes(result.status));
+      if (!refused) return;
+      const message = calendarFailureText(refused.status);
+      if (message) report(message);
+    },
+    onError: (kind, error) => {
+      const message = describeFailure(error, kind);
+      if (message) report(message);
+    },
+  });
 }
 
 // The one way a component runs a household mutation: by key. Its function is the registered default.
@@ -475,6 +558,10 @@ export function useItemMutation<K extends ItemMutationKind>(kind: K) {
 
 export function useMealMutation<K extends MealMutationKind>(kind: K) {
   return useMutation<unknown, Error, MealMutationVars[K]>({ mutationKey: mealMutationKeys[kind] });
+}
+
+export function useCalendarMutation<K extends CalendarMutationKind>(kind: K) {
+  return useMutation<unknown, Error, CalendarMutationVars[K]>({ mutationKey: calendarMutationKeys[kind] });
 }
 
 export function useMoneyMutation<K extends MoneyMutationKind>(kind: K) {
