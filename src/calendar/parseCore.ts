@@ -1,6 +1,6 @@
 import ICAL from 'ical.js';
 import { addDays, dayInZone, isRealDate } from '../shared/schedule';
-import { zonedInstant } from '../shared/zoned';
+import { zonedInstant, zonedWall } from '../shared/zoned';
 import { windowsZoneToIana } from './windowsZones';
 
 // Reads the text of a calendar file into the occurrences that fall in a window. A plain function: the worker calls it, and the unit
@@ -13,6 +13,13 @@ export const MAX_TITLE = 120;
 // A property line longer than this (after unfolding) is dropped: nothing we read is that long.
 const MAX_LINE = 64 * 1024;
 const MAX_SPAN_DAYS = 366;
+// Steps of the repeat iterator (and RDATE values) for one event, and for the whole file.
+const MAX_EVENT_STEPS = 1000;
+const MAX_FILE_STEPS = 20_000;
+const DEFAULT_BUDGET_MS = 3500;
+const MAX_INTERVAL = 1000;
+const MAX_COUNT = 1_000_000;
+const MAX_LIST = 400;
 const MIN_YEAR = 1970;
 const MAX_YEAR = 2100;
 const DAY_MS = 86_400_000;
@@ -228,6 +235,104 @@ function durationSeconds(value: unknown): number | undefined {
   return weeks * 604_800 + days * 86_400 + hours * 3600 + minutes * 60 + seconds;
 }
 
+// ---- Repeat rules ----
+
+type Frequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+const FREQUENCIES: readonly string[] = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
+const FINER: readonly string[] = ['SECONDLY', 'MINUTELY', 'HOURLY'];
+const BY_RANGES: Record<string, { min: number; max: number; zero: boolean }> = {
+  bysecond: { min: 0, max: 60, zero: true },
+  byminute: { min: 0, max: 59, zero: true },
+  byhour: { min: 0, max: 23, zero: true },
+  bymonthday: { min: -31, max: 31, zero: false },
+  byyearday: { min: -366, max: 366, zero: false },
+  byweekno: { min: -53, max: 53, zero: false },
+  bymonth: { min: 1, max: 12, zero: true },
+  bysetpos: { min: -366, max: 366, zero: false },
+};
+const WEEKDAY = /^[+-]?(\d{1,2})?(SU|MO|TU|WE|TH|FR|SA)$/i;
+
+interface Rule {
+  frequency: Frequency;
+  interval: number;
+  count?: number;
+  // True when nothing but the frequency, interval and count shapes the series, so every period gives exactly one occurrence.
+  plain: boolean;
+  until?: string;
+  data: Record<string, unknown>;
+}
+
+function asList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [value];
+}
+
+const asInteger = (value: unknown): number | undefined => {
+  const number = typeof value === 'string' && /^[+-]?\d{1,9}$/.test(value) ? Number(value) : value;
+  return typeof number === 'number' && Number.isInteger(number) ? number : undefined;
+};
+
+// A repeat rule we can follow, with every number inside a range the iterator can take, or why not. The iterator can spin for a
+// very long time on values such as an interval of 99999999999, so nothing reaches it unchecked.
+function readRule(value: unknown): Rule | 'finer' | 'invalid' {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'invalid';
+  const raw = value as Record<string, unknown>;
+  const frequency = typeof raw.freq === 'string' ? raw.freq.toUpperCase() : '';
+  if (FINER.includes(frequency)) return 'finer';
+  if (!FREQUENCIES.includes(frequency)) return 'invalid';
+
+  const data: Record<string, unknown> = { freq: frequency };
+  const interval = raw.interval === undefined ? 1 : asInteger(raw.interval);
+  if (interval === undefined || interval < 1 || interval > MAX_INTERVAL) return 'invalid';
+  data.interval = interval;
+  let count: number | undefined;
+  if (raw.count !== undefined) {
+    const parsed = asInteger(raw.count);
+    if (parsed === undefined || parsed < 1) return 'invalid';
+    count = Math.min(parsed, MAX_COUNT);
+    data.count = count;
+  }
+  let plain = true;
+  for (const [key, range] of Object.entries(BY_RANGES)) {
+    if (raw[key] === undefined) continue;
+    plain = false;
+    const list = asList(raw[key]);
+    if (list.length > MAX_LIST) return 'invalid';
+    const numbers = list.map(asInteger);
+    if (numbers.some(n => n === undefined || n < range.min || n > range.max || (!range.zero && n === 0))) return 'invalid';
+    data[key] = numbers;
+  }
+  if (raw.byday !== undefined) {
+    plain = false;
+    const list = asList(raw.byday);
+    if (list.length > MAX_LIST || list.some(day => typeof day !== 'string' || !WEEKDAY.test(day) || Number(WEEKDAY.exec(day)?.[1] ?? 0) > 53)) return 'invalid';
+    data.byday = list;
+  }
+  if (raw.wkst !== undefined) {
+    if (typeof raw.wkst !== 'string' || !/^(SU|MO|TU|WE|TH|FR|SA)$/i.test(raw.wkst)) return 'invalid';
+    data.wkst = raw.wkst.toUpperCase();
+  }
+  const until = typeof raw.until === 'string' ? raw.until : undefined;
+  if (raw.until !== undefined && until === undefined) return 'invalid';
+  return { frequency: frequency as Frequency, interval, ...(count === undefined ? {} : { count }), plain, ...(until === undefined ? {} : { until }), data };
+}
+
+// UNTIL as a time on the wall clock of the event's start. A time in universal time is converted to that clock; a date covers all of
+// its day when the event has a time.
+function untilOnWall(until: string, start: Wall): string | undefined {
+  const date = DATE_VALUE.exec(until);
+  if (date) return start.allDay ? until : `${until}T23:59:59`;
+  const dateTime = DATE_TIME_VALUE.exec(until);
+  if (!dateTime) return undefined;
+  const day = `${dateTime[1]}-${dateTime[2]}-${dateTime[3]}`;
+  if (!isRealDate(day) || !validYear(dateTime[1])) return undefined;
+  if (start.allDay) return day;
+  if (dateTime[7] !== 'Z') return until;
+  const instant = instantOf(day, Number(dateTime[4]) * 3600 + Number(dateTime[5]) * 60 + Math.min(Number(dateTime[6]), 59), { kind: 'utc' });
+  if (start.zone.kind === 'utc') return until.slice(0, -1);
+  const wall = zonedWall(instant, start.zone.name);
+  return `${wall.day}T${pad(Math.floor(wall.seconds / 3600))}:${pad(Math.floor((wall.seconds % 3600) / 60))}:${pad(wall.seconds % 60)}`;
+}
+
 // ---- Events ----
 
 interface Prop {
@@ -236,13 +341,20 @@ interface Prop {
   values: unknown[];
 }
 
-interface Event {
+interface Parsed {
+  uid?: string;
   title: string;
   free: boolean;
   cancelled: boolean;
-  start: Wall;
+  start?: Wall;
   // All-day: the length in days (at least 1). Timed: the length in milliseconds.
   length: number;
+  isOverride: boolean;
+  recurrenceId?: Wall;
+  thisAndFuture: boolean;
+  rule?: Rule | 'finer' | 'invalid';
+  rdates: Wall[];
+  exdates: Wall[];
 }
 
 function propsOf(jcal: Jcal): Map<string, Prop[]> {
@@ -256,20 +368,41 @@ function propsOf(jcal: Jcal): Map<string, Prop[]> {
   return props;
 }
 
-function readEvent(jcal: Jcal, zones: Zones): Event | undefined {
+// RDATE and EXDATE may hold many values, and RDATE a period: the start of the period is the occurrence.
+function wallsOf(list: Prop[] | undefined, zones: Zones): Wall[] {
+  const walls: Wall[] = [];
+  for (const prop of list ?? []) {
+    for (const value of prop.values) {
+      const text = Array.isArray(value) ? value[0] : value;
+      const type = prop.type === 'period' ? 'date-time' : prop.type;
+      const wall = toWall(type, text, prop.params.tzid, zones);
+      if (wall) walls.push(wall);
+      if (walls.length >= MAX_FILE_STEPS) return walls;
+    }
+  }
+  return walls;
+}
+
+function readEvent(jcal: Jcal, zones: Zones): Parsed {
   const props = propsOf(jcal);
   const first = (name: string): Prop | undefined => props.get(name)?.[0];
   const startProp = first('dtstart');
-  if (!startProp) return undefined;
-  const start = toWall(startProp.type, startProp.values[0], startProp.params.tzid, zones);
-  if (!start) return undefined;
-
+  const start = startProp ? toWall(startProp.type, startProp.values[0], startProp.params.tzid, zones) : undefined;
+  const idProp = first('recurrence-id');
+  const uid = first('uid')?.values[0];
   return {
+    ...(typeof uid === 'string' && uid.length <= 512 ? { uid } : {}),
     title: cleanTitle(first('summary')?.values[0]),
     free: String(first('transp')?.values[0] ?? '').toUpperCase() === 'TRANSPARENT',
     cancelled: String(first('status')?.values[0] ?? '').toUpperCase() === 'CANCELLED',
-    start,
-    length: lengthOf(start, first('dtend'), first('duration'), zones),
+    ...(start ? { start } : {}),
+    length: start ? lengthOf(start, first('dtend'), first('duration'), zones) : 0,
+    isOverride: idProp !== undefined,
+    ...(idProp ? { recurrenceId: toWall(idProp.type, idProp.values[0], idProp.params.tzid, zones) } : {}),
+    thisAndFuture: String(idProp?.params.range ?? '').toUpperCase() === 'THISANDFUTURE',
+    ...(first('rrule') ? { rule: readRule(first('rrule')?.values[0]) } : {}),
+    rdates: wallsOf(props.get('rdate'), zones),
+    exdates: wallsOf(props.get('exdate'), zones),
   };
 }
 
@@ -291,17 +424,140 @@ function lengthOf(start: Wall, endProp: Prop | undefined, durationProp: Prop | u
   return 0;
 }
 
-function occurrenceOf(event: Event, window: ParseWindow, fromDay: string, toDay: string): ParsedOccurrence | undefined {
-  if (event.start.allDay) {
-    const endOn = addDays(event.start.day, event.length - 1);
-    if (endOn < fromDay || event.start.day > toDay) return undefined;
-    return { allDay: true, startOn: event.start.day, endOn, title: event.title, free: event.free };
+function parseOne(lines: string[], zones: Zones): Parsed | undefined {
+  try {
+    const jcal = ICAL.parse(['BEGIN:VEVENT', ...lines, 'END:VEVENT'].join('\r\n')) as Jcal;
+    return readEvent(jcal, zones);
+  } catch {
+    return undefined;
   }
-  const startMs = instantOf(event.start.day, event.start.seconds, event.start.zone);
-  const endMs = startMs + event.length;
-  if (endMs < window.from || startMs > window.to) return undefined;
-  const approx = event.start.zone.kind === 'zone' && event.start.zone.approx;
-  return { allDay: false, startMs, endMs, title: event.title, free: event.free, approx };
+}
+
+// ---- Expansion ----
+
+interface Excluded {
+  instants: Set<number>;
+  days: Set<string>;
+}
+
+const newExcluded = (): Excluded => ({ instants: new Set(), days: new Set() });
+
+function exclude(set: Excluded, wall: Wall): void {
+  if (wall.allDay) set.days.add(wall.day);
+  else set.instants.add(instantOf(wall.day, wall.seconds, wall.zone));
+}
+
+// A date excludes every occurrence on that day; an instant excludes the occurrence at that instant.
+function isExcluded(set: Excluded, wall: Wall): boolean {
+  if (set.days.has(wall.day)) return true;
+  return !wall.allDay && set.instants.has(instantOf(wall.day, wall.seconds, wall.zone));
+}
+
+interface Budget {
+  steps: number;
+  deadline: number;
+}
+
+interface Context {
+  window: ParseWindow;
+  fromDay: string;
+  toDay: string;
+  budget: Budget;
+  counts: ParseCounts;
+}
+
+function occurrenceAt(parsed: Parsed, wall: Wall, context: Context): ParsedOccurrence | undefined {
+  if (wall.allDay) {
+    const endOn = addDays(wall.day, parsed.length - 1);
+    if (endOn < context.fromDay || wall.day > context.toDay) return undefined;
+    return { allDay: true, startOn: wall.day, endOn, title: parsed.title, free: parsed.free };
+  }
+  const startMs = instantOf(wall.day, wall.seconds, wall.zone);
+  const endMs = startMs + parsed.length;
+  if (endMs < context.window.from || startMs > context.window.to) return undefined;
+  const approx = wall.zone.kind === 'zone' && wall.zone.approx;
+  return { allDay: false, startMs, endMs, title: parsed.title, free: parsed.free, approx };
+}
+
+// Where to start the iterator so a long-running daily or weekly series does not use up its steps before the window. The start
+// moves forward by whole periods, so the series is the same from there on. A COUNT can only be carried forward for a plain rule.
+function fastForward(start: Wall, rule: Rule, length: number, context: Context): { day: string; count?: number } | undefined {
+  if (rule.frequency !== 'DAILY' && rule.frequency !== 'WEEKLY') return undefined;
+  if (rule.count !== undefined && !rule.plain) return undefined;
+  const span = start.allDay ? length : Math.ceil(length / DAY_MS) + 1;
+  const target = addDays(context.fromDay, -(span + 2));
+  const period = rule.interval * (rule.frequency === 'DAILY' ? 1 : 7);
+  const periods = Math.floor(daysBetween(start.day, target) / period);
+  if (periods <= 0) return undefined;
+  const count = rule.count === undefined ? undefined : rule.count - periods;
+  return { day: addDays(start.day, periods * period), ...(count === undefined ? {} : { count }) };
+}
+
+// The wall-clock starts of a repeat rule, one iterator step each, up to the end of the window. Returns false when the step limit
+// stopped it.
+function walkRule(parsed: Parsed, start: Wall, rule: Rule, context: Context, visit: (day: string, seconds: number) => void): boolean {
+  const until = rule.until === undefined ? undefined : untilOnWall(rule.until, start);
+  if (rule.until !== undefined && until === undefined) return false;
+  const forward = fastForward(start, rule, parsed.length, context);
+  if (forward?.count !== undefined && forward.count < 1) return true;
+  const first = forward?.day ?? start.day;
+  const [year, month, day] = first.split('-').map(Number);
+  const data: Record<string, unknown> = { ...rule.data };
+  if (forward?.count !== undefined) data.count = forward.count;
+  if (until !== undefined) data.until = until;
+  const iterator = ICAL.Recur.fromData(data as never).iterator(
+    ICAL.Time.fromData({ year, month, day, hour: Math.floor(start.seconds / 3600), minute: Math.floor((start.seconds % 3600) / 60), second: start.seconds % 60, isDate: start.allDay }),
+  );
+  const lastDay = addDays(context.toDay, 1);
+  for (let steps = 0; ; steps += 1) {
+    if (steps >= MAX_EVENT_STEPS || context.budget.steps >= MAX_FILE_STEPS) return false;
+    if (Date.now() > context.budget.deadline) return false;
+    context.budget.steps += 1;
+    const next = iterator.next();
+    if (!next || next.year > MAX_YEAR) return true;
+    const nextDay = `${String(next.year).padStart(4, '0')}-${pad(next.month)}-${pad(next.day)}`;
+    if (nextDay > lastDay) return true;
+    visit(nextDay, next.hour * 3600 + next.minute * 60 + next.second);
+  }
+}
+
+function expandMaster(parsed: Parsed, start: Wall, overridden: Excluded | undefined, context: Context): ParsedOccurrence[] {
+  const found: ParsedOccurrence[] = [];
+  const seen = new Set<string>();
+  const excluded = newExcluded();
+  for (const wall of parsed.exdates) exclude(excluded, wall);
+
+  const emit = (day: string, seconds: number): void => {
+    const wall: Wall = { ...start, day, seconds };
+    const key = wall.allDay ? day : String(instantOf(day, seconds, wall.zone));
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (isExcluded(excluded, wall) || (overridden !== undefined && isExcluded(overridden, wall))) return;
+    const occurrence = occurrenceAt(parsed, wall, context);
+    if (occurrence) found.push(occurrence);
+  };
+
+  let complete = true;
+  const rule = parsed.rule as Rule | undefined;
+  // DTSTART is the first instance of the set, whether or not the rule would give it.
+  emit(start.day, start.seconds);
+  if (rule !== undefined) {
+    try {
+      complete = walkRule(parsed, start, rule, context, emit);
+    } catch {
+      complete = false;
+    }
+  }
+  for (const wall of parsed.rdates) {
+    if (context.budget.steps >= MAX_FILE_STEPS) {
+      complete = false;
+      break;
+    }
+    context.budget.steps += 1;
+    emit(wall.day, wall.seconds);
+  }
+  if (!complete) context.counts.skipped += 1;
+  return found;
 }
 
 // ---- The whole file ----
@@ -313,7 +569,12 @@ function validWindow(window: ParseWindow): boolean {
 const startOf = (occurrence: ParsedOccurrence, zone: string): number =>
   occurrence.allDay ? zonedInstant(occurrence.startOn, '00:00', zone) : occurrence.startMs;
 
-export function parseCore(input: string, window: ParseWindow): ParseResult {
+export interface ParseLimits {
+  // How long expansion may run before it stops and keeps what it has. The worker's own time limit is the backstop.
+  budgetMs?: number;
+}
+
+export function parseCore(input: string, window: ParseWindow, limits: ParseLimits = {}): ParseResult {
   if (typeof input !== 'string' || !validWindow(window)) return { ok: false, internal: 'parse' };
   if (input.length > MAX_INPUT_CHARS) return { ok: false, internal: 'too_big' };
   const text = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
@@ -322,20 +583,64 @@ export function parseCore(input: string, window: ParseWindow): ParseResult {
 
   const zone = canonicalZone(window.zone) as string;
   const zones = new Zones(zone);
-  const fromDay = dayInZone(window.from, zone);
-  const toDay = dayInZone(window.to, zone);
   const counts: ParseCounts = { events: scanned.events.length, skipped: 0, approx: 0, truncated: false };
-  const found: ParsedOccurrence[] = [];
+  const context: Context = {
+    window, fromDay: dayInZone(window.from, zone), toDay: dayInZone(window.to, zone), counts,
+    budget: { steps: 0, deadline: Date.now() + (limits.budgetMs ?? DEFAULT_BUDGET_MS) },
+  };
 
+  const masters: Parsed[] = [];
+  const replaced = new Map<string, Excluded>();
+  const found: ParsedOccurrence[] = [];
   for (const lines of scanned.events) {
-    const event = readParsed(lines, zones);
-    if (!event) {
+    const parsed = parseOne(lines, zones);
+    if (!parsed) {
       counts.skipped += 1;
       continue;
     }
-    if (event.cancelled) continue;
-    const occurrence = occurrenceOf(event, window, fromDay, toDay);
+    if (!parsed.isOverride) {
+      masters.push(parsed);
+      continue;
+    }
+    if (parsed.thisAndFuture) {
+      counts.skipped += 1;
+      continue;
+    }
+    if (parsed.uid !== undefined && parsed.recurrenceId !== undefined) {
+      const set = replaced.get(parsed.uid) ?? newExcluded();
+      exclude(set, parsed.recurrenceId);
+      replaced.set(parsed.uid, set);
+    }
+    if (parsed.cancelled) continue;
+    if (!parsed.start) {
+      counts.skipped += 1;
+      continue;
+    }
+    const occurrence = occurrenceAt(parsed, parsed.start, context);
     if (occurrence) found.push(occurrence);
+  }
+
+  for (const parsed of masters) {
+    if (Date.now() > context.budget.deadline) {
+      counts.skipped += 1;
+      continue;
+    }
+    if (!parsed.start) {
+      counts.skipped += 1;
+      continue;
+    }
+    if (parsed.cancelled) continue;
+    if (parsed.rule === 'finer' || parsed.rule === 'invalid') {
+      counts.skipped += 1;
+      continue;
+    }
+    const repeats = parsed.rule !== undefined || parsed.rdates.length > 0;
+    const overridden = parsed.uid === undefined ? undefined : replaced.get(parsed.uid);
+    if (repeats && context.budget.steps >= MAX_FILE_STEPS) {
+      counts.skipped += 1;
+      continue;
+    }
+    found.push(...expandMaster(parsed, parsed.start, overridden, context));
   }
 
   let kept = found;
@@ -346,13 +651,4 @@ export function parseCore(input: string, window: ParseWindow): ParseResult {
   kept.sort((a, b) => startOf(a, zone) - startOf(b, zone));
   counts.approx = kept.filter(occurrence => !occurrence.allDay && occurrence.approx).length;
   return { ok: true, occurrences: kept, counts };
-}
-
-function readParsed(lines: string[], zones: Zones): Event | undefined {
-  try {
-    const jcal = ICAL.parse(['BEGIN:VEVENT', ...lines, 'END:VEVENT'].join('\r\n')) as Jcal;
-    return readEvent(jcal, zones);
-  } catch {
-    return undefined;
-  }
 }
