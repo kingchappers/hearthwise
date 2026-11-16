@@ -4,6 +4,8 @@ import { sqlitePath } from '../../container/config';
 import { clearThrottle, deleteSessionsForUser, getAccountByEmail, isUsableEmail, replacePassword } from '../auth/localData';
 import { validatePassword } from '../auth/password';
 import { promptHidden } from '../auth/prompt';
+import { FEED_PREFIX } from '../calendar/keys';
+import { toFeed } from '../calendar/feedRecord';
 import { toMember } from '../household/guard';
 import { hhPk, MEMBER_PREFIX } from '../household/keys';
 import { toEntry } from '../money/entries';
@@ -15,6 +17,7 @@ import { initStore, type Store } from '.';
 const USAGE = `Usage:
   backup --out <file>                      write a consistent, verified, owner-only copy of the SQLite database (never overwrites; STORE=sqlite only)
   reset-password <email>                   set a new password for one person's built-in login, end that person's sessions and clear their lock-out (prompts; the password is never taken from arguments; first-run setup is never reopened)
+  calendar-feeds <householdId>             print each calendar feed's status, last outcome, failures in a row, times and counts (read-only; never a link, label or host)
   money-total <householdId>                print a household's money total and each loan's progress (read-only; me is the first member to join, the other is the second)
 
 The backend comes from the environment: STORE=dynamodb with DYNAMODB_TABLE (and your AWS credentials),
@@ -48,6 +51,20 @@ async function moneyTotal(store: Store, householdId: string): Promise<string> {
     lines.push(`Loan ${loan.id} (${loan.on}): ${formatPounds(loanProgress(entries, loan.id))} of ${formatPounds(loan.amountPence)} paid back`);
   }
   return lines.join('\n');
+}
+
+const isoOrNever = (ms: number | undefined): string => (ms === undefined ? 'never' : new Date(ms).toISOString());
+
+// Read-only: what a person on call needs to tell why a feed fails. Ids, enums, times and counts only: no link, label, host or secret.
+async function calendarFeeds(store: Store, householdId: string): Promise<string> {
+  const feeds = (await store.query(hhPk(householdId), { skPrefix: FEED_PREFIX })).map(toFeed);
+  if (feeds.length === 0) return `No calendar feeds in household ${householdId}.`;
+  return feeds
+    .map(feed => [
+      feed.id, `owner=${feed.ownerId}`, `status=${feed.status}`, `lastOutcome=${feed.lastOutcome}`, `failures=${feed.consecutiveFailures}`,
+      `fetchedAt=${isoOrNever(feed.fetchedAt)}`, `nextFetchAt=${isoOrNever(feed.nextFetchAt)}`, `events=${feed.eventCount}`, `skipped=${feed.skippedCount}`, `approx=${feed.approxCount}`,
+    ].join(' '))
+    .join('\n');
 }
 
 export async function runCli(argv: string[], env: NodeJS.ProcessEnv = process.env, io: { readPassword?: (prompt: string) => Promise<string> } = {}): Promise<string> {
@@ -92,6 +109,11 @@ export async function runCli(argv: string[], env: NodeJS.ProcessEnv = process.en
     const { backupToFile } = await import('./backup');
     backupToFile(store, values.out);
     return `Backed up the database to ${values.out}`;
+  }
+
+  if (command === 'calendar-feeds') {
+    if (!email || rest.length > 0) throw new Error(USAGE);
+    return calendarFeeds(await openStore(env), email);
   }
 
   if (command === 'money-total') {

@@ -135,9 +135,9 @@ const deleteFeed: TaskHandler = async (event, ctx, params) => {
 const getFeeds: TaskHandler = async (_event, ctx) => noStore(ok({ feeds: await listFeeds(getStore(), ctx), serverTime: Date.now() }));
 
 const getImported: TaskHandler = async (event, ctx) => {
-  const window = parseImportedQuery(event.queryStringParameters ?? {});
-  if (!window.ok) return invalid(window.field);
-  return noStore(ok(await readImported(getStore(), ctx, window.value.from, window.value.to)));
+  const range = parseImportedQuery(event.queryStringParameters ?? {});
+  if (!range.ok) return invalid(range.field);
+  return noStore(ok(await readImported(getStore(), ctx, range.value.from, range.value.to)));
 };
 
 export function registerCalendarRoutes(router: Router): void {

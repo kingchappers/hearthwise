@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -275,6 +275,63 @@ describe('runCli', () => {
       await seedMoney(['u1', 'u2']);
       await expect(runCli(['money-total'], env)).rejects.toThrow('Usage');
       await expect(runCli(['money-total', 'h1', 'h2'], env)).rejects.toThrow('Usage');
+    });
+  });
+
+  describe('calendar-feeds <householdId>', () => {
+    const feed = (id: string, over: Record<string, unknown> = {}) => ({
+      PK: 'HH#h1', SK: `CALFEED#${id}`, label: 'SENTINEL-label', ownerId: 'u1', host: 'calendar.google.com', share: 'busy', status: 'ok', lastOutcome: 'ok',
+      fetchedAt: Date.parse('2026-11-16T10:00:00Z'), lastAttemptAt: Date.parse('2026-11-16T10:00:00Z'), nextFetchAt: Date.parse('2026-11-16T11:00:00Z'),
+      consecutiveFailures: 0, eventCount: 42, skippedCount: 1, approxCount: 2, snapshotId: 's1', createdAt: 1, ...over,
+    });
+
+    async function seedFeeds(): Promise<void> {
+      const store = new SqliteStore(env.SQLITE_PATH as string);
+      await store.put(feed('f1'));
+      await store.put(feed('f2', { status: 'link_stopped', lastOutcome: 'status', consecutiveFailures: 3 }));
+      await store.put({ PK: 'HH#h1', SK: 'CALSECRET#f1', v: 1, iv: 'SENTINEL-iv', tag: 'SENTINEL-tag', data: 'SENTINEL-cipher' });
+      await store.put({ ...feed('other'), PK: 'HH#h2' });
+      store.close();
+    }
+    const snapshot = async (): Promise<string> => {
+      const store = new SqliteStore(env.SQLITE_PATH as string);
+      const rows = [...await store.query('HH#h1'), ...await store.query('HH#h2')];
+      store.close();
+      return JSON.stringify(rows);
+    };
+
+    it('prints each feed\'s status, last outcome, failures, times and counts', async () => {
+      await seedFeeds();
+      const out = await runCli(['calendar-feeds', 'h1'], env);
+      expect(out).toContain('f1');
+      expect(out).toMatch(/f2.*status=link_stopped.*lastOutcome=status.*failures=3/);
+      expect(out).toMatch(/f1.*status=ok.*lastOutcome=ok.*failures=0.*fetchedAt=2026-11-16T10:00:00.000Z.*nextFetchAt=2026-11-16T11:00:00.000Z.*events=42.*skipped=1.*approx=2/);
+      expect(out).not.toContain('other');
+    });
+
+    it('never prints a link, a label, a host or anything of the secret', async () => {
+      await seedFeeds();
+      const out = await runCli(['calendar-feeds', 'h1'], env);
+      for (const word of ['SENTINEL', 'google', 'cipher', 'iv']) expect(out).not.toContain(word);
+    });
+
+    it('writes nothing', async () => {
+      await seedFeeds();
+      const before = await snapshot();
+      await runCli(['calendar-feeds', 'h1'], env);
+      expect(await snapshot()).toBe(before);
+    });
+
+    it('says so when a household has no feeds, and needs exactly one household id', async () => {
+      await seedFeeds();
+      expect(await runCli(['calendar-feeds', 'nobody'], env)).toContain('No calendar feeds');
+      await expect(runCli(['calendar-feeds'], env)).rejects.toThrow('Usage');
+      await expect(runCli(['calendar-feeds', 'h1', 'h2'], env)).rejects.toThrow('Usage');
+    });
+
+    it('does not load the fetcher or the parser', () => {
+      const source = readFileSync(join(__dirname, '..', 'cli.ts'), 'utf8');
+      expect(source).not.toMatch(/from '[^']*(fetcher|parseIcs|parseCore|calendar\/feeds)'/);
     });
   });
 });

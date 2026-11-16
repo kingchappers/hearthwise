@@ -9,6 +9,7 @@ import { TaskError } from '../tasks/types';
 import { parseFeedLink } from './allowedHosts';
 import { userCodeFor } from './fetcher';
 import type { FailureCode, FetchResult, InternalOutcome } from './fetcher';
+import { toFeed } from './feedRecord';
 import { FEED_PREFIX, feedIndexKey, feedKey, rateKey, secretKey, snapPrefix } from './keys';
 import { logFeedFetch, logFeedWrite, logLinkRefused } from './log';
 import type { ParsedOccurrence, ParseResult, ParseWindow } from './parseCore';
@@ -20,6 +21,7 @@ import type { Feed, FeedShare, FeedStatus, FeedView, ImportedData, ImportedView 
 // is read from the request once, checked, fetched, encrypted, and never returned, logged, put in an error or kept as text. Every
 // refusal carries a code and nothing else.
 
+export { toFeed };
 export const FEEDS_PER_HOUSEHOLD = 6;
 export const FEEDS_PER_PERSON = 3;
 export const ADDS_PER_PERSON_PER_HOUR = 10;
@@ -57,31 +59,6 @@ export interface FeedWriteOutcome {
 const nowSeconds = (nowMs: number): number => Math.floor(nowMs / 1000);
 const memberIds = (ctx: Pick<HouseholdContext, 'members'>): Set<string> => new Set(ctx.members.map(member => member.userId));
 const nameOf = (ctx: Pick<HouseholdContext, 'members'>, userId: string): string => ctx.members.find(member => member.userId === userId)?.displayName ?? 'Former member';
-
-export function toFeed(raw: Item): Feed {
-  const feed: Feed = {
-    id: raw.SK.slice(FEED_PREFIX.length),
-    label: String(raw.label ?? ''),
-    ownerId: String(raw.ownerId ?? ''),
-    host: String(raw.host ?? ''),
-    share: raw.share === 'details' ? 'details' : 'busy',
-    status: String(raw.status ?? 'ok') as FeedStatus,
-    lastOutcome: String(raw.lastOutcome ?? ''),
-    lastAttemptAt: Number(raw.lastAttemptAt ?? 0),
-    nextFetchAt: Number(raw.nextFetchAt ?? 0),
-    consecutiveFailures: Number(raw.consecutiveFailures ?? 0),
-    eventCount: Number(raw.eventCount ?? 0),
-    skippedCount: Number(raw.skippedCount ?? 0),
-    approxCount: Number(raw.approxCount ?? 0),
-    truncated: raw.truncated === true,
-    snapshotId: String(raw.snapshotId ?? ''),
-    createdAt: Number(raw.createdAt ?? 0),
-  };
-  if (typeof raw.fetchedAt === 'number') feed.fetchedAt = raw.fetchedAt;
-  if (typeof raw.lastGoodAt === 'number') feed.lastGoodAt = raw.lastGoodAt;
-  if (typeof raw.lastReplaceId === 'string') feed.lastReplaceId = raw.lastReplaceId;
-  return feed;
-}
 
 // What each person may see of a feed. The other person gets no host and no counts, and the label only when the feed shows details,
 // because a label can be private.
