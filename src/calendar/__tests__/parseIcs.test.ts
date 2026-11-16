@@ -65,4 +65,43 @@ describe('parseIcs', () => {
     worker.emit('error', new Error('late'));
     await expect(pending).resolves.toEqual(GOOD);
   });
+
+  it('runs at most two workers at once and queues the rest, whatever happens to them', async () => {
+    const workers: FakeWorker[] = [];
+    const createWorker = vi.fn(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
+    const results = Array.from({ length: 6 }, () => parseIcs('x', WINDOW, { createWorker, timeoutMs: 5000 }));
+    await Promise.resolve();
+    expect(workers).toHaveLength(2);
+
+    workers[0].emit('message', GOOD);
+    await results[0];
+    expect(workers).toHaveLength(3);
+    workers[1].emit('error', new Error('boom'));
+    await results[1];
+    expect(workers).toHaveLength(4);
+    workers[2].emit('exit', 1);
+    workers[3].emit('message', GOOD);
+    await Promise.all([results[2], results[3]]);
+    expect(workers).toHaveLength(6);
+    workers[4].emit('message', GOOD);
+    workers[5].emit('message', GOOD);
+    const all = await Promise.all(results);
+    expect(all.filter(result => result.ok)).toHaveLength(4);
+  });
+
+  it('frees its place when a worker cannot be started or runs past the limit', async () => {
+    const stuck = [new FakeWorker(), new FakeWorker()];
+    const first = parseIcs('x', WINDOW, { createWorker: () => stuck[0], timeoutMs: 20 });
+    const second = parseIcs('x', WINDOW, { createWorker: () => stuck[1], timeoutMs: 20 });
+    const broken = parseIcs('x', WINDOW, { createWorker: () => { throw new Error('no'); } });
+    const good = new FakeWorker();
+    const last = parseIcs('x', WINDOW, { createWorker: () => good, timeoutMs: 5000 });
+    await expect(Promise.all([first, second, broken])).resolves.toEqual(Array(3).fill({ ok: false, internal: 'parse' }));
+    good.emit('message', GOOD);
+    await expect(last).resolves.toEqual(GOOD);
+  });
 });

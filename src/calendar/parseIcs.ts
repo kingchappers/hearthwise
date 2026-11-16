@@ -42,10 +42,36 @@ function isResult(value: unknown): value is ParseResult {
 
 const FAILED: ParseResult = { ok: false, internal: 'parse' };
 
+// At most this many workers at once; the rest wait their turn. Each has a 128 MB ceiling.
+export const MAX_WORKERS = 2;
+let running = 0;
+const waiting: Array<() => void> = [];
+
+// The place goes straight to the next in line.
+function release(): void {
+  const next = waiting.shift();
+  if (next) next();
+  else running -= 1;
+}
+
 export function parseIcs(text: string, range: ParseWindow, deps: ParseDeps = {}): Promise<ParseResult> {
   if (typeof text !== 'string') return Promise.resolve(FAILED);
   if (text.length > MAX_INPUT_CHARS) return Promise.resolve({ ok: false, internal: 'too_big' });
+  return new Promise<ParseResult>(resolve => {
+    const start = (): void => {
+      runWorker(text, range, deps).then(result => {
+        release();
+        resolve(result);
+      });
+    };
+    if (running < MAX_WORKERS) {
+      running += 1;
+      start();
+    } else waiting.push(start);
+  });
+}
 
+function runWorker(text: string, range: ParseWindow, deps: ParseDeps): Promise<ParseResult> {
   return new Promise<ParseResult>(resolve => {
     let worker: WorkerLike;
     try {
