@@ -310,7 +310,6 @@ Security decision (infrastructure): the SSM policy of the API role (`api_ssm`) a
 | Output shape | `{ allDay: false, startMs, endMs, title, free, approx }` or `{ allDay: true, startOn, endOn (inclusive), title, free }`, and counts `events`, `skipped`, `approx`, `truncated` | The snapshot chunk tuples are made from this in step 6 |
 | Windows zone table | About 140 names from CLDR's primary mapping, written from memory of the list, each checked to be a zone the runtime knows. Names are matched ignoring case | Not downloaded; a name not in it is read in the household zone and marked approximate |
 | Identifiers named `window` | Avoided in non-test code (`range`, `span`) | The no-other-fetch scan treats a `window` alias as a possible `fetch` |
-=======
 ### Phase 4, step 2: the app, typed events (2026-11-15)
 
 | Spec says | Built | Why |
@@ -325,4 +324,3 @@ Security decision (infrastructure): the SSM policy of the API role (`api_ssm`) a
 | Not stated | The detail sheet and the edit sheet act on the event as it was when opened; actions are disabled while that event has an unsaved write; a restore is disabled for the same reason | Phase 3 review lessons |
 | Not stated | Busy items are not tappable; the other person's private event has no id to open | Nothing to act on |
 | 360 px and largest text are manual lines in step 7 | Also checked in Chromium against the dev server with a stubbed API: no sideways scroll on Today, Plan, Calendar day and week, or the add sheet at 360 px, standard and largest text | Cheap to do now; the real-phone check stays in step 7 |
->>>>>>> origin/phase-4-step-2-app
