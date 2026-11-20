@@ -325,3 +325,24 @@ Security decision (infrastructure): the SSM policy of the API role (`api_ssm`) a
 | Not stated | The detail sheet and the edit sheet act on the event as it was when opened; actions are disabled while that event has an unsaved write; a restore is disabled for the same reason | Phase 3 review lessons |
 | Not stated | Busy items are not tappable; the other person's private event has no id to open | Nothing to act on |
 | 360 px and largest text are manual lines in step 7 | Also checked in Chromium against the dev server with a stubbed API: no sideways scroll on Today, Plan, Calendar day and week, or the add sheet at 360 px, standard and largest text | Cheap to do now; the real-phone check stays in step 7 |
+
+### Phase 4, step 6, the app side (2026-11-20)
+
+The server half of step 6 is recorded in the step's commits; these rows are the app items (item 24) and the finish (step 7).
+
+| Spec says | Built | Why |
+|---|---|---|
+| The app prefetches today minus 7 days to today plus 35 days | A 42-day window from the Monday before the viewed day, minus a week (`importedWindow`), one saved query for each window | Every day of a week reads one window, so browsing costs one request; a window only guarantees about four weeks ahead |
+| Each window is saved in the persisted cache | Nothing extra: the app's default saving keeps every successful query, and a test checks the saved copy holds no link | The imported route never returns a link |
+| "Not in this calendar's last update" for a day outside a feed's snapshot | **Not built** | The server sends no per-feed coverage, only occurrences; a follow-up needs `fetchedAt` and the window the snapshot covers |
+| "Not saved for offline yet" for a day outside a saved window | Shown once for the page when the window for the day on screen could not be read and no saved window covers the day | One notice, not one for each day of a week |
+| "Sam's work: 42 events, updated just now" (CUJ 1) | The sheet shows the label, owner, what the other person sees, the host with "link hidden", the age and any notes; the event count is **not** shown | The count was not in the copy table |
+| Not stated | Feed actions are one request each, waited for, and are not in the mutation registry | A saved write would keep a link on the device |
+| Not stated | `ApiError.detail` carries the `code` of a `feed_failed` body, and the screen shows the design's words for it; any other code gets "We could not do that. Please try again." and is never repeated | The body is `{ error: 'feed_failed', code }` |
+| Not stated | An imported item is never a button or a link, and has no detail sheet | Nothing to edit; titles of busy items do not exist |
+| Not stated | The Calendars sheet opens from a "Calendars" button beside Add on the Calendar page | The design names the sheet, not its entry point |
+| The add form has steps for each provider | Google's wording is the design's. **The Outlook, Apple and Proton steps were written from memory and are unchecked** | The first manual check corrects them |
+| `useTimelineSources()` | `useTimelineSources(day?)`; the imported window is read on its own, and its failure never hides events | The window follows the day on screen |
+| The offline case reads a saved imported window | Three cases in the spike (`e2e/offline/`): a cold launch with no signal shows a saved window and says an unread one is not saved; a failed refresh keeps the window; sign-out clears it | The spike does not use app code, so these prove the saving rule, not the screens |
+| Not stated | `yarn test:e2e` here needs `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set, because the installed Playwright wants a browser build that is not downloaded | Run with the cached Chrome for Testing |
+

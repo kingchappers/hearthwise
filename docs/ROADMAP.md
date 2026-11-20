@@ -31,12 +31,24 @@ Each step is its own pull request, in this order. Design: [`designs/phase-3-mone
 2. **The app** (built): the Money tab and page, the add sheet, entries, change requests, offline use, the Deleted page group.
 3. **Finish** (built, except the real-phone checks): `yarn store-cli money-total`, the offline e2e case, and the release checklist in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md).
 
+## Phase 4: shared calendar
+
+Each step is its own pull request, stacked in this order. Design: [`designs/phase-4-calendar.md`](designs/phase-4-calendar.md).
+
+1. **Events on the server** (built): events and blocks, the privacy projection, restore.
+2. **The app** (built): the Calendar page under Plan, day and week views, Now and next on Today.
+3. **Reminders** (built): per-person reminders and the five-minute job.
+4. **The safe fetcher** (built): allowed hosts, address rules, the encryption key and the infrastructure.
+5. **The parser** (built): calendar files read in a worker thread, with repeats expanded by our own loop.
+6. **Feeds** (built): add, replace, refresh and remove feeds, the hourly refresh, imported events in the timeline, the Calendars sheet.
+7. **Finish** (built, except the real-world checks): the offline case, the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md) (a real link from each provider first), and these docs.
+
 ## Later phases
 
 Each gets its own design document.
 
 - Phase 2: meal plan feeding the shopping list. Design: [`designs/phase-2-meal-plan.md`](designs/phase-2-meal-plan.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
 - Phase 3: money tracker. Design: [`designs/phase-3-money-tracker.md`](designs/phase-3-money-tracker.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
-- Phase 4: shared calendar
+- Phase 4: shared calendar. Design: [`designs/phase-4-calendar.md`](designs/phase-4-calendar.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md), the real links first)
 - Phase 5: DIY projects
 - Unscheduled: integration with the sibling budgeting app
