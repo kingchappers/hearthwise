@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BusyView, CalendarEvent, EventOrBusy, EventView } from '../../calendar/types';
+import type { BusyView, CalendarEvent, EventOrBusy, EventView, FeedView, ImportedView } from '../../calendar/types';
 import type { Task } from '../../tasks/types';
 import { zonedInstant } from '../zoned';
 import { buildTimeline, nowAndNext } from '../timeline';
@@ -173,5 +173,59 @@ describe('nowAndNext', () => {
     const long = event('Long', { startTime: '09:00', durationMin: 300, who: SAM });
     const short = event('Short', { startTime: '10:00', durationMin: 60, who: SAM });
     expect(nowAndNext(inputs([long, short]), at('2026-11-16', '10:30'), LONDON, SAM).now?.label).toBe('Short');
+  });
+});
+
+describe('buildTimeline with imported events', () => {
+  const FEEDS: FeedView[] = [
+    { id: 'mine', label: 'Work', owner: 'Sam', mine: true, share: 'busy', status: 'ok' },
+    { id: 'theirs', label: 'Gym', owner: 'Alex', mine: false, share: 'details', status: 'ok' },
+  ];
+  const at = (hhmm: string): number => zonedInstant('2026-11-16', hhmm, LONDON);
+  const timed = (over: Partial<ImportedView> = {}): ImportedView => ({ feedId: 'mine', owner: 'Sam', title: 'Standup', allDay: false, startMs: at('09:30'), endMs: at('10:00'), ...over });
+  const build = (imported: ImportedView[], day = '2026-11-16') => buildTimeline(day, inputs([], { imported, feeds: FEEDS, timezone: LONDON }), SAM);
+
+  it('places a timed item on the day it starts, in the household zone, with its feed', () => {
+    const { timed: items } = build([timed()]);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ type: 'imported', label: 'Standup', who: 'Sam', forViewer: true, startTime: '09:30', endTime: '10:00', on: '2026-11-16', endsNextDay: false, feedId: 'mine' });
+    expect(build([timed()], '2026-11-17').timed).toEqual([]);
+  });
+
+  it('reads the wall clock in the household zone in summer time, when it is an hour from UTC', () => {
+    const summer = (hhmm: string): number => zonedInstant('2026-07-01', hhmm, LONDON);
+    const { timed: items } = buildTimeline('2026-07-01', inputs([], { imported: [timed({ startMs: summer('23:30'), endMs: summer('23:45') })], feeds: FEEDS, timezone: LONDON }), SAM);
+    expect(items[0].startTime).toBe('23:30');
+  });
+
+  it('says a timed item runs into the next day', () => {
+    const [item] = build([timed({ startMs: at('23:00'), endMs: zonedInstant('2026-11-17', '01:00', LONDON) })]).timed;
+    expect(item).toMatchObject({ endOn: '2026-11-17', endTime: '01:00', endsNextDay: true });
+  });
+
+  it('shows a busy one as Busy, with no title, and the other person\'s as theirs', () => {
+    const { timed: items } = build([timed({ feedId: 'theirs', owner: 'Alex', title: undefined, busy: true })]);
+    expect(items[0]).toMatchObject({ type: 'busy', label: 'Busy', who: 'Alex', forViewer: false });
+  });
+
+  it('puts an all-day item in the strip on every day it covers', () => {
+    const trip: ImportedView = { feedId: 'theirs', owner: 'Alex', title: 'Away', allDay: true, startOn: '2026-11-15', endOn: '2026-11-17' };
+    expect(labels(build([trip]).allDay)).toEqual(['Away']);
+    expect(build([trip], '2026-11-18').allDay).toEqual([]);
+  });
+
+  it('carries the approximate-time mark', () => {
+    expect(build([timed({ approx: true })]).timed[0].approx).toBe(true);
+  });
+
+  it('keeps the keys unique and stable whatever the order', () => {
+    const a = timed({ title: 'A' });
+    const b = timed({ title: 'B', startMs: at('11:00'), endMs: at('11:30') });
+    expect(build([a, b]).timed.map(item => item.key)).toEqual(build([b, a]).timed.map(item => item.key));
+    expect(new Set(build([a, a]).timed.map(item => item.key)).size).toBe(2);
+  });
+
+  it('reads nothing when there are no imported items or no zone', () => {
+    expect(buildTimeline('2026-11-16', inputs(), SAM).timed).toEqual([]);
   });
 });
