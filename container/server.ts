@@ -18,6 +18,7 @@ import { startMaintenance } from './maintenance';
 import { initPush, resetPush } from '../src/push/init';
 import { getSender } from '../src/push/registry';
 import { runSchedule } from '../src/push/scheduler';
+import { runReminders } from '../src/calendar/reminders';
 import { createCodeHooks, removeCodeFile } from './recovery';
 
 export interface RunningServer {
@@ -130,6 +131,7 @@ export async function startServer(env: NodeJS.ProcessEnv, options: StartOptions 
         newestBackupAgeSeconds: now => newestBackupAgeSeconds(config.backupDir, now),
         log,
         runScheduler: now => runSchedule(store, getSender(), now),
+        runReminders: async now => { await runReminders(store, getSender(), now); },
       },
       { backupHour: config.backupHour, backupKeep: config.backupKeep },
     );

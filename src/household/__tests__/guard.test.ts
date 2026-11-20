@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/household';
 import { MemoryStore } from '../../store/memory';
 import { createHousehold } from '../households';
-import { loadContext } from '../guard';
+import { loadContext, loadHousehold } from '../guard';
 import { hhPk, membershipKey, memberSk } from '../keys';
 
 let store: MemoryStore;
@@ -48,5 +48,18 @@ describe('loadContext', () => {
     await store.put({ PK: hhPk(householdId), SK: memberSk('auth0|u1'), displayName: 'Sam', joinedAt: '2026-11-13T10:00:00.000Z', settings: { defaultView: 'next' } });
     const ctx = await loadContext(store, 'auth0|u1');
     expect(ctx?.member.settings).toEqual({ ...DEFAULT_SETTINGS, defaultView: 'next' });
+  });
+});
+
+describe('loadHousehold', () => {
+  it('reads a household from its id alone: the meta and every member', async () => {
+    await store.put({ PK: hhPk(householdId), SK: memberSk('auth0|u2'), displayName: 'Alex', settings: DEFAULT_SETTINGS, joinedAt: '2026-11-13T11:00:00.000Z' });
+    const household = await loadHousehold(store, householdId);
+    expect(household?.household.timezone).toBe('Europe/London');
+    expect(household?.members.map(member => member.userId).sort()).toEqual(['auth0|u1', 'auth0|u2']);
+  });
+
+  it('is undefined for a household that does not exist', async () => {
+    expect(await loadHousehold(store, 'nope')).toBeUndefined();
   });
 });

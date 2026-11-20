@@ -1,7 +1,8 @@
 # ============================================================================
 # Reminder scheduler: opt-in push notifications
 #
-# Runs once an hour: sends each person's digest and due nudges (if they turned them on) and releases held pushes.
+# Runs once an hour: sends each person's digest and due nudges (if they turned them on) and releases held pushes. A second rule
+# runs every five minutes and sends only the calendar reminders people asked for.
 # Until a VAPID key pair exists, every run finds nothing to do.
 # ============================================================================
 
@@ -140,4 +141,32 @@ resource "aws_lambda_permission" "push_eventbridge" {
   function_name = aws_lambda_function.push.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.push_hourly.arn
+}
+
+# Every five minutes: calendar reminders. The input tells the handler to run only the reminders, so the hourly work (digests and
+# nudges) is never done twice.
+resource "aws_cloudwatch_event_rule" "push_reminders" {
+  name                = "${var.app_name}-push-reminders"
+  description         = "Sends the calendar reminders people asked for"
+  schedule_expression = "rate(5 minutes)"
+
+  tags = {
+    Environment = var.environment
+    ManagedBy   = "OpenTofu"
+  }
+}
+
+resource "aws_cloudwatch_event_target" "push_reminders" {
+  rule  = aws_cloudwatch_event_rule.push_reminders.name
+  arn   = aws_lambda_function.push.arn
+  input = jsonencode({ job = "reminders" })
+}
+
+# Only this rule may invoke the reminders, under its own statement (INFRA-02)
+resource "aws_lambda_permission" "push_reminders_eventbridge" {
+  statement_id  = "AllowEventBridgeInvokePushReminders"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.push.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.push_reminders.arn
 }

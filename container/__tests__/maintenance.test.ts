@@ -1,23 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runCatchUp, runTick, startMaintenance, type MaintenanceDeps } from '../maintenance';
+import { runCatchUp, runReminderTick, runTick, startMaintenance, type MaintenanceDeps } from '../maintenance';
 
 const HOUR = 3600;
 const options = { backupHour: 3, backupKeep: 7 };
 const at = (hour: number) => new Date(2026, 9, 10, hour, 0, 0);
 
-function deps(ageSeconds: number): MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number; schedules: number } {
-  const state = { logs: [] as string[], backups: [] as Date[], purges: 0, schedules: 0 };
+type Fake = MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number; schedules: number; reminders: number };
+
+function deps(ageSeconds: number): Fake {
+  const state = { logs: [] as string[], backups: [] as Date[], purges: 0, schedules: 0, reminders: 0 };
   return Object.assign(state, {
     purgeExpired: () => { state.purges += 1; return 0; },
     backup: (now: Date) => { state.backups.push(now); },
     newestBackupAgeSeconds: () => ageSeconds,
     log: (message: string) => { state.logs.push(message); },
     runScheduler: async () => { state.schedules += 1; },
+    runReminders: async () => { state.reminders += 1; },
   });
 }
 
 // A fake store with a clock: backup() records the time and becomes the newest backup.
-function world(last?: Date): MaintenanceDeps & { logs: string[]; backups: Date[]; purges: number; schedules: number } {
+function world(last?: Date): Fake {
   let newest = last?.getTime();
   const state = deps(0);
   state.newestBackupAgeSeconds = now => (newest === undefined ? Infinity : (now.getTime() - newest) / 1000);
@@ -217,5 +220,51 @@ describe('startMaintenance', () => {
     maintenance.stop();
     vi.advanceTimersByTime(3 * 60 * 60 * 1000);
     expect(d.purges).toBe(3);
+  });
+
+  it('sends reminders every five minutes, not on the hourly tick, and stops them with stop()', () => {
+    const d = deps(0);
+    const maintenance = startMaintenance(d, options, () => new Date());
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    expect(d.reminders).toBe(12);
+    expect(d.schedules).toBe(1);
+    maintenance.stop();
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    expect(d.reminders).toBe(12);
+  });
+
+  it('does not purge or back up on the five-minute tick', () => {
+    const d = deps(Infinity);
+    startMaintenance(d, { backupHour: 0, backupKeep: 7 }, () => new Date()).stop();
+    d.purges = 0;
+    d.backups.length = 0;
+    const running = startMaintenance(d, { backupHour: 0, backupKeep: 0 }, () => new Date());
+    vi.advanceTimersByTime(5 * 60 * 1000);
+    expect(d.purges).toBe(0);
+    running.stop();
+  });
+});
+
+describe('runReminderTick', () => {
+  it('runs the reminders with the time', async () => {
+    const d = deps(0);
+    await runReminderTick(d, at(10));
+    expect(d.reminders).toBe(1);
+  });
+
+  it('logs a failure by name and never throws or touches the hourly work', async () => {
+    const d = deps(0);
+    d.runReminders = async () => { throw Object.assign(new TypeError('secret detail'), { code: 'ECONNRESET' }); };
+    await runReminderTick(d, at(10));
+    expect(d.logs.join('\n')).toContain('Reminders failed: TypeError (ECONNRESET)');
+    expect(d.logs.join('\n')).not.toContain('secret detail');
+    expect(d.schedules).toBe(0);
+    expect(d.purges).toBe(0);
+  });
+
+  it('is not run by the hourly tick', async () => {
+    const d = deps(0);
+    await runTick(d, options, at(10));
+    expect(d.reminders).toBe(0);
   });
 });
