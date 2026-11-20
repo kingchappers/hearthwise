@@ -5,6 +5,8 @@ export interface MaintenanceDeps {
   log(message: string): void;
   // The reminder scheduler: digests, due nudges and held pushes. May take a while; a failure never stops the purge or the backup.
   runScheduler(now: Date): Promise<void>;
+  // Calendar reminders people asked for, every five minutes. The hourly tick never runs them and this one never runs the scheduler.
+  runReminders(now: Date): Promise<void>;
 }
 
 export interface MaintenanceOptions {
@@ -13,6 +15,7 @@ export interface MaintenanceOptions {
 }
 
 const HOUR_MS = 60 * 60 * 1000;
+const REMINDER_MS = 5 * 60 * 1000;
 const DAY_SECONDS = 24 * 60 * 60;
 // The error name, plus a Node error code such as EACCES when there is a plain one: a message can echo paths or SQL.
 const SAFE_CODE = /^[A-Z0-9_]{2,40}$/;
@@ -64,6 +67,10 @@ export async function runTick(deps: MaintenanceDeps, options: MaintenanceOptions
   await attemptAsync(deps, 'Reminder scheduler', () => deps.runScheduler(now));
 }
 
+export async function runReminderTick(deps: MaintenanceDeps, now: Date): Promise<void> {
+  await attemptAsync(deps, 'Reminders', () => deps.runReminders(now));
+}
+
 export function runCatchUp(deps: MaintenanceDeps, options: MaintenanceOptions, now: Date): void {
   if (options.backupKeep > 0) backupIfOlderThan(deps, now, DAY_SECONDS);
 }
@@ -77,5 +84,8 @@ export function startMaintenance(
   runCatchUp(deps, options, now());
   const handle = timers.setInterval(() => { void runTick(deps, options, now()); }, HOUR_MS);
   handle.unref();
-  return { stop: () => timers.clearInterval(handle) };
+  // Timers start at boot, not on the five-minute mark: the 15 minute catch-up window and the claims absorb that.
+  const reminderHandle = timers.setInterval(() => { void runReminderTick(deps, now()); }, REMINDER_MS);
+  reminderHandle.unref();
+  return { stop: () => { timers.clearInterval(handle); timers.clearInterval(reminderHandle); } };
 }
