@@ -9,12 +9,12 @@ fs.rmSync(outDir, { recursive: true, force: true });
 
 console.log('Compiling container server...');
 execSync(
-  'tsc container/bin.ts --outDir build/container --module commonjs --skipLibCheck --strict --target es2020 --resolveJsonModule --esModuleInterop',
+  'tsc container/bin.ts src/calendar/parseIcs.ts src/calendar/parseWorker.ts --outDir build/container --module commonjs --skipLibCheck --strict --target es2020 --resolveJsonModule --esModuleInterop',
   { cwd: root, stdio: 'inherit', env: { ...process.env, PATH: `${path.join(root, 'node_modules/.bin')}${path.delimiter}${process.env.PATH}` } },
 );
-// The repo root is "type": "module"; this marker lets the compiled CommonJS run. The runtime image has no npm, so the one package
-// the container needs (web-push, for sending) is installed here, into build/container, and copied across with the rest.
-fs.writeFileSync(path.join(outDir, 'package.json'), JSON.stringify({ name: 'hearthwise-container', version: '1.0.0', type: 'commonjs', dependencies: { 'web-push': '^3.6.7' } }, null, 2) + '\n');
+// The repo root is "type": "module"; this marker lets the compiled CommonJS run. The runtime image has no npm, so the packages
+// the container needs (web-push, for sending, and ical.js, for reading calendar files, pinned exactly) are installed here, into build/container, and copied across with the rest.
+fs.writeFileSync(path.join(outDir, 'package.json'), JSON.stringify({ name: 'hearthwise-container', version: '1.0.0', type: 'commonjs', dependencies: { 'web-push': '^3.6.7', 'ical.js': '2.2.1' } }, null, 2) + '\n');
 console.log('Installing container dependencies...');
 execSync('npm install --omit=dev --ignore-scripts --no-audit --no-fund', { cwd: outDir, stdio: 'inherit' });
 fs.rmSync(path.join(outDir, 'package-lock.json'), { force: true });

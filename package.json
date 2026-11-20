@@ -10,6 +10,7 @@
     "typecheck": "react-router typegen && tsc",
     "build:container": "node scripts/build-container.cjs",
     "test": "vitest run",
+    "test:build": "REQUIRE_BUILD_OUTPUT=1 vitest run src/calendar/__tests__/buildOutputs.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "store-cli": "node scripts/build-store-cli.cjs && node build/store-cli/store-cli.js"
@@ -30,6 +31,7 @@
     "@tanstack/react-query": "^5.107.1",
     "@tanstack/react-query-persist-client": "^5.107.1",
     "dayjs": "^1.11.19",
+    "ical.js": "2.2.1",
     "idb-keyval": "^6.3.0",
     "isbot": "^5.1.31",
     "jsonwebtoken": "^9.0.3",

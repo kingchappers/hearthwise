@@ -50,3 +50,9 @@ export function zonedInstant(day: string, hhmm: string, timeZone: string): numbe
   // In the gap: the offsets either side differ, and the clock jumped over this time.
   return transitionAfter(wall - earlier - HOUR_MS * 12, wall - later + HOUR_MS * 12, earlier, timeZone);
 }
+
+// The clock in `timeZone` at an instant: the day and the seconds after midnight.
+export function zonedWall(ms: number, timeZone: string): { day: string; seconds: number } {
+  const local = new Date(Math.floor(ms / 1000) * 1000 + offsetAt(ms, timeZone));
+  return { day: local.toISOString().slice(0, 10), seconds: local.getUTCHours() * 3600 + local.getUTCMinutes() * 60 + local.getUTCSeconds() };
+}

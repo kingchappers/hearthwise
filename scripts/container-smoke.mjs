@@ -157,6 +157,16 @@ async function main() {
   await waitFor(async () => (await get('/healthz')).status === 200, '/healthz');
   step('healthz is 200', true);
 
+  // The calendar parser: ical.js must be in the image and the worker must start there, or the first refresh would be the first to know.
+  // A fixture with a London clock change in it is parsed by the compiled parseIcs (a worker thread) inside the running container.
+  const fixture = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Smoke//EN', 'BEGIN:VEVENT', 'UID:smoke@test', 'SUMMARY:Smoke test', 'DTSTART;TZID=Europe/London:20260328T090000', 'RRULE:FREQ=DAILY;COUNT=3', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
+  const parseScript = `const { parseIcs } = require('/app/build/container/src/calendar/parseIcs.js');
+    const now = Date.UTC(2026, 2, 28);
+    parseIcs(${JSON.stringify(fixture)}, { from: now - 864e5, to: now + 864e7, now, zone: 'Europe/London' })
+      .then(r => console.log(JSON.stringify(r.ok ? r.occurrences.map(o => new Date(o.startMs).toISOString()) : r)));`;
+  const parsed = JSON.parse(docker('exec', name, 'node', '-e', parseScript));
+  step('the calendar parser reads a fixture in the image, keeping 09:00 across the clock change', JSON.stringify(parsed) === JSON.stringify(['2026-03-28T09:00:00.000Z', '2026-03-29T08:00:00.000Z', '2026-03-30T08:00:00.000Z']), JSON.stringify(parsed));
+
   // The service worker: served as JavaScript that is always revalidated, and built the way the design needs (no skipWaiting while a
   // page is open, nothing under /api cached, config.json never precached).
   const worker = await get('/sw.js');
