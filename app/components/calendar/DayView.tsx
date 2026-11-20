@@ -11,13 +11,16 @@ export interface DayViewProps {
   inputsFor: (day: string) => TimelineInputs;
   viewer: string;
   unsavedIds: ReadonlySet<string>;
+  // The time each imported item's feed age is said against.
+  now?: number;
   onDay: (day: string) => void;
   onOpen: (item: TimelineItem) => void;
 }
 
 const BUTTON = { minHeight: 44 };
 
-export function DayView({ day, today, inputsFor, viewer, unsavedIds, onDay, onOpen }: DayViewProps) {
+export function DayView({ day, today, inputsFor, viewer, unsavedIds, now, onDay, onOpen }: DayViewProps) {
+  const inputs = inputsFor(day);
   return (
     <Stack gap="sm">
       <Group gap="xs">
@@ -26,7 +29,7 @@ export function DayView({ day, today, inputsFor, viewer, unsavedIds, onDay, onOp
         <Button variant="default" style={BUTTON} onClick={() => onDay(addDays(day, 1))}>Next day</Button>
       </Group>
       <Title order={2} size="h4">{dayHeading(day, today)}</Title>
-      <TimelineList timeline={buildTimeline(day, inputsFor(day), viewer)} unsavedIds={unsavedIds} onOpen={onOpen} />
+      <TimelineList timeline={buildTimeline(day, inputs, viewer)} unsavedIds={unsavedIds} feeds={inputs.feeds} now={now} onOpen={onOpen} />
     </Stack>
   );
 }
