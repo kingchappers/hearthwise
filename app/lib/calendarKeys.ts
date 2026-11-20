@@ -9,3 +9,7 @@ export const calendarMutationKeys: { [K in CalendarMutationKind]: readonly ['hou
   createEvent: ['household', 'createEvent'], editEvent: ['household', 'editEvent'], deleteEvent: ['household', 'deleteEvent'],
   setReminders: ['household', 'setReminders'], eventRestore: ['household', 'eventRestore'],
 };
+
+// One saved entry per window of imported events: ['calendar-imported', from, to]. Kept apart from CALENDAR_KEY so the 10-second poll of
+// typed events never refetches a window.
+export const IMPORTED_KEY = ['calendar-imported'] as const;
