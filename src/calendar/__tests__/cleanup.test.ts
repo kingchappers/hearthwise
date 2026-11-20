@@ -7,7 +7,10 @@ import { DEFAULT_SETTINGS } from '../../shared/household';
 import { MemoryStore } from '../../store/memory';
 import { purgeNonMemberData } from '../cleanup';
 import { deleteEvent, listEvents, putEvent, setEventReminders } from '../events';
-import { eventKey } from '../keys';
+import { addFeed } from '../feeds';
+import type { FeedDeps } from '../feeds';
+import { CALFEEDS, eventKey, feedIndexKey, feedKey, secretKey } from '../keys';
+import { fetchedFixtureDeps } from './feedFixtures';
 import type { EventView, EventWrite } from '../types';
 
 const NOW = Date.parse('2026-11-14T10:00:00.000Z');
@@ -79,10 +82,10 @@ describe('purgeNonMemberData', () => {
 
   it('does nothing to a household where everyone is a member, and is safe to run twice', async () => {
     await make(ctx2, true);
-    expect(await purgeNonMemberData(store, householdId, )).toEqual({ deleted: 0, trimmed: 0, failed: 0 });
+    expect(await purgeNonMemberData(store, householdId, )).toEqual({ deleted: 0, trimmed: 0, feeds: 0, failed: 0 });
     await leave(U2);
     await purgeNonMemberData(store, householdId);
-    expect(await purgeNonMemberData(store, householdId)).toEqual({ deleted: 0, trimmed: 0, failed: 0 });
+    expect(await purgeNonMemberData(store, householdId)).toEqual({ deleted: 0, trimmed: 0, feeds: 0, failed: 0 });
   });
 
   it('counts a delete that fails, carries on with the rest, and never throws or logs text', async () => {
@@ -151,8 +154,38 @@ describe('purgeNonMemberData: stale and failing reads', () => {
   it('never throws when a query rejects, and logs only the error name', async () => {
     vi.spyOn(store, 'query').mockRejectedValue(new Error('SENTINEL boom'));
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    await expect(purgeNonMemberData(store, householdId, U2)).resolves.toEqual({ deleted: 0, trimmed: 0, failed: 1 });
+    await expect(purgeNonMemberData(store, householdId, U2)).resolves.toEqual({ deleted: 0, trimmed: 0, feeds: 0, failed: 1 });
     expect(JSON.stringify(errors.mock.calls)).not.toContain('SENTINEL');
     expect(errors).toHaveBeenCalled();
+  });
+});
+
+describe('purgeNonMemberData: feeds', () => {
+  const A = '11111111-1111-4111-8111-111111111111';
+  const B = '22222222-2222-4222-8222-222222222222';
+  let deps: FeedDeps;
+  beforeEach(() => { deps = fetchedFixtureDeps(); vi.spyOn(console, 'log').mockImplementation(() => undefined); });
+  const addFor = (ctx: HouseholdContext, id: string) => addFeed(store, deps, ctx, { id, link: 'https://calendar.google.com/calendar/ical/x/y/basic.ics', label: 'L', share: 'busy' }, NOW);
+  const snaps = (id: string) => store.query(hhPk(householdId), { skPrefix: `CALSNAP#${id}#` });
+
+  it('deletes the feed, its secret, its chunks and its index item for someone who is no longer a member, and keeps the other person\'s', async () => {
+    await addFor(ctx2, A);
+    await addFor(ctx1, B);
+    expect((await snaps(A)).length).toBeGreaterThan(0);
+    await leave(U2);
+    const result = await purgeNonMemberData(store, householdId);
+    expect(result.feeds).toBe(1);
+    expect(await store.get(feedKey(householdId, A))).toBeUndefined();
+    expect(await store.get(secretKey(householdId, A))).toBeUndefined();
+    expect(await snaps(A)).toEqual([]);
+    expect(await store.get(feedIndexKey(householdId, A))).toBeUndefined();
+    expect(await store.get(feedKey(householdId, B))).toBeDefined();
+    expect((await store.query(CALFEEDS)).map(row => row.SK)).toEqual([`${householdId}#${B}`]);
+  });
+
+  it('deletes the removed person\'s feed even when the member query still lists them, when told who was removed', async () => {
+    await addFor(ctx2, A);
+    await purgeNonMemberData(store, householdId, U2);
+    expect(await store.get(feedKey(householdId, A))).toBeUndefined();
   });
 });

@@ -18,6 +18,8 @@ import { startMaintenance } from './maintenance';
 import { initPush, resetPush } from '../src/push/init';
 import { getSender } from '../src/push/registry';
 import { runSchedule } from '../src/push/scheduler';
+import { configureCalendar, realFeedDeps } from '../src/calendar/feedRuntime';
+import { runCalendarRefresh } from '../src/calendar/refresh';
 import { runReminders } from '../src/calendar/reminders';
 import { createCodeHooks, removeCodeFile } from './recovery';
 
@@ -101,6 +103,9 @@ export async function startServer(env: NodeJS.ProcessEnv, options: StartOptions 
   // Keys: from the environment, vapid.json, or newly made. None (a broken file) means no push, and the server still starts.
   resetPush();
   const vapid = await initPush(runtimeEnv, { dataDir: config.dataDir, log });
+  // The calendar key is made (mode 0600, next to vapid.json) the first time, or read: with none, calendars say so kindly and nothing else changes.
+  configureCalendar(runtimeEnv, { dataDir: config.dataDir, log });
+  await realFeedDeps().loadKey();
   let maintenance: { stop(): void } | undefined;
   const releaseInternals = (): void => {
     maintenance?.stop();
@@ -132,6 +137,7 @@ export async function startServer(env: NodeJS.ProcessEnv, options: StartOptions 
         log,
         runScheduler: now => runSchedule(store, getSender(), now),
         runReminders: async now => { await runReminders(store, getSender(), now); },
+        runCalendarRefresh: now => runCalendarRefresh(store, now, Number.POSITIVE_INFINITY),
       },
       { backupHour: config.backupHour, backupKeep: config.backupKeep },
     );

@@ -1,10 +1,10 @@
-import type { EventOrBusy } from '../calendar/types';
+import type { EventOrBusy, FeedView, ImportedView } from '../calendar/types';
 import { effectiveAssignee } from '../tasks/ownership';
 import type { Task } from '../tasks/types';
 import { occurrencesOf } from './calendar';
 import type { Occurrence } from './calendar';
 import { addDays, dayInZone } from './schedule';
-import { zonedInstant } from './zoned';
+import { zonedInstant, zonedWall } from './zoned';
 
 // The day's items in order: events, imported items (a later step), tasks due and the dinner. Worked out on the device each time and
 // never stored: each source keeps its own cache. Pure, so the day view, the week view and "Now and next" read the same thing.
@@ -20,9 +20,14 @@ export interface TimelineInputs {
   // The plan's dinner for the day, with its title as it should be shown.
   dinner?: { title: string };
   members: TimelineMember[];
+  // Imported occurrences as the viewer may see them, with their feeds (to know whose they are) and the zone their instants are read in.
+  // Without a zone no imported item can be placed on a day, so none is shown.
+  imported?: ImportedView[];
+  feeds?: FeedView[];
+  timezone?: string;
 }
 
-export type TimelineType = 'event' | 'block' | 'busy' | 'task' | 'dinner';
+export type TimelineType = 'event' | 'block' | 'busy' | 'task' | 'dinner' | 'imported';
 
 export interface TimelineItem {
   // Stable and unique for the day: the same events give the same keys in any order.
@@ -43,6 +48,9 @@ export interface TimelineItem {
   place?: string;
   eventId?: string;
   taskId?: string;
+  // An imported item's feed, so the screen can say when that feed was last updated, and whether its time could not be read exactly.
+  feedId?: string;
+  approx?: true;
 }
 
 export interface Timeline {
@@ -53,7 +61,7 @@ export interface Timeline {
 const BUSY = 'Busy';
 const BOTH = 'Both';
 const FORMER = 'Former member';
-const ALL_DAY_ORDER: Record<TimelineType, number> = { event: 0, block: 0, busy: 0, task: 1, dinner: 2 };
+const ALL_DAY_ORDER: Record<TimelineType, number> = { event: 0, block: 0, busy: 0, imported: 0, task: 1, dinner: 2 };
 
 const nameOf = (members: TimelineMember[], userId: string): string => members.find(member => member.userId === userId)?.displayName ?? FORMER;
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -80,6 +88,40 @@ function eventItems(day: string, event: EventOrBusy, inputs: TimelineInputs, vie
   });
 }
 
+const hhmm = (seconds: number): string => `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}`;
+
+function importedItem(day: string, view: ImportedView, inputs: TimelineInputs, zone: string): TimelineItem | undefined {
+  const mine = inputs.feeds?.find(feed => feed.id === view.feedId)?.mine === true;
+  const base = {
+    type: (view.busy === true ? 'busy' : 'imported') as TimelineType, label: view.busy === true ? BUSY : view.title ?? BUSY, who: view.owner, forViewer: mine,
+    feedId: view.feedId, ...(view.approx === true ? { approx: true as const } : {}),
+  };
+  if (view.allDay) {
+    if (view.startOn === undefined || view.endOn === undefined || view.startOn > day || view.endOn < day) return undefined;
+    return { ...base, key: '', allDay: true, on: view.startOn, endOn: view.endOn, endsNextDay: false };
+  }
+  if (view.startMs === undefined) return undefined;
+  const start = zonedWall(view.startMs, zone);
+  if (start.day !== day) return undefined;
+  const end = zonedWall(view.endMs ?? view.startMs, zone);
+  return { ...base, key: '', allDay: false, on: start.day, startTime: hhmm(start.seconds), endOn: end.day, endTime: hhmm(end.seconds), endsNextDay: end.day !== start.day };
+}
+
+// Two identical items keep distinct keys, and the key does not depend on the order they arrived in.
+function importedItems(day: string, inputs: TimelineInputs): TimelineItem[] {
+  const zone = inputs.timezone;
+  if (zone === undefined) return [];
+  const seen = new Map<string, number>();
+  return (inputs.imported ?? []).flatMap((view): TimelineItem[] => {
+    const item = importedItem(day, view, inputs, zone);
+    if (!item) return [];
+    const base = `imported#${view.feedId}#${item.on}#${item.startTime ?? ''}#${item.endOn}#${item.endTime ?? ''}#${item.label}`;
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    return [{ ...item, key: count === 0 ? base : `${base}#${count}` }];
+  });
+}
+
 function taskItem(task: Task, day: string, inputs: TimelineInputs, viewer: string): TimelineItem {
   const owner = effectiveAssignee(task, { members: inputs.members });
   const who = owner === 'both' ? BOTH : owner === 'either' ? 'Anyone' : nameOf(inputs.members, owner);
@@ -95,7 +137,7 @@ const byStart = (a: TimelineItem, b: TimelineItem): number =>
   compare(a.startTime ?? '', b.startTime ?? '') || compare(a.who, b.who) || compare(a.label, b.label) || compare(a.key, b.key);
 
 export function buildTimeline(day: string, inputs: TimelineInputs, viewer: string): Timeline {
-  const fromEvents = inputs.events.flatMap(event => eventItems(day, event, inputs, viewer));
+  const fromEvents = [...inputs.events.flatMap(event => eventItems(day, event, inputs, viewer)), ...importedItems(day, inputs)];
   const tasks = inputs.tasks
     .filter(task => task.status === 'open' && task.deletedAt === undefined && task.dueOn === day)
     .map(task => taskItem(task, day, inputs, viewer));

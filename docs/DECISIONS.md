@@ -310,3 +310,18 @@ Security decision (infrastructure): the SSM policy of the API role (`api_ssm`) a
 | Output shape | `{ allDay: false, startMs, endMs, title, free, approx }` or `{ allDay: true, startOn, endOn (inclusive), title, free }`, and counts `events`, `skipped`, `approx`, `truncated` | The snapshot chunk tuples are made from this in step 6 |
 | Windows zone table | About 140 names from CLDR's primary mapping, written from memory of the list, each checked to be a zone the runtime knows. Names are matched ignoring case | Not downloaded; a name not in it is read in the household zone and marked approximate |
 | Identifiers named `window` | Avoided in non-test code (`range`, `span`) | The no-other-fetch scan treats a `window` alias as a possible `fetch` |
+
+### Phase 4, step 2: the app, typed events (2026-11-15)
+
+| Spec says | Built | Why |
+|---|---|---|
+| `plan.tsx` becomes a layout with the "Dinners \| Calendar" switch; `h1` not stated | `plan.tsx` holds the switch (links with `aria-current`) and an `Outlet`; each child keeps its own `h1` ("Plan", "Calendar") and its own page title | A child page tested alone still has one `h1` |
+| Reminders on the add or edit sheet (views list) | Not built: the reminder picker is step 3 (item 12). `setReminders` is registered, has its overlay and an action, but no screen calls it | Items 10 to 12 own reminders |
+| "Next" on Today: "Dentist, Alex, 10:30" and "Wind down at 21:30" (two forms) | One form: "Next: {title} at {time}", with ", {name}," after the title when the item is not the viewer's or both | One rule for both examples |
+| Both-person label "Sam and Alex" (CUJ 3) or "Both" (Timeline) | "Both" | The Timeline section is the rule |
+| "Now" read with `zonedInstant` | Also reads yesterday's items, and an item that starts inside a clock-change gap and ends at the same moment is not "now" | Overnight items at 00:30 |
+| Not stated | The strip and the page re-read the clock each minute (`useNow`) | A screen that says "now" must not go stale |
+| Not stated | An all-day event's last day is a field on the sheet; week view starts on the day chosen (today), not on Monday | Server supports `endOn`; CUJ 11 says "the next seven days" |
+| Not stated | The detail sheet and the edit sheet act on the event as it was when opened; actions are disabled while that event has an unsaved write; a restore is disabled for the same reason | Phase 3 review lessons |
+| Not stated | Busy items are not tappable; the other person's private event has no id to open | Nothing to act on |
+| 360 px and largest text are manual lines in step 7 | Also checked in Chromium against the dev server with a stubbed API: no sideways scroll on Today, Plan, Calendar day and week, or the add sheet at 360 px, standard and largest text | Cheap to do now; the real-phone check stays in step 7 |

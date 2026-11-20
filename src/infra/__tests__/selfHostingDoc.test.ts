@@ -35,6 +35,19 @@ describe('docs/SELF-HOSTING.md', () => {
     }
   });
 
+  it('documents the calendar settings: the extra hosts and the key, and that the key file is kept apart from backups', () => {
+    const doc = read('docs/SELF-HOSTING.md');
+    expect(headings()).toContain('Calendars');
+    for (const name of ['CALENDAR_EXTRA_HOSTS', 'CALENDAR_KEY', 'calendar.key']) expect(doc, `${name} is not documented`).toContain(name);
+    const section = doc.slice(doc.indexOf('## Calendars'));
+    expect(section).toMatch(/not part of the (database )?backup/i);
+    expect(section).toMatch(/apart from (the |your )?backups/i);
+    expect(section).toMatch(/Link needs to be added again/);
+    expect(section).toMatch(/Google, Outlook, Apple and Proton/);
+    expect(section).toMatch(/private address|home network/i);
+    expect(section).toMatch(/outbound|reach/i);
+  });
+
   it('does not carry over the sibling app\'s name or its old-install advice', () => {
     expect(read('docs/SELF-HOSTING.md').toLowerCase()).not.toMatch(/hoardwise|budget\.sqlite/);
     expect(read('compose.example.yml').toLowerCase()).not.toContain('keep their old prefix');

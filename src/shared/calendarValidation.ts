@@ -1,7 +1,7 @@
 import { EVENT_KINDS } from '../calendar/types';
-import type { EventKind, EventPutInput, EventWrite, People, Reminder, Schedule } from '../calendar/types';
-import { addDays } from './schedule';
-import { ENVELOPE_KEYS, parseClientTime, parseDay, parseEnvelope, parseMutationBody, parseRepeat, parseStamped } from './taskValidation';
+import type { EventKind, FeedShare, EventPutInput, EventWrite, People, Reminder, Schedule } from '../calendar/types';
+import { addDays, isRealDate } from './schedule';
+import { ENVELOPE_KEYS, parseClientTime, parseDay, parseEnvelope, parseMutationBody, parseRepeat, parseStamped, parseUuid } from './taskValidation';
 import { bad, good, trimmedText, unknownKey } from './validation';
 import type { Parsed } from './validation';
 
@@ -186,4 +186,80 @@ export function parseRemindersPut(body: Record<string, unknown>): Parsed<{ list:
   if (!envelope.ok) return envelope;
   const list = parseReminderList(body.list);
   return list.ok ? good({ list: list.value, mutationId: envelope.value.mutationId }) : list;
+}
+
+// ---- Feeds ----
+
+export const MAX_FEED_LABEL = 60;
+// A link longer than the fetcher's 2,000 is refused there as "bad_link", with a message the person can read; this only keeps a body bounded.
+const MAX_LINK_BODY = 4000;
+export const MAX_IMPORTED_DAYS = 62;
+
+function parseShare(value: unknown): Parsed<FeedShare> {
+  return value === 'busy' || value === 'details' ? good(value) : bad('share');
+}
+
+function parseLinkField(value: unknown): Parsed<string> {
+  return typeof value === 'string' && value.length >= 1 && value.length <= MAX_LINK_BODY ? good(value) : bad('link');
+}
+
+// A refusal names the field and never the value: the link is a secret and must not come back in an error.
+export function parseFeedAdd(body: Record<string, unknown>): Parsed<{ id: string; link: string; label: string; share: FeedShare }> {
+  const extra = unknownKey(body, ['id', 'link', 'label', 'share'], '');
+  if (extra) return bad(extra);
+  const id = parseUuid(body.id, 'id');
+  if (!id.ok) return id;
+  const link = parseLinkField(body.link);
+  if (!link.ok) return link;
+  const label = trimmedText(body.label, MAX_FEED_LABEL, 'label');
+  if (!label.ok) return label;
+  const share = has(body, 'share') ? parseShare(body.share) : good<FeedShare>('busy');
+  if (!share.ok) return share;
+  return good({ id: id.value, link: link.value, label: label.value, share: share.value });
+}
+
+export function parseFeedReplace(body: Record<string, unknown>): Parsed<{ replaceId: string; link: string }> {
+  const extra = unknownKey(body, ['replaceId', 'link'], '');
+  if (extra) return bad(extra);
+  const replaceId = parseUuid(body.replaceId, 'replaceId');
+  if (!replaceId.ok) return replaceId;
+  const link = parseLinkField(body.link);
+  if (!link.ok) return link;
+  return good({ replaceId: replaceId.value, link: link.value });
+}
+
+export function parseFeedPatch(body: Record<string, unknown>): Parsed<{ mutationId: string; label?: string; share?: FeedShare }> {
+  const extra = unknownKey(body, ['mutationId', 'label', 'share'], '');
+  if (extra) return bad(extra);
+  const mutationId = parseUuid(body.mutationId, 'mutationId');
+  if (!mutationId.ok) return mutationId;
+  if (!has(body, 'label') && !has(body, 'share')) return bad('label');
+  const value: { mutationId: string; label?: string; share?: FeedShare } = { mutationId: mutationId.value };
+  if (has(body, 'label')) {
+    const label = trimmedText(body.label, MAX_FEED_LABEL, 'label');
+    if (!label.ok) return label;
+    value.label = label.value;
+  }
+  if (has(body, 'share')) {
+    const share = parseShare(body.share);
+    if (!share.ok) return share;
+    value.share = share.value;
+  }
+  return good(value);
+}
+
+// A feed route that carries only a mutation id (remove, refresh now): no client time and no "let them know".
+export function parseFeedMutation(body: Record<string, unknown>): Parsed<{ mutationId: string }> {
+  const extra = unknownKey(body, ['mutationId'], '');
+  if (extra) return bad(extra);
+  const mutationId = parseUuid(body.mutationId, 'mutationId');
+  return mutationId.ok ? good({ mutationId: mutationId.value }) : mutationId;
+}
+
+// The query of GET /calendar/imported: two days, at most 62 apart (inclusive).
+export function parseImportedQuery(query: Record<string, string | undefined>): Parsed<{ from: string; to: string }> {
+  const { from, to } = query;
+  if (from === undefined || !isRealDate(from)) return bad('from');
+  if (to === undefined || !isRealDate(to) || to < from || to > addDays(from, MAX_IMPORTED_DAYS - 1)) return bad('to');
+  return good({ from, to });
 }

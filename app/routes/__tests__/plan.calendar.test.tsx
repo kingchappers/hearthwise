@@ -3,24 +3,27 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { MemoryRouter } from 'react-router';
-import type { EventOrBusy } from '../../../src/calendar/types';
+import type { EventOrBusy, FeedView } from '../../../src/calendar/types';
 import type { TimelineInputs } from '../../../src/shared/timeline';
 import { expectNoViolations, expectSoundHeadings } from '~/test-utils/accessibility';
 import { ALEX, MEMBERS, SAM, TODAY, busy, event, makeActions } from '~/components/calendar/__tests__/fixtures';
 
-const state = vi.hoisted(() => ({ sources: undefined as unknown, actions: undefined as unknown }));
+const state = vi.hoisted(() => ({ sources: undefined as unknown, actions: undefined as unknown, online: true }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/calendar', () => ({ useTimelineSources: () => state.sources }));
 vi.mock('~/hooks/useCalendarActions', () => ({ useCalendarActions: () => state.actions }));
+vi.mock('~/hooks/useFeedActions', () => ({ useFeedActions: () => ({ add: vi.fn(), replace: vi.fn(), edit: vi.fn(), refresh: vi.fn(), remove: vi.fn() }) }));
+vi.mock('~/lib/useOnline', () => ({ useOnline: () => state.online }));
 vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
 
 import CalendarPage, { meta } from '../plan.calendar';
 
-interface Over { status?: string; events?: EventOrBusy[]; unsavedIds?: string[]; refetch?: () => void; timezone?: string }
-function sourcesOf({ status = 'ready', events = [], unsavedIds = [], refetch = vi.fn(), timezone = 'Europe/London' }: Over = {}) {
+interface Over { imported?: { status: string; feeds?: FeedView[]; covers?: boolean }; status?: string; events?: EventOrBusy[]; unsavedIds?: string[]; refetch?: () => void; timezone?: string }
+function sourcesOf({ imported = { status: 'ready' }, status = 'ready', events = [], unsavedIds = [], refetch = vi.fn(), timezone = 'Europe/London' }: Over = {}) {
   return {
     status,
     calendar: { status, events, me: SAM, members: MEMBERS, timezone, today: TODAY, unsaved: unsavedIds.length, unsavedIds: new Set(unsavedIds), refetch },
+    imported: { status: imported.status, feeds: imported.feeds ?? [], covers: () => imported.covers ?? true },
     inputsFor: (): TimelineInputs => ({ events, tasks: [], members: MEMBERS }),
   };
 }
@@ -29,6 +32,7 @@ const actions = () => state.actions as ReturnType<typeof makeActions>;
 const renderPage = () => render(<MantineProvider env="test"><MemoryRouter><CalendarPage /></MemoryRouter></MantineProvider>);
 
 beforeEach(() => {
+  state.online = true;
   show();
   state.actions = makeActions();
   vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ timeZone: 'Europe/London' } as never);
@@ -152,5 +156,49 @@ describe('the Calendar page', () => {
     renderPage();
     expect(screen.getByLabelText('Let Alex know')).toBeInTheDocument();
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
+  });
+});
+
+describe('the Calendar page: imported calendars', () => {
+  const FEED: FeedView = { id: 'f1', label: 'Work', owner: 'Sam', mine: true, share: 'busy', status: 'ok', fetchedAt: Date.now(), host: 'calendar.google.com' };
+
+  it('opens the Calendars sheet with the feeds in it', async () => {
+    show({ imported: { status: 'ready', feeds: [FEED] } });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Calendars' }));
+    const dialog = screen.getByRole('dialog', { name: 'Calendars' });
+    expect(within(dialog).getByText('Work')).toBeInTheDocument();
+    expect(within(dialog).getByText('Updated just now')).toBeInTheDocument();
+  });
+
+  it('says a day is not saved for offline when its window could not be read and is not saved', () => {
+    show({ imported: { status: 'error', covers: false } });
+    renderPage();
+    expect(screen.getByText('Not saved for offline yet')).toBeInTheDocument();
+    expect(screen.getByText('Nothing on')).toBeInTheDocument();
+  });
+
+  it('says nothing of the sort while the window is still loading or is saved', () => {
+    show({ imported: { status: 'loading', covers: false } });
+    const { unmount } = renderPage();
+    expect(screen.queryByText('Not saved for offline yet')).not.toBeInTheDocument();
+    unmount();
+    show({ imported: { status: 'ready', covers: true } });
+    renderPage();
+    expect(screen.queryByText('Not saved for offline yet')).not.toBeInTheDocument();
+  });
+
+  it('has no way to add a calendar without a signal', async () => {
+    state.online = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Calendars' }));
+    expect(screen.getByRole('button', { name: 'Needs a signal' })).toBeDisabled();
+  });
+
+  it('passes the accessibility check with the sheet open', async () => {
+    show({ imported: { status: 'ready', feeds: [FEED] } });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Calendars' }));
+    await expectNoViolations(screen.getByRole('dialog'));
   });
 });

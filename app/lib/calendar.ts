@@ -6,6 +6,8 @@ import type { TimelineInputs } from '../../src/shared/timeline';
 import { useProtectedApi } from '~/hooks/useProtectedApi';
 import { CALENDAR_KEY, calendarMutationKeys } from './calendarKeys';
 import { applyPendingCalendar } from './calendarOverlay';
+import { useImported } from './imported';
+import type { ImportedState } from './imported';
 import { useHousehold } from './household';
 import type { MemberSummary } from './household';
 import type { CalendarMutationVars } from './mutations';
@@ -100,23 +102,30 @@ export function useCalendar(): CalendarState {
 export interface TimelineSources {
   status: CalendarState['status'];
   calendar: CalendarState;
+  // The imported window for the day shown. It is read on its own: a failed or slow window never holds back the events.
+  imported: ImportedState;
   // What the timeline reads for a day: the events, the tasks and the dinner planned for it.
   inputsFor: (day: string) => TimelineInputs;
 }
 
 // The calendar's events with the tasks and the plan, which each keep their own cache and poll. A task list or plan that has not
-// loaded is an empty strip, never a reason to hide the events.
-export function useTimelineSources(): TimelineSources {
+// loaded is an empty strip, never a reason to hide the events. `day` is the day on screen, which picks the imported window.
+export function useTimelineSources(day?: string): TimelineSources {
   const calendar = useCalendar();
+  const imported = useImported(day ?? calendar.today);
   const tasks = useTasks();
   const plan = usePlan();
   return {
     status: calendar.status,
     calendar,
-    inputsFor: day => {
-      const planned = plan.days.find(candidate => candidate.day === day);
+    imported,
+    inputsFor: forDay => {
+      const planned = plan.days.find(candidate => candidate.day === forDay);
       const title = planned ? displayTitle(planned, plan.recipes) : undefined;
-      return { events: calendar.events, tasks: tasks.tasks, members: calendar.members, ...(title === undefined ? {} : { dinner: { title } }) };
+      return {
+        events: calendar.events, tasks: tasks.tasks, members: calendar.members, imported: imported.occurrences, feeds: imported.feeds, timezone: calendar.timezone,
+        ...(title === undefined ? {} : { dinner: { title } }),
+      };
     },
   };
 }

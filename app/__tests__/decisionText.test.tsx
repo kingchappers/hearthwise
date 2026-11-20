@@ -1,5 +1,6 @@
 import { describe, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { MemoryRouter } from 'react-router';
 
@@ -35,9 +36,11 @@ vi.mock('~/lib/calendar', () => ({
   useTimelineSources: () => ({
     status: 'ready',
     calendar: { status: 'ready', events: [], me: 'a', members: [{ userId: 'a', displayName: 'Ann' }, { userId: 'b', displayName: 'Bo' }], timezone: 'Asia/Tokyo', today: '2026-11-13', unsaved: 1, unsavedIds: new Set(), refetch: vi.fn() },
+    imported: { status: 'ready', feeds: [], covers: () => true },
     inputsFor: () => ({ events: [], tasks: [], members: [] }),
   }),
 }));
+vi.mock('~/hooks/useFeedActions', () => ({ useFeedActions: () => ({ add: vi.fn(), replace: vi.fn(), edit: vi.fn(), refresh: vi.fn(), remove: vi.fn() }) }));
 vi.mock('~/hooks/useCalendarActions', () => ({ useCalendarActions: () => ({ me: 'a', add: vi.fn(), edit: vi.fn(), skipDay: vi.fn(), remove: vi.fn(), setReminders: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
@@ -141,6 +144,14 @@ describe('calendar', () => {
     expectReadable(screen.getByText('Nothing on'));
     expectReadable(screen.getByText('1 change not saved yet'));
     expectReadable(screen.getByText(/Times are shown in Asia\/Tokyo/));
+  });
+
+  it('shows the Calendars sheet\'s words at a readable size', async () => {
+    renderIn(<CalendarPage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Calendars' }));
+    expectReadable(screen.getByText('No calendars added yet'));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a calendar' }));
+    expectReadable(screen.getByText(/In Google Calendar:/));
   });
 
   it('shows the Now and next lines at a readable size', () => {

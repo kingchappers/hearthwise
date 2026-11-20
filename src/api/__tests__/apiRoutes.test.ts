@@ -49,6 +49,13 @@ describe('registerApiRoutes', () => {
       { method: 'PUT', template: '/api/hh/calendar/{id}' },
       { method: 'PUT', template: '/api/hh/calendar/{id}/reminders' },
       { method: 'DELETE', template: '/api/hh/calendar/{id}' },
+      { method: 'GET', template: '/api/hh/calendar/imported' },
+      { method: 'GET', template: '/api/hh/calendar/feeds' },
+      { method: 'POST', template: '/api/hh/calendar/feeds' },
+      { method: 'POST', template: '/api/hh/calendar/feeds/{id}/replace' },
+      { method: 'POST', template: '/api/hh/calendar/feeds/{id}/refresh' },
+      { method: 'PATCH', template: '/api/hh/calendar/feeds/{id}' },
+      { method: 'DELETE', template: '/api/hh/calendar/feeds/{id}' },
       { method: 'POST', template: '/api/push/subscriptions' },
       { method: 'DELETE', template: '/api/push/subscriptions' },
     ]);

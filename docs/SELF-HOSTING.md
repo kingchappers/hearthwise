@@ -61,6 +61,8 @@ All settings are environment variables on the container.
 | `BACKUP_DIR` | `/data/backups` | Where daily backups are written. |
 | `BACKUP_HOUR` | `3` | The first hourly check at or after this hour takes the daily backup, in the container's time zone (`TZ`, default UTC). |
 | `BACKUP_KEEP` | `7` | Newest backups kept. `0` turns backups off. |
+| `CALENDAR_KEY` | unset | The key that locks stored calendar links: 32 random bytes as base64. Unset, the container makes one in `calendar.key` (see Calendars). |
+| `CALENDAR_EXTRA_HOSTS` | unset | Extra host names a calendar link may point at, separated by commas (see Calendars). |
 
 The container refuses to start, and lists every problem, if a setting is invalid.
 
@@ -69,6 +71,16 @@ The container refuses to start, and lists every problem, if a setting is invalid
 Notifications are off until each person turns them on in Settings. The container makes its own push key pair the first time it starts and keeps it in `vapid.json` in the data folder (readable only by the app user). **Keep that file:** if it is lost, a new pair is made and everyone has to turn notifications on again on each device. It is not part of the database backup, so copy it with the backups volume. To use your own keys instead, set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (and `VAPID_SUBJECT`, a `mailto:` or https address, default `mailto:admin@localhost`).
 
 Your server must be able to reach the push services (Google, Mozilla, Apple, Microsoft) over HTTPS. On an iPhone, the app has to be on the Home Screen first: Settings shows the steps. Reminder hours are in the household's time zone, and the container checks once an hour, so a reminder can arrive up to an hour after the chosen time.
+
+## Calendars
+
+A person can paste a read-only calendar link (ICS or `webcal://`) into Calendars, under Plan, and Hearthwise shows those events. A link is accepted only from Google, Outlook, Apple and Proton calendars. The container fetches each link itself, every hour and when someone taps Refresh now, so it must be able to reach those sites over HTTPS (outbound, port 443). It never connects to a private address: a calendar on your home network (a NAS, a Nextcloud on the same LAN) is not reachable, whatever its name.
+
+**The key.** A link is a secret: anyone who has it can read that calendar. Hearthwise stores each one encrypted, and the key lives in `calendar.key` in the data folder (readable only by the app user). The container makes it the first time it starts. To supply your own, set `CALENDAR_KEY` (32 random bytes, base64, for example `openssl rand -base64 32`); it wins over the file, and no file is made. **Keep `calendar.key`, and keep it apart from your backups.** It is not part of the database backup, on purpose: a backup file that holds the encrypted links and the key together would hold the links themselves. The cost is that a backup restored on a new machine without the key shows each feed as "Link needs to be added again", and each person pastes their link again. If the key is lost or changed, the same happens. If the key cannot be read, calendars say "Calendars are not set up on this server" and nothing else is affected.
+
+**Other hosts.** `CALENDAR_EXTRA_HOSTS` adds exact host names (lower case, comma separated, for example `cal.example.net,files.example.org`) to the four providers, for a calendar you publish on the public internet (Fastmail, a hosted Nextcloud). A name is only a name: the link must still be `https`, on port 443, and the address it resolves to must be a public one, so it does not reach a private address. A name that is an IP address, has no dot, or has capitals is ignored. The Lambda deployment ignores this setting.
+
+`yarn store-cli calendar-feeds <householdId>` (or `node build/store-cli/store-cli.js calendar-feeds <householdId>` in the container, with `STORE=sqlite`) prints each feed's status, last outcome, failures in a row, last and next fetch times and counts, so you can see why one stopped. It prints no link, name or host.
 
 ## Backups
 

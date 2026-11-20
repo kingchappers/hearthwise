@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { FeedView, ImportedView } from '../../../../src/calendar/types';
+import { zonedInstant } from '../../../../src/shared/zoned';
 import type { Task } from '../../../../src/tasks/types';
 import { buildTimeline } from '../../../../src/shared/timeline';
 import type { TimelineInputs } from '../../../../src/shared/timeline';
@@ -153,5 +155,49 @@ describe('WeekView', () => {
     const { container } = render();
     await expectNoViolations(container);
     noSmallButtons();
+  });
+});
+
+describe('TimelineList: imported items', () => {
+  const NOW = Date.parse('2026-11-16T12:00:00Z');
+  const at = (hhmm: string): number => zonedInstant(TODAY, hhmm, 'Europe/London');
+  const FEEDS: FeedView[] = [
+    { id: 'f1', label: 'Work', owner: 'Sam', mine: true, share: 'busy', status: 'ok', fetchedAt: NOW - 3 * 3_600_000 },
+    { id: 'f2', label: "Alex's calendar", owner: 'Alex', mine: false, share: 'busy', status: 'link_stopped', fetchedAt: NOW - 2 * 86_400_000 },
+  ];
+  const standup: ImportedView = { feedId: 'f1', owner: 'Sam', title: 'Standup', allDay: false, startMs: at('09:30'), endMs: at('10:00') };
+  const show = (imported: ImportedView[], onOpen = vi.fn()) => {
+    const inputs: TimelineInputs = { events: [], tasks: [], members: MEMBERS, imported, feeds: FEEDS, timezone: 'Europe/London' };
+    return renderIn(<TimelineList timeline={buildTimeline(TODAY, inputs, SAM)} unsavedIds={new Set()} feeds={FEEDS} now={NOW} onOpen={onOpen} />);
+  };
+
+  it('shows the time, the title, whose it is and when its calendar was last read', () => {
+    show([standup]);
+    const text = screen.getByRole('listitem').textContent;
+    expect(text).toContain('09:30 to 10:00');
+    expect(text).toContain('Standup');
+    expect(text).toContain('Sam');
+    expect(text).toContain('Updated 3 hours ago');
+  });
+
+  it('says a calendar that stopped is last updated, in plain words, with no alarm', () => {
+    show([{ feedId: 'f2', owner: 'Alex', busy: true, allDay: false, startMs: at('17:00'), endMs: at('18:00') }]);
+    const text = screen.getByRole('listitem').textContent ?? '';
+    expect(text).toContain('Busy');
+    expect(text).toContain('Last updated 2 days ago');
+    expect(text).not.toMatch(/failed|error|alert|warning/i);
+  });
+
+  it('says when the time could not be read exactly', () => {
+    show([{ ...standup, approx: true }]);
+    expect(screen.getByText('Time may be an hour out')).toBeInTheDocument();
+  });
+
+  it('is never opened or edited: it is not a button or a link', () => {
+    const onOpen = vi.fn();
+    show([standup], onOpen);
+    expect(screen.queryAllByRole('button')).toEqual([]);
+    expect(screen.queryAllByRole('link')).toEqual([]);
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });
