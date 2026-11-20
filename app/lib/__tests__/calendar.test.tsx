@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { MutationObserver, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { BusyView, EventsData, EventView } from '../../../src/calendar/types';
+import type { BusyView, EventsData, EventView, ImportedData } from '../../../src/calendar/types';
 
 const request = vi.hoisted(() => vi.fn());
 const tasks = vi.hoisted(() => ({ value: { status: 'ready', tasks: [] as object[], proposals: [], today: '2026-11-15', refetch: vi.fn() } }));
@@ -151,5 +151,33 @@ describe('useTimelineSources', () => {
     const { result } = renderHook(() => useTimelineSources(), { wrapper });
     expect(result.current.status).toBe('loading');
     await waitFor(() => expect(result.current.status).toBe('error'));
+  });
+
+  const IMPORTED: ImportedData = {
+    occurrences: [{ feedId: 'f1', owner: 'Sam', title: 'Standup', allDay: false, startMs: NOW, endMs: NOW + 1_800_000 }],
+    feeds: [{ id: 'f1', label: 'Work', owner: 'Sam', mine: true, share: 'busy', status: 'ok', fetchedAt: NOW }],
+    serverTime: NOW,
+  };
+  const route = (imported: () => Promise<unknown>) => request.mockImplementation(async (path: string) => (path.includes('/imported') ? imported() : served([event('a')])));
+
+  it('gives the timeline the imported items of the day\'s window, their feeds and the household zone', async () => {
+    route(async () => IMPORTED);
+    const { result } = renderHook(() => useTimelineSources('2026-11-15'), { wrapper });
+    await waitFor(() => expect(result.current.imported.status).toBe('ready'));
+    const inputs = result.current.inputsFor('2026-11-15');
+    expect(inputs.imported).toHaveLength(1);
+    expect(inputs.feeds?.map(feed => feed.id)).toEqual(['f1']);
+    expect(inputs.timezone).toBe('Europe/London');
+    expect(request).toHaveBeenCalledWith('/api/hh/calendar/imported?from=2026-11-02&to=2026-12-13');
+  });
+
+  it('shows the events whatever the imported window does: it is never a reason to hide them', async () => {
+    route(async () => { throw new Error('down'); });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { result } = renderHook(() => useTimelineSources('2026-11-15'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await waitFor(() => expect(result.current.imported.status).toBe('error'));
+    expect(result.current.status).toBe('ready');
+    expect(result.current.inputsFor('2026-11-16').events).toHaveLength(1);
   });
 });
