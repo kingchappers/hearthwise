@@ -56,9 +56,28 @@ Needs two real phones, one signed in as each person.
 - [ ] Look at the signed-out page at 360px wide and the largest text size: it does not scroll sideways. (An automated look found it 9px too wide because the large Hearthwise name did not fit beside its mark; that is fixed, so this confirms it on a real phone. Other pages were not traced.)
 - [ ] The month-later check (the success measure): after a month, both people have put in their shared expenses and loans, the total matched a hand count, and neither person tracks the balance anywhere else. If not, note what is still missing.
 
+## Calendar (phase 4)
+
+- [ ] **First, before anything else:** copy a real read-only link from each of Google, Outlook, Apple and Proton, and add each under Plan, Calendar, Calendars. Proton first: the design only assumes its link serves an ICS file. Each shows its events with "Updated just now". If a link is refused as "We can read links from Google, Outlook, Apple and Proton calendars.", correct the host and path table in `src/calendar/allowedHosts.ts` from what was found. If Proton does not work, drop it from this phase and say so on the screen.
+- [ ] Follow the provider steps on the add form (`PROVIDER_STEPS` in `app/lib/calendarText.ts`) on each provider's real screens. The Outlook, Apple and Proton wording was written from the design, not checked: correct any step that does not match.
+- [ ] Change an event in each provider's calendar and time how long Hearthwise takes to show it ("Refresh now", then the hourly refresh). Note each provider's delay. Google can take many hours; the screen says so.
+- [ ] Add a feed as "Busy only" on one phone. On the other phone it shows only "Busy", with no title, host or label. Switch it to "Show details" and the other phone shows titles. Do this with the other phone in airplane mode after it has loaded once: nothing it saved holds a title it was not allowed to see.
+- [ ] Make an event private on one phone. The other phone shows "Busy" with the person's name, and no title, place or notes, including offline and in any push.
+- [ ] Add a typed event with a reminder on a real iPhone (Home Screen app) and time it: it should arrive about at the chosen time, up to five minutes late. Note how late it really is.
+- [ ] Across a clock change (the last Sunday in March or October, in the household zone): a daily 09:00 event stays at 09:00, and an event inside the missing or repeated hour shows a sensible time.
+- [ ] Remove a feed. Its events go from both phones, and adding the same link again works.
+- [ ] Stop a feed's link from working (delete the secret address in the provider, or replace it). The feed keeps its last events and says "Last updated {n} days ago. The link stopped working. You may need a new one from {provider}." in plain words, with no red.
+- [ ] Use the calendar in airplane mode after loading it online: today and the weeks around it show, with each feed's age. A week never opened online says "Not saved for offline yet". Adding a feed says "Needs a signal".
+- [ ] The Plan tab now holds "Dinners | Calendar". Does the calendar icon on the Plan tab confuse anyone? Note what each person expected it to open.
+- [ ] Today, Plan, Calendar (day and week), the add sheet and the Calendars sheet at 360px wide with the largest text size: nothing is cut off, nothing scrolls sideways, and every button is easy to hit with a thumb.
+- [ ] Self-hosted: run the container, add a real link, and see its events. Check that outbound access to the four provider hosts is allowed, that `calendar.key` is not inside a backup made with `yarn store-cli backup`, and that a backup restored without the key shows "Link needs to be added again".
+- [ ] Check that no screen relies on colour alone: a stopped feed, a busy item, an unsaved event and an approximate time all say it in words.
+- [ ] The month-later check (the success measure): after a month, both people look at the calendar instead of asking each other, and a work calendar is on it. Ask both people. If not, note what is missing.
+
 ## Reading and touch
 
 - [ ] Every screen at the largest text size and with reduce motion on (Settings): nothing is cut off, no two controls overlap, and every button is easy to hit with a thumb.
 - [ ] No screen uses the words overdue, missed or streak.
 - [ ] Phase 2 screens (Plan, Recipes, the cooking view, the add review): the same, and none says forgot, skipped, incomplete, missing or unplanned.
 - [ ] Phase 3 screens (Money, an entry, the add sheet): the same, and none says owe, owed, debt, unpaid or behind.
+- [ ] Phase 4 screens (Calendar, the add sheet, the Calendars sheet, Now and next): the same, and none says failed, error, alert or warning, and none uses red.

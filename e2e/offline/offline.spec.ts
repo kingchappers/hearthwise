@@ -16,11 +16,12 @@ interface Stub {
   moneyRequests: number;
   recipeRequests: number;
   planRequests: number;
+  imported: string[];
   calls: number;
 }
 
 function newStub(): Stub {
-  return { mode: 'ok', items: { a: [], b: [] }, seen: new Set(), addRequests: [], recipes: [], planDays: [], money: [], moneyRequests: 0, recipeRequests: 0, planRequests: 0, calls: 0 };
+  return { mode: 'ok', items: { a: [], b: [] }, seen: new Set(), addRequests: [], recipes: [], planDays: [], money: [], moneyRequests: 0, recipeRequests: 0, planRequests: 0, imported: ['Standup', 'Busy'], calls: 0 };
 }
 
 const userOf = (route: Route): string | undefined => {
@@ -85,6 +86,7 @@ async function install(context: BrowserContext, stub: Stub): Promise<void> {
       }
       return route.fulfill({ json: { day: { day: planDay[1] } } });
     }
+    if (url.pathname === '/api/hh/calendar/imported') return route.fulfill({ json: { titles: url.searchParams.get('from') === '2026-11-09' ? stub.imported : [], serverTime: Date.now() } });
     if (url.pathname === '/api/list') return route.fulfill({ json: { items: stub.items[user] } });
     if (url.pathname === '/api/whoami') return route.fulfill({ json: { user } });
     return route.fulfill({ status: 404, json: {} });
@@ -312,5 +314,50 @@ test.describe('offline spike', () => {
     expect(stub.items.a).toEqual(['milk', 'eggs']);
     // The same write was sent more than once (the hung one, then the retry) and saved once.
     expect(stub.addRequests.filter(request => request.user === 'a').length).toBeGreaterThanOrEqual(3);
+  });
+
+  test('an imported calendar window read online is shown on a cold launch with no signal, and a window never read says it is not saved', async ({ context }) => {
+    const stub = newStub();
+    await install(context, stub);
+    let page = await context.newPage();
+    await signIn(page, 'a');
+    await expect(page.getByTestId('imported-list')).toContainText('Standup');
+    await page.close();
+
+    stub.mode = 'down';
+    page = await context.newPage();
+    await page.goto('/');
+    await expect(page.getByTestId('imported-list')).toContainText('Standup');
+    await expect(page.getByTestId('imported-list')).toContainText('Busy');
+    await expect(page.getByTestId('status')).toHaveText('signing in');
+    await page.getByTestId('far-button').click();
+    await expect(page.getByTestId('far-day')).toHaveText('Not saved for offline yet');
+  });
+
+  test('a refresh that fails keeps the saved imported window on screen', async ({ context }) => {
+    const stub = newStub();
+    await install(context, stub);
+    const page = await context.newPage();
+    await signIn(page, 'a');
+    await expect(page.getByTestId('imported-list')).toContainText('Standup');
+    stub.mode = 'down';
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.waitForTimeout(500);
+    await expect(page.getByTestId('imported-list')).toContainText('Standup');
+  });
+
+  test('signing out clears the saved imported window, so the next person never sees it', async ({ context }) => {
+    const stub = newStub();
+    await install(context, stub);
+    let page = await context.newPage();
+    await signIn(page, 'a');
+    await expect(page.getByTestId('imported-list')).toContainText('Standup');
+    await page.getByTestId('sign-out').click();
+    await page.waitForLoadState();
+    stub.mode = 'down';
+    page = await context.newPage();
+    await page.goto('/');
+    await page.getByTestId('sign-in-as-a').click();
+    await expect(page.getByTestId('imported-list')).toBeEmpty();
   });
 });
