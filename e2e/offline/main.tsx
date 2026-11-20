@@ -73,7 +73,11 @@ function resumeAll(client: QueryClient): void {
 function Screen({ client, ownerId, restored, onSignOut }: { client: QueryClient; ownerId: string; restored: boolean; onSignOut: () => Promise<void> }) {
   const [signedIn, setSignedIn] = useState(false);
   const [text, setText] = useState('milk');
+  const [wantFar, setWantFar] = useState(false);
   const list = useQuery({ queryKey: ['list'], queryFn: () => call('/api/list') as Promise<{ items: string[] }>, enabled: signedIn });
+  // Two windows of imported calendar events, saved like the app saves them: one the person has opened, one they have not.
+  const saved = useQuery({ queryKey: ['calendar-imported', '2026-11-09', '2026-12-20'], queryFn: () => call('/api/hh/calendar/imported?from=2026-11-09&to=2026-12-20') as Promise<{ titles: string[]; serverTime: number }>, enabled: signedIn });
+  const unsaved = useQuery({ queryKey: ['calendar-imported', '2027-03-01', '2027-04-11'], queryFn: () => call('/api/hh/calendar/imported?from=2027-03-01&to=2027-04-11') as Promise<{ titles: string[]; serverTime: number }>, enabled: signedIn && wantFar });
   const pending = useMutationState({ filters: { status: 'pending' } }).length;
   const adding = useMutation<unknown, Error, { id: string; text: string; mutationId: string }>({ mutationKey: ['household', 'add'] });
   const recipe = useMutation<unknown, Error, { id: string; text: string; mutationId: string }>({ mutationKey: ['household', 'recipeAdd'] });
@@ -106,6 +110,9 @@ function Screen({ client, ownerId, restored, onSignOut }: { client: QueryClient;
       <p data-testid="status">{signedIn ? 'signed in' : 'signing in'}</p>
       <p data-testid="pending-count">{pending}</p>
       <ul data-testid="saved-list">{(list.data?.items ?? []).map(item => <li key={item}>{item}</li>)}</ul>
+      <ul data-testid="imported-list">{(saved.data?.titles ?? []).map(title => <li key={title}>{title}</li>)}</ul>
+      <p data-testid="far-day">{unsaved.data ? 'saved' : 'Not saved for offline yet'}</p>
+      <button data-testid="far-button" onClick={() => setWantFar(true)}>look at a far week</button>
       <input data-testid="text" value={text} onChange={event => setText(event.target.value)} />
       <button data-testid="add-button" onClick={() => adding.mutate({ id: crypto.randomUUID(), text, mutationId: crypto.randomUUID() })}>add</button>
       <button data-testid="recipe-button" onClick={() => recipe.mutate({ id: crypto.randomUUID(), text: 'Soup', mutationId: crypto.randomUUID() })}>add recipe</button>
