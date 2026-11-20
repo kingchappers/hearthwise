@@ -30,6 +30,15 @@ vi.mock('~/lib/money', async importOriginal => ({
   }),
 }));
 vi.mock('~/hooks/useMoneyActions', () => ({ useChangeNotices: vi.fn(), useMoneyActions: () => ({ add: vi.fn(), edit: vi.fn(), respond: vi.fn(), askChange: vi.fn(), respondChange: vi.fn(), withdrawChange: vi.fn(), remove: vi.fn(), restore: vi.fn() }) }));
+vi.mock('~/lib/calendar', () => ({
+  useCalendar: () => ({ status: 'ready', deleted: [], unsavedIds: new Set(), refetch: vi.fn() }),
+  useTimelineSources: () => ({
+    status: 'ready',
+    calendar: { status: 'ready', events: [], me: 'a', members: [{ userId: 'a', displayName: 'Ann' }, { userId: 'b', displayName: 'Bo' }], timezone: 'Asia/Tokyo', today: '2026-11-13', unsaved: 1, unsavedIds: new Set(), refetch: vi.fn() },
+    inputsFor: () => ({ events: [], tasks: [], members: [] }),
+  }),
+}));
+vi.mock('~/hooks/useCalendarActions', () => ({ useCalendarActions: () => ({ me: 'a', add: vi.fn(), edit: vi.fn(), skipDay: vi.fn(), remove: vi.fn(), setReminders: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import { SignedOutPanel } from '~/components/layout/SignedOutPanel';
@@ -40,6 +49,7 @@ import Welcome from '~/routes/welcome';
 import Join from '~/routes/join';
 import Deleted from '~/routes/deleted';
 import Money from '~/routes/money._index';
+import CalendarPage from '~/routes/plan.calendar';
 import { SESSION_LIFETIME_TEXT } from '~/lib/sessionLifetime';
 import { expectReadable } from '~/test-utils/readableText';
 
@@ -122,5 +132,25 @@ describe('money', () => {
   it('shows the Deleted hint for money at a readable size', () => {
     renderIn(<Deleted />);
     expectReadable(screen.getByText('Deleted money entries stay until you restore them.'));
+  });
+});
+
+describe('calendar', () => {
+  it('shows what is on, the unsaved line, the zone note and the Deleted hint at a readable size', () => {
+    renderIn(<CalendarPage />);
+    expectReadable(screen.getByText('Nothing on'));
+    expectReadable(screen.getByText('1 change not saved yet'));
+    expectReadable(screen.getByText(/Times are shown in Asia\/Tokyo/));
+  });
+
+  it('shows the Now and next lines at a readable size', () => {
+    renderIn(<Today />);
+    expectReadable(screen.getByText('Now: nothing on'));
+    expectReadable(screen.getByText('Nothing more today'));
+  });
+
+  it('shows the Deleted hint for events at a readable size', () => {
+    renderIn(<Deleted />);
+    expectReadable(screen.getByText('Deleted events stay here for 30 days.'));
   });
 });

@@ -1,10 +1,12 @@
 import { Button, Group, Stack, Text, Title } from '@mantine/core';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
+import { useCalendarActions } from '~/hooks/useCalendarActions';
 import { useItemActions } from '~/hooks/useItemActions';
 import { useMoneyActions } from '~/hooks/useMoneyActions';
 import { useRecipeActions } from '~/hooks/useRecipeActions';
 import { useTaskActions } from '~/hooks/useTaskActions';
 import { deletedEntries } from '~/lib/deleted';
+import { useCalendar } from '~/lib/calendar';
 import { useItems } from '~/lib/items';
 import { useMoney } from '~/lib/money';
 import { pageTitle } from '~/lib/pageTitle';
@@ -25,7 +27,9 @@ function DeletedContent() {
   const recipeActions = useRecipeActions();
   const money = useMoney();
   const moneyActions = useMoneyActions();
-  const { tasks: taskRows, items: itemRows, recipes: recipeRows, money: moneyRows } = deletedEntries(tasks.tasks, items.items, recipes.recipes, money.entries);
+  const calendar = useCalendar();
+  const calendarActions = useCalendarActions();
+  const { tasks: taskRows, items: itemRows, recipes: recipeRows, money: moneyRows, events: eventRows } = deletedEntries(tasks.tasks, items.items, recipes.recipes, money.entries, calendar.deleted);
   const other = actions.members.find(member => member.userId !== actions.me.userId);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -34,7 +38,8 @@ function DeletedContent() {
       <Title order={1} size="h3">Deleted</Title>
       <Text size="sm">Deleted tasks, shopping items and recipes stay here for 30 days.</Text>
       <Text size="sm">Deleted money entries stay until you restore them.</Text>
-      {taskRows.length === 0 && itemRows.length === 0 && recipeRows.length === 0 && moneyRows.length === 0 && <Text>Nothing has been deleted.</Text>}
+      <Text size="sm">Deleted events stay here for 30 days.</Text>
+      {taskRows.length === 0 && itemRows.length === 0 && recipeRows.length === 0 && moneyRows.length === 0 && eventRows.length === 0 && <Text>Nothing has been deleted.</Text>}
       {taskRows.length > 0 && (
         <section>
           <Title order={2} size="h5" mb={4}>Tasks</Title>
@@ -105,6 +110,25 @@ function DeletedContent() {
                   </Stack>
                   {/* A change not saved yet has not got the server's deletion time, which a restore must name. */}
                   <Button variant="light" aria-label={`Restore: ${entry.description}`} disabled={!money.canWrite || money.unsavedIds.has(entry.id)} onClick={() => moneyActions.restore(entry)}>Restore</Button>
+                </Group>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {eventRows.length > 0 && (
+        <section>
+          <Title order={2} size="h5" mb={4}>Events</Title>
+          <ul style={{ margin: 0, padding: 0 }}>
+            {eventRows.map(event => (
+              <li key={event.id} style={{ listStyle: 'none' }}>
+                <Group justify="space-between" wrap="nowrap" py={6} gap="sm">
+                  <Stack gap={2} miw={0}>
+                    <Text fw={600} style={{ overflowWrap: 'anywhere' }}>{event.title}</Text>
+                    <Text size="sm">{`Deleted by ${memberName(actions.members, event.deletedBy ?? '')}, ${formatDay(dayInZone(event.deletedAt ?? 0, zone))}`}</Text>
+                  </Stack>
+                  {/* A change not saved yet has not got the server's deletion time, which a restore must name. */}
+                  <Button variant="light" aria-label={`Restore: ${event.title}`} disabled={calendar.unsavedIds.has(event.id)} onClick={() => calendarActions.restore(event)}>Restore</Button>
                 </Group>
               </li>
             ))}

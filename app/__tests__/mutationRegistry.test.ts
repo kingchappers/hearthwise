@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import { itemMutationKeys, mealMutationKeys, moneyMutationKeys, registerMutations } from '~/lib/mutations';
+import { calendarMutationKeys, itemMutationKeys, mealMutationKeys, moneyMutationKeys, registerMutations } from '~/lib/mutations';
+import { applyPendingCalendar } from '~/lib/calendarOverlay';
 import { applyPendingItems } from '~/lib/itemOverlay';
 import { applyPendingMoney } from '~/lib/moneyOverlay';
 import { applyPendingPlan } from '~/lib/planOverlay';
@@ -128,6 +129,38 @@ describe('the money mutations', () => {
     const { entry, vars, by } = cases[kind];
     const start = { entries: kind === 'moneyAdd' ? [] : [{ ...base, ...entry }], serverTime: 0 };
     const result = applyPendingMoney(start, [{ mutationKey: key, variables: { mutationId: 'm', at: 1_800_000_000_000, by: by ?? 'u', ...vars } }]);
+    expect(result).not.toEqual(start);
+  });
+});
+
+describe('the calendar mutations', () => {
+  const client = new QueryClient();
+  registerMutations(client, vi.fn(), () => ({ tasks: [], proposals: [], serverTime: 0 }), vi.fn());
+
+  it.each(Object.entries(calendarMutationKeys))('%s is registered with a function and the household scope', (_kind, key) => {
+    const defaults = client.getMutationDefaults(key);
+    expect(defaults.mutationFn).toBeTypeOf('function');
+    expect(defaults.scope).toEqual({ id: 'household' });
+  });
+
+  const A = '11111111-1111-4111-8111-111111111111';
+  const schedule = { startOn: '2026-11-19', allDay: false, startTime: '10:30', durationMin: 45, repeat: { type: 'none' as const }, skipOn: [] };
+  const base = {
+    id: A, kind: 'event' as const, title: 'Dentist', who: 'both', private: false, ...schedule, reminders: {}, fieldTimes: { title: 1, schedule: 1, people: 1 },
+    createdBy: 'u', createdAt: 1, updatedAt: 1, updatedBy: 'u',
+  };
+  const cases: Record<string, { event?: object; deleted?: object; vars: Record<string, unknown> }> = {
+    createEvent: { vars: { event: { id: 'b'.repeat(8) + '-1111-4111-8111-111111111111', kind: 'event', title: 'Walk', schedule, people: { who: 'both', private: false } } } },
+    editEvent: { event: {}, vars: { eventId: A, title: 'Dentist, Smith St' } },
+    deleteEvent: { event: {}, vars: { eventId: A } },
+    setReminders: { event: {}, vars: { eventId: A, list: [{ from: 'start', minutes: 30 }] } },
+    eventRestore: { deleted: { deletedAt: 5, deletedBy: 'u' }, vars: { entries: [{ id: A, deletedAt: 5 }] } },
+  };
+
+  it.each(Object.entries(calendarMutationKeys))('%s has an overlay that changes the data', (kind, key) => {
+    const { event, deleted, vars } = cases[kind];
+    const start = { events: event ? [{ ...base, ...event }] : [], deleted: deleted ? [{ ...base, ...deleted }] : [], serverTime: 0 };
+    const result = applyPendingCalendar(start, [{ mutationKey: key, variables: { mutationId: 'm', at: 1_800_000_000_000, by: 'u', ...vars } }]);
     expect(result).not.toEqual(start);
   });
 });

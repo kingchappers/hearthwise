@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MutationObserver, QueryClient, onlineManager } from '@tanstack/react-query';
 import { persistQueryClientRestore, persistQueryClientSave } from '@tanstack/react-query-persist-client';
 import { ApiError } from '../apiError';
-import { itemMutationKeys, mealMutationKeys, moneyMutationKeys, mutationKeys, registerMutations } from '../mutations';
+import { calendarMutationKeys, itemMutationKeys, mealMutationKeys, moneyMutationKeys, mutationKeys, registerMutations } from '../mutations';
 import {
   CACHE_SCHEMA_VERSION, cacheKey, clearStoredUser, clearUserCache, createUserPersister, pendingWriteCount, readStoredUser, resumeHydratedMutations,
   resetSigningOutForTests, shouldDehydrateMutation, signOutCleanup, storeUser,
@@ -158,6 +158,27 @@ describe('writes made offline, across a reload', () => {
     expect(sent.map(request => `${request.method} ${request.path}`)).toEqual([`PUT /api/hh/money/${ID}`, `POST /api/hh/money/${ID}/change`, `POST /api/hh/money/${ID}/change/respond`]);
     expect(sent[1].body.mutationId).toBe(REQUEST);
     expect(sent[2].body.requestId).toBe(REQUEST);
+    await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
+  });
+
+  it('include a pending event add and a reminder: saved with a schema version 1 cache, restored and sent in order', async () => {
+    const ID = '11111111-1111-4111-8111-111111111111';
+    const schedule = { startOn: '2026-11-19', allDay: false, startTime: '10:30', durationMin: 45, repeat: { type: 'none' }, skipOn: [] };
+    onlineManager.setOnline(false);
+    const before = newClient();
+    void mutate(before, calendarMutationKeys.createEvent, { mutationId: 'c1', event: { id: ID, kind: 'event', title: 'Dentist', schedule, people: { who: 'both', private: false } } });
+    void mutate(before, calendarMutationKeys.setReminders, { mutationId: 'c2', eventId: ID, list: [{ from: 'start', minutes: 30 }] });
+    await vi.waitFor(() => expect(pendingWriteCount(before)).toBe(2));
+    await save(before);
+    expect(JSON.parse(storage.map.get(cacheKey(ME))!).buster).toBe('1');
+
+    onlineManager.setOnline(true);
+    const after = newClient();
+    await restore(after);
+    expect(pendingWriteCount(after)).toBe(2);
+    resumeHydratedMutations(after);
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent.map(request => `${request.method} ${request.path}`)).toEqual([`PUT /api/hh/calendar/${ID}`, `PUT /api/hh/calendar/${ID}/reminders`]);
     await vi.waitFor(() => expect(pendingWriteCount(after)).toBe(0));
   });
 
