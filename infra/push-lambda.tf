@@ -9,9 +9,12 @@
 locals {
   # Created by hand as a SecureString (SEC-01): the private key never appears in this repository or in state.
   vapid_private_key_parameter = "/hearthwise/vapid-private-key"
+
+  # The key that encrypts stored calendar links (AES-256-GCM), created by hand the same way: it never appears in this repository or in state.
+  calendar_key_parameter = "/hearthwise/calendar-key"
 }
 
-# Scheduler execution role (INFRA-01): its own table access, and one parameter
+# Scheduler execution role (INFRA-01): its own table access, and two parameters
 resource "aws_iam_role" "push_role" {
   permissions_boundary = local.lambda_boundary_arn
   name                 = "${var.app_name}-push-role"
@@ -63,7 +66,7 @@ resource "aws_iam_role_policy" "push_dynamodb" {
   })
 }
 
-# The VAPID private key, and only that parameter (INFRA-01)
+# The VAPID private key and the calendar key, and only those two parameters (INFRA-01)
 resource "aws_iam_role_policy" "push_ssm" {
   name = "${var.app_name}-push-ssm"
   role = aws_iam_role.push_role.id
@@ -72,9 +75,12 @@ resource "aws_iam_role_policy" "push_ssm" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["ssm:GetParameter"]
-        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.vapid_private_key_parameter}"
+        Effect = "Allow"
+        Action = ["ssm:GetParameter"]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.vapid_private_key_parameter}",
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.calendar_key_parameter}",
+        ]
       }
     ]
   })
@@ -93,7 +99,7 @@ resource "aws_lambda_function" "push" {
   handler          = "index.handler"
   runtime          = "nodejs24.x"
   timeout          = 120
-  memory_size      = 256
+  memory_size      = 512
   source_code_hash = data.archive_file.push_lambda_zip.output_base64sha256
 
   environment {
@@ -103,6 +109,7 @@ resource "aws_lambda_function" "push" {
       VAPID_PUBLIC_KEY            = var.vapid_public_key
       VAPID_SUBJECT               = var.vapid_subject
       VAPID_PRIVATE_KEY_PARAMETER = local.vapid_private_key_parameter
+      CALENDAR_KEY_PARAMETER      = local.calendar_key_parameter
     }
   }
 
