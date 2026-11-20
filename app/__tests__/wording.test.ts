@@ -21,12 +21,19 @@ const MONEY_PHRASES = [
 const BANNED_PHASE_4 = /\b(failed|failure|error|errors|alert|warning)\b/i;
 const SENTENCE = /\s/;
 const TIMELINE_WORDS = join(APP, '..', 'src', 'shared', 'timeline.ts');
-const CALENDAR_LIB = ['calendar', 'calendarKeys', 'calendarOverlay', 'calendarForm', 'calendarText'];
+const CALENDAR_LIB = ['calendar', 'calendarKeys', 'calendarOverlay', 'calendarForm', 'calendarText', 'imported', 'useOnline'];
 // The fixed fragments of the design's Wording table that this step builds, each of which must appear in what a person can read.
 const CALENDAR_PHRASES = [
   'Not saved yet', 'Nothing more today', 'Now: nothing on', 'Only you can see the details.', 'sees that you are busy.', 'Busy', 'Times are shown in', 'Nothing on', 'Due: ',
   'Dinner: ', 'Skip this day', 'Not saved: this event is now private.', 'This household has reached 500 events.', 'Open the calendar', 'Now and next', 'Dinners', 'Calendar',
   'Add a title.', 'Block, a routine like Wind down', 'Both of you', 'Loading the calendar',
+  // Step 6: the feeds, in the design's words.
+  'Updated ', 'Last updated ', 'We can read links from Google, Outlook, Apple and Proton calendars.', 'That does not look like a link.', 'We could not read that link.',
+  'The link stopped working. You may need a new one from ', ' did not answer. We will try again soon.', 'That address did not give us a calendar.',
+  'That calendar is too big for us to read.', 'We need a link that starts with https:// or webcal://.', 'Google can take many hours to show changes on its links.',
+  ' too often to show', 'Showing the nearest 2,000', 'Needs a signal', 'Link needs to be added again',
+  'Calendars are not set up on this server', 'Not saved for offline yet', 'Time may be an hour out', 'Try again later', 'Checking the link...',
+  'That is the most calendars we can add', 'No calendars added yet',
 ];
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];
 // The fixed phrases the design promises, each of which must appear in what a person can read in the meal files.
@@ -82,7 +89,8 @@ function calendarFiles(): string[] {
     return path.startsWith('components/calendar/')
       || /^routes\/plan\.calendar\.tsx$/.test(path)
       || CALENDAR_LIB.some(name => path === `lib/${name}.ts`)
-      || path === 'hooks/useCalendarActions.tsx';
+      || path === 'hooks/useCalendarActions.tsx'
+      || path === 'hooks/useFeedActions.ts';
   });
 }
 
@@ -190,6 +198,7 @@ describe('wording: the calendar', () => {
       'components/calendar/DayView.tsx', 'components/calendar/WeekView.tsx', 'components/calendar/TimelineList.tsx', 'components/calendar/EventSheet.tsx',
       'components/calendar/EventDetail.tsx', 'components/calendar/NowAndNext.tsx', 'components/calendar/PlanSwitch.tsx', 'routes/plan.calendar.tsx', 'lib/calendar.ts',
       'lib/calendarForm.ts', 'lib/calendarKeys.ts', 'lib/calendarOverlay.ts', 'lib/calendarText.ts', 'hooks/useCalendarActions.tsx',
+      'components/calendar/FeedsSheet.tsx', 'lib/imported.ts', 'hooks/useFeedActions.ts',
     ]));
     expect(files).not.toContain('components/money/AddSheet.tsx');
   });
