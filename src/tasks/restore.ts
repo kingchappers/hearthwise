@@ -3,6 +3,8 @@ import type { WriteOutcome } from '../api/writeRecord';
 import type { HouseholdContext } from '../household/types';
 import { ConditionFailedError } from '../store';
 import type { Key, Store } from '../store';
+import { restoreEventEntry } from '../calendar/events';
+import type { EventRestoreBatch } from '../calendar/events';
 import { restoreMoneyEntry } from '../money/entries';
 import type { RestoreBatch } from '../money/entries';
 import { recipeKey } from '../meals/keys';
@@ -12,7 +14,7 @@ import { itemKey, taskKey } from './keys';
 import { needsProposal, otherMemberId } from './ownership';
 import { restoreChange, toTask } from './record';
 
-export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found' | 'recipe_limit' | 'needs_two' | 'pair_changed' | 'money_limit' | 'entry_changed';
+export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found' | 'recipe_limit' | 'needs_two' | 'pair_changed' | 'money_limit' | 'entry_changed' | 'event_limit';
 
 export interface RestoreResult {
   id: string;
@@ -52,9 +54,14 @@ export async function restoreEntries(
   const results: RestoreResult[] = [];
   let liveRecipes: number | undefined;
   const moneyBatch: RestoreBatch = {};
+  const eventBatch: EventRestoreBatch = {};
   for (const entry of input.entries) {
     if (entry.kind === 'money') {
       results.push({ id: entry.id, status: await restoreMoneyEntry(store, ctx, entry, moneyBatch, nowMs) });
+      continue;
+    }
+    if (entry.kind === 'event') {
+      results.push({ id: entry.id, status: await restoreEventEntry(store, ctx, entry, eventBatch, nowMs) });
       continue;
     }
     if (entry.kind === 'item') {

@@ -8,6 +8,7 @@ import { logRestoredMoney } from '../money/log';
 import { taskHistory } from '../tasks/history';
 import { acceptProposal, createProposal, declineProposal, listProposals, withdrawProposal } from '../tasks/proposals';
 import { taskKey } from '../tasks/keys';
+import { logCalendarWrite } from '../calendar/log';
 import { restoreEntries } from '../tasks/restore';
 import { createTask, deleteTask, listTasks, patchTask } from '../tasks/tasks';
 import { notifyAfter } from './notify';
@@ -109,6 +110,7 @@ const restoreRoute: TaskHandler = async (event, ctx) => {
     const restored = new Set(outcome.result.results.filter(result => result.status === 'restored').map(result => result.id));
     const money = input.value.entries.filter(entry => entry.kind === 'money' && restored.has(entry.id));
     await logRestoredMoney(getStore(), ctx.householdId, input.value.mutationId, money.map(entry => entry.id));
+    for (const entry of input.value.entries) if (entry.kind === 'event' && restored.has(entry.id)) logCalendarWrite(ctx.householdId, input.value.mutationId, 'restore', entry.id);
     if (money.length > 0) await notifyAfter(ctx, body, true, events.moneyAdded(ctx.member.displayName, input.value.mutationId));
   }
   return written(outcome, 200);

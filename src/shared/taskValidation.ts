@@ -330,9 +330,9 @@ export function parseProposalBody(body: Record<string, unknown>): Parsed<Proposa
   return good(input);
 }
 
-// A money entry also carries the `deletedAt` the person saw, so a restore queued before the entry was restored, edited and deleted
+// A money entry or an event also carries the `deletedAt` the person saw, so a restore queued before the entry was restored, edited and deleted
 // again does not undo the later delete.
-export type RestoreEntry = { kind: 'task' | 'item' | 'recipe'; id: string } | { kind: 'money'; id: string; deletedAt: number };
+export type RestoreEntry = { kind: 'task' | 'item' | 'recipe'; id: string } | { kind: 'money' | 'event'; id: string; deletedAt: number };
 
 export function parseRestoreBody(body: Record<string, unknown>): Parsed<{ entries: RestoreEntry[]; mutationId: string }> {
   const extra = unknownKey(body, ['entries', ...ENVELOPE_KEYS], '');
@@ -341,16 +341,16 @@ export function parseRestoreBody(body: Record<string, unknown>): Parsed<{ entrie
   const entries: RestoreEntry[] = [];
   for (const [index, raw] of body.entries.entries()) {
     if (!isObject(raw)) return bad(`entries[${index}]`);
-    if (raw.kind !== 'task' && raw.kind !== 'item' && raw.kind !== 'recipe' && raw.kind !== 'money') return bad(`entries[${index}].kind`);
+    if (raw.kind !== 'task' && raw.kind !== 'item' && raw.kind !== 'recipe' && raw.kind !== 'money' && raw.kind !== 'event') return bad(`entries[${index}].kind`);
     const id = parseUuid(raw.id, `entries[${index}].id`);
     if (!id.ok) return id;
-    if (raw.kind !== 'money') {
+    if (raw.kind !== 'money' && raw.kind !== 'event') {
       if ('deletedAt' in raw) return bad(`entries[${index}].deletedAt`);
       entries.push({ kind: raw.kind, id: id.value });
       continue;
     }
     if (!inRange(raw.deletedAt, 0, Number.MAX_SAFE_INTEGER)) return bad(`entries[${index}].deletedAt`);
-    entries.push({ kind: 'money', id: id.value, deletedAt: raw.deletedAt });
+    entries.push({ kind: raw.kind, id: id.value, deletedAt: raw.deletedAt });
   }
   const envelope = parseEnvelope(body);
   if (!envelope.ok) return envelope;

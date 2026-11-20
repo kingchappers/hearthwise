@@ -219,3 +219,27 @@ The design is `docs/designs/phase-3-money-tracker.md`. The author decided the pr
 | The e2e case registers a `moneyAdd` kind | The spike's stub keeps each mutation id once for `PUT /api/hh/money/{id}`, as it does for recipes and plan days; no app code is used | Same shape as the existing cases |
 | Six tabs fit at 360 px and the largest text size (go/no-go) | Still not checked on a device: it is a line in `docs/MANUAL-CHECKS.md` | No phone in this environment |
 | Not in the spec | The signed-out page's logo is 48px high, not 64px | At 360px wide and the largest text size, the 64px lockup (mark and name side by side) was 9px wider than the screen, so the page scrolled sideways |
+
+## Phase 4 (shared calendar)
+
+The design is `docs/designs/phase-4-calendar.md`. The author decided the scope, the uses and the privacy rule (private events show to the other person as "busy"). Everything else in it is a **Claude** decision, which the author has not yet reviewed.
+
+### Phase 4, step 1: events on the server (2026-11-15)
+
+| Spec says | Built | Why |
+|---|---|---|
+| `occurrencesBetween(repeat, from, to, limit)`: window at most 400 days, result at most 500, "flagged `truncated`" | Returns `{ dates, truncated }`. The window is cut at 400 days (not refused) and `truncated` is true when either cut left something out. A rule that is not `fixed` gives no dates | A cut is safer than a throw for a caller that passes a wide window |
+| `occurrencesOf(event, from, to)` | Takes a `Schedule` (the group) and returns `{ on, endOn, allDay, startTime?, endTime? }`. A timed item that ends exactly at midnight is not carried into the next day | The timeline needs the end on the wall clock, and an item ending at 00:00 does not touch the next day |
+| Create is told from edit by... (not stated) | `kind` in the body means create, as in money. A body with `kind` to an id that exists is applied as an edit (the kind never changes). An edit to an id that does not exist is 404 | Per-group last-writer-wins makes a repeated create harmless |
+| `BusyView.owner` is "the creator's name" | The creator's display name, from the household's members | Read literally; the app has the names too |
+| Reminder minutes "0 to 1,440" (table) and a fixed list (picker) | The validator takes any whole number 0 to 1,440 for `start`, and only 0 for `end`; more than 3 in a list is 409 `reminder_limit` (the list is capped at 20 before that, 400) | The picker's fixed list is a screen rule; the server keeps the wider table rule |
+| 400 for a reminder on an all-day event, `end` on an event | 400 `invalid` with field `list` | Same code and shape as other validation failures |
+| `savedAt` | Server time of the save | A replay from a queue after the reminder's moment must not send a late warning |
+| A reminder save "writes `CALREM`" | Every save that changed something writes it, in the same transaction, including a save that clears reminders; clearing a list that was already empty writes nothing | The job marks an item empty, so a later save must re-arm it |
+| Restore of a private event: only its creator | The other person gets `not_found` (not a refusal) for it | They cannot see it, so it must not be confirmed to exist |
+| Removed member's cleanup "started by `removeMemberRoute`", hourly sweep finishes | `purgeNonMemberData` in `src/calendar/cleanup.ts` (private events, reminder entries; at most 1,000 items; never throws). It reads the current member records itself after the removal commits (and always counts the removed user as gone, since the query may be stale), never an earlier list, so a person who joined meanwhile keeps their data. The route calls it after the removal. The sweep inside `runCalendarRefresh` is not built (it is step 6); reads hide the data meanwhile (tested) | `runCalendarRefresh` does not exist yet. "Unsent meanwhile" is tested with the reminder job in step 3 |
+| `moveOptions` gains `CALFEED#` and `EVENT#` | Done, with tests for an event, a deleted event and a feed | |
+| Event routes through `withWriteRecord`, result holds ids | The record holds `{ id }`; the route reads the event again and projects it for the caller. Replays are therefore not byte-identical to the first answer if the event changed in between | The write record must never hold text another person could be given |
+| `src/calendar/log.ts` | Added: `calendar_write` and `calendar_reject` lines with ids and enums only | Same as `money/log.ts` |
+| Push texts | `eventAdded`, `eventChanged`: title "{name} added an event" / "{name} changed an event", body "Open the calendar to take a look.", opening `/plan/calendar`. Nothing when the event is private after the write, whoever asked. A no-change edit and a delete send nothing | A push needs a body, and it must not hold a title |
+| Restore route | An event's restore is logged as `calendar_write` with action `restore`; the entry carries `deletedAt` and `RestoreStatus` gains `event_limit` | As the money restore |
