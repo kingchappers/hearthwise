@@ -310,6 +310,7 @@ Security decision (infrastructure): the SSM policy of the API role (`api_ssm`) a
 | Output shape | `{ allDay: false, startMs, endMs, title, free, approx }` or `{ allDay: true, startOn, endOn (inclusive), title, free }`, and counts `events`, `skipped`, `approx`, `truncated` | The snapshot chunk tuples are made from this in step 6 |
 | Windows zone table | About 140 names from CLDR's primary mapping, written from memory of the list, each checked to be a zone the runtime knows. Names are matched ignoring case | Not downloaded; a name not in it is read in the household zone and marked approximate |
 | Identifiers named `window` | Avoided in non-test code (`range`, `span`) | The no-other-fetch scan treats a `window` alias as a possible `fetch` |
+
 ### Phase 4, step 2: the app, typed events (2026-11-15)
 
 | Spec says | Built | Why |
