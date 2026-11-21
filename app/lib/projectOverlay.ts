@@ -22,7 +22,11 @@ const stamp = <T extends object>(changes: T, at: number): Record<string, { value
   for (const [field, value] of Object.entries(changes)) if (value !== undefined) write[field] = { value, at };
   return write;
 };
-const projectWrite = (changes: ProjectChanges, at: number): ProjectWrite => stamp(changes, at) as ProjectWrite;
+// The figures are `estimatePence` and `spentPence` in a change and `estimate` and `spent` in a write.
+function projectWrite(changes: ProjectChanges, at: number): ProjectWrite {
+  const { estimatePence, spentPence, ...rest } = changes;
+  return stamp({ ...rest, estimate: estimatePence, spent: spentPence }, at) as ProjectWrite;
+}
 const stepWrite = (changes: StepChanges, at: number): StepWrite => stamp(changes, at) as StepWrite;
 
 // A take shows the record as the caller's when it is free and not done; a release frees it.

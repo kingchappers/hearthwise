@@ -109,6 +109,47 @@ describe('applyProjectWrite: the planned day', () => {
   });
 });
 
+describe('applyProjectWrite: costs', () => {
+  const cost = (project: Project, write: { estimate?: number | null; spent?: number | null }, at: number, by = U2) => applyProjectWrite(project, 'p1', {
+    ...(write.estimate === undefined ? {} : { estimate: { value: write.estimate, at } }), ...(write.spent === undefined ? {} : { spent: { value: write.spent, at } }),
+  }, by, NOW);
+
+  it('sets each figure on its own time, and costBy says who changed either last', () => {
+    const est = cost(made(), { estimate: 400000 }, 2000, U1).project!;
+    expect(est).toMatchObject({ estimatePence: 400000, costBy: U1, fieldTimes: { estimate: 2000 } });
+    const spent = cost(est, { spent: 125000 }, 1500, U2).project!;
+    expect(spent).toMatchObject({ estimatePence: 400000, spentPence: 125000, costBy: U2, fieldTimes: { estimate: 2000, spent: 1500 } });
+  });
+
+  it('lets a concurrent edit of one figure replace the other, and lists the older one as stale', () => {
+    const first = cost(made(), { spent: 100000 }, 3000, U1).project!;
+    const older = cost(first, { spent: 90000 }, 2000, U2);
+    expect(older).toMatchObject({ result: 'noop', stale: ['spent'] });
+    expect(older.project).toMatchObject({ spentPence: 100000, costBy: U1 });
+    expect(cost(first, { spent: 90000 }, 4000, U2).project).toMatchObject({ spentPence: 90000, costBy: U2 });
+  });
+
+  it('does not touch the other figure when one is edited', () => {
+    const both = cost(cost(made(), { estimate: 400000 }, 2000).project!, { spent: 5000 }, 2500).project!;
+    expect(cost(both, { spent: 6000 }, 3000).project).toMatchObject({ estimatePence: 400000, fieldTimes: { estimate: 2000 } });
+  });
+
+  it('clears a figure with null by leaving it out, and drops costBy when none is left', () => {
+    const both = cost(cost(made(), { estimate: 400000 }, 2000).project!, { spent: 5000 }, 2500).project!;
+    const one = cost(both, { estimate: null }, 3000).project!;
+    expect('estimatePence' in one).toBe(false);
+    expect(one.costBy).toBeDefined();
+    const none = cost(one, { spent: null }, 3500).project!;
+    expect('spentPence' in none).toBe(false);
+    expect('costBy' in none).toBe(false);
+  });
+
+  it('leaves the figures alone when other fields are edited', () => {
+    const set = cost(made(), { estimate: 400000 }, 2000).project!;
+    expect(applyProjectWrite(set, 'p1', { notes: { value: 'x', at: 3000 } }, U1, NOW).project).toMatchObject({ estimatePence: 400000, costBy: U2 });
+  });
+});
+
 describe('applyProjectDelete', () => {
   it('tombstones with a 30-day expiry in seconds', () => {
     const { result, project } = applyProjectDelete(made(), U2, NOW);

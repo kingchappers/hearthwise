@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { holderLine, onItFor, plannedText, stepsDone, stepStatus } from '../projectText';
+import { costLine, holderLine, onItFor, plannedText, stepsDone, stepStatus } from '../projectText';
 
 const members = [{ userId: 'u1', displayName: 'Sam', joinedAt: '' }, { userId: 'u2', displayName: 'Alex', joinedAt: '' }];
 const DAY = 86_400_000;
@@ -57,5 +57,18 @@ describe('plannedText', () => {
 
   it('says no day for a clear', () => {
     expect(plannedText({ plannedOn: null })).toBe('No day planned');
+  });
+});
+
+describe('costLine', () => {
+  it('shows both figures as "of", one figure on its own, and nothing for neither', () => {
+    expect(costLine({ estimatePence: 400000, spentPence: 125000 })).toBe('£1,250.00 of £4,000.00');
+    expect(costLine({ estimatePence: 400000 })).toBe('Estimated £4,000.00');
+    expect(costLine({ spentPence: 125000 })).toBe('£1,250.00 spent so far');
+    expect(costLine({})).toBeUndefined();
+  });
+
+  it('never says a verdict, even when more is spent than estimated', () => {
+    expect(costLine({ estimatePence: 100000, spentPence: 250000 })).toBe('£2,500.00 of £1,000.00');
   });
 });

@@ -2,6 +2,7 @@
 // failed, conflict, and no word that says a person did something wrong.
 import type { Step } from '../../src/projects/types';
 import { holderOf } from '../../src/shared/projectRules';
+import { formatPounds } from '../../src/shared/money';
 import type { MemberSummary } from './household';
 
 export const COPY = {
@@ -40,6 +41,12 @@ export const COPY = {
   alreadyOnList: 'Already on the list',
   clearedFromList: 'Added earlier, and since cleared',
   limitMaterials: 'This project has reached 60 materials.',
+  addCost: 'Add a cost',
+  costs: 'Costs',
+  estimate: 'Estimate',
+  spentSoFar: 'Spent so far',
+  notInMoney: 'Not in Money. This is only for the project.',
+  saveCosts: 'Save costs',
   plannedFor: 'Planned for',
   plannedStart: 'Planned for (day)',
   plannedEnd: 'Last day (optional)',
@@ -94,4 +101,14 @@ export function plannedText(planned: { plannedOn: string | null; plannedEndOn?: 
   const [startDay, startMonth] = dayMonth(planned.plannedOn).split(' ');
   const [endDay, endMonth] = dayMonth(planned.plannedEndOn).split(' ');
   return startMonth === endMonth ? `Planned for ${startDay} to ${endDay} ${endMonth}` : `Planned for ${startDay} ${startMonth} to ${endDay} ${endMonth}`;
+}
+
+// "£1,250.00 of £4,000.00", "Estimated £4,000.00" or "£1,250.00 spent so far", from whichever figures are set. Never a verdict: nothing says
+// over, under or on budget.
+export function costLine(project: { estimatePence?: number; spentPence?: number }): string | undefined {
+  const { estimatePence, spentPence } = project;
+  if (estimatePence !== undefined && spentPence !== undefined) return `${formatPounds(spentPence)} of ${formatPounds(estimatePence)}`;
+  if (estimatePence !== undefined) return `Estimated ${formatPounds(estimatePence)}`;
+  if (spentPence !== undefined) return `${formatPounds(spentPence)} spent so far`;
+  return undefined;
 }

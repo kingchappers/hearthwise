@@ -139,3 +139,18 @@ describe('the planned day overlay', () => {
     expect(cleared.project.plannedOn).toBeUndefined();
   });
 });
+
+describe('the costs overlay', () => {
+  it('shows a pending figure at once with who changed it, and a clear', () => {
+    const set = applyPendingProjectDetail(detail(), [pending('putProject', { projectId: 'p1', changes: { estimatePence: 400000, spentPence: 125000 } })]);
+    expect(set.project).toMatchObject({ estimatePence: 400000, spentPence: 125000, costBy: ME });
+    const cleared = applyPendingProjectDetail(set, [pending('putProject', { projectId: 'p1', changes: { spentPence: null }, at: AT + 1 })]);
+    expect('spentPence' in cleared.project).toBe(false);
+    expect(cleared.project.estimatePence).toBe(400000);
+  });
+
+  it('loses a pending figure to a newer stored one, as the server will', () => {
+    const stored = project({ spentPence: 90000, fieldTimes: { spent: AT + 5000 }, costBy: THEM });
+    expect(applyPendingProjectDetail(detail([], stored), [pending('putProject', { projectId: 'p1', changes: { spentPence: 1 } })]).project.spentPence).toBe(90000);
+  });
+});

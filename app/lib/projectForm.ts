@@ -1,5 +1,6 @@
 import { positionBetween } from '../../src/shared/projectRules';
 import { addDays, isRealDate } from '../../src/shared/schedule';
+import { parsePounds } from '../../src/shared/money';
 import type { PlannedChange } from './mutations';
 import { compareSteps } from '../../src/shared/projectRules';
 
@@ -49,3 +50,18 @@ export function plannedChange(start: string, end: string): { ok: true; change: P
   if (!isRealDate(end) || end < start || end > addDays(start, 13)) return { ok: false, field: 'end' };
   return { ok: true, change: { plannedOn: start, plannedEndOn: end } };
 }
+
+// What a cost field says, as a change from what is stored. Empty, or 0, clears the figure (the server accepts only 1 pence or more, or
+// null). `unchanged` when the field says what is already stored, so an untouched figure cannot replace the other person's edit of it.
+export type CostResult = { ok: true; value: number | null } | { ok: true; unchanged: true } | { ok: false; message: string };
+
+export function costChange(text: string, stored: number | undefined): CostResult {
+  const typed = text.trim();
+  if (typed === '' || /^£?0*(\.0*)?$/.test(typed)) return stored === undefined ? { ok: true, unchanged: true } : { ok: true, value: null };
+  const parsed = parsePounds(typed);
+  if (!parsed.ok) return { ok: false, message: parsed.message };
+  return parsed.pence === stored ? { ok: true, unchanged: true } : { ok: true, value: parsed.pence };
+}
+
+// A stored figure as the field shows it: pounds with pence, no symbol.
+export const costFieldText = (pence: number | undefined): string => (pence === undefined ? '' : (pence / 100).toFixed(2));
