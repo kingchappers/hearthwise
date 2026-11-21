@@ -1,0 +1,44 @@
+import { describe, expect, it } from 'vitest';
+import { holderLine, onItFor, stepsDone, stepStatus } from '../projectText';
+
+const members = [{ userId: 'u1', displayName: 'Sam', joinedAt: '' }, { userId: 'u2', displayName: 'Alex', joinedAt: '' }];
+const DAY = 86_400_000;
+
+describe('step status', () => {
+  it('is Done, On it (todo with a current holder), or Not started', () => {
+    expect(stepStatus({ state: 'done' }, members)).toBe('done');
+    expect(stepStatus({ state: 'todo', takenBy: 'u2' }, members)).toBe('onIt');
+    expect(stepStatus({ state: 'todo' }, members)).toBe('notStarted');
+  });
+
+  it('reads a holder who has left as Not started', () => {
+    expect(stepStatus({ state: 'todo', takenBy: 'gone' }, members)).toBe('notStarted');
+  });
+});
+
+describe('holderLine', () => {
+  it('names the other person, says "You\'re on this" for the viewer, and says nothing for a holder who has left', () => {
+    expect(holderLine({ takenBy: 'u2' }, members, 'u1')).toBe('Alex is on this');
+    expect(holderLine({ takenBy: 'u1' }, members, 'u1')).toBe("You're on this");
+    expect(holderLine({ takenBy: 'gone' }, members, 'u1')).toBeUndefined();
+    expect(holderLine({}, members, 'u1')).toBeUndefined();
+  });
+});
+
+describe('onItFor', () => {
+  it('says nothing for under a day, then days, then weeks, neutrally', () => {
+    const now = 100 * DAY;
+    expect(onItFor(now - 3_600_000, now)).toBeUndefined();
+    expect(onItFor(now - DAY, now)).toBe('On it for 1 day');
+    expect(onItFor(now - 5 * DAY, now)).toBe('On it for 5 days');
+    expect(onItFor(now - 21 * DAY, now)).toBe('On it for 3 weeks');
+    expect(onItFor(undefined, now)).toBeUndefined();
+  });
+});
+
+describe('stepsDone', () => {
+  it('reads "3 of 8 steps done"', () => {
+    expect(stepsDone(3, 8)).toBe('3 of 8 steps done');
+    expect(stepsDone(0, 1)).toBe('0 of 1 step done');
+  });
+});

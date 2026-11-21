@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   recipes: { status: 'ready', recipes: [] as object[], dataUpdatedAt: 1, refetch: vi.fn() },
   money: { status: 'ready', entries: [] as object[], canWrite: true, unsavedIds: new Set<string>(), refetch: vi.fn() },
   calendar: { status: 'ready', deleted: [] as object[], unsavedIds: new Set<string>(), refetch: vi.fn() },
+  projects: { status: 'ready', deleted: [] as object[], unsavedIds: new Set<string>() },
+  projectActions: undefined as unknown,
   calendarActions: undefined as unknown,
   moneyActions: undefined as unknown,
   actions: undefined as unknown,
@@ -25,6 +27,8 @@ vi.mock('~/lib/items', () => ({ useItems: () => state.items }));
 vi.mock('~/lib/recipes', () => ({ useRecipes: () => state.recipes }));
 vi.mock('~/lib/money', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/money')>()), useMoney: () => state.money }));
 vi.mock('~/lib/calendar', () => ({ useCalendar: () => state.calendar }));
+vi.mock('~/lib/projects', () => ({ useProjects: () => state.projects }));
+vi.mock('~/hooks/useProjectActions', () => ({ useProjectActions: () => state.projectActions }));
 vi.mock('~/hooks/useCalendarActions', () => ({ useCalendarActions: () => state.calendarActions }));
 vi.mock('~/hooks/useMoneyActions', () => ({ useMoneyActions: () => state.moneyActions }));
 vi.mock('~/hooks/useRecipeActions', () => ({ useRecipeActions: () => state.recipeActions }));
@@ -48,6 +52,8 @@ beforeEach(() => {
   state.moneyActions = { restore: vi.fn() };
   state.calendar = { status: 'ready', deleted: [], unsavedIds: new Set<string>(), refetch: vi.fn() };
   state.calendarActions = { restore: vi.fn() };
+  state.projects = { status: 'ready', deleted: [], unsavedIds: new Set<string>() };
+  state.projectActions = { restoreProject: vi.fn() };
 });
 
 describe('the Deleted page: money', () => {
@@ -214,5 +220,30 @@ describe('the Deleted page: events', () => {
   it('says how long a deleted event is kept', () => {
     renderPage();
     expect(screen.getByText('Deleted events stay here for 30 days.')).toBeInTheDocument();
+  });
+});
+
+describe('the Deleted page: projects', () => {
+  const project = { id: 'p1', title: 'Take down the decking', status: 'active', deletedAt: Date.parse('2026-11-10T10:00:00Z'), deletedBy: ME.userId, counts: { steps: 12, done: 0 } };
+
+  it('lists a Projects group saying what comes back, and restores with the deletion it saw', async () => {
+    state.projects = { status: 'ready', deleted: [project], unsavedIds: new Set<string>() };
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+    expect(screen.getByText(/Comes back with 12 steps/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Restore: Take down the decking' }));
+    expect((state.projectActions as { restoreProject: ReturnType<typeof vi.fn> }).restoreProject).toHaveBeenCalledWith({ id: 'p1', deletedAt: project.deletedAt });
+  });
+
+  it('turns Restore off while a write for the project is waiting', () => {
+    state.projects = { status: 'ready', deleted: [project], unsavedIds: new Set(['p1']) };
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Restore: Take down the decking' })).toBeDisabled();
+  });
+
+  it('no longer says Nothing has been deleted when only a project is', () => {
+    state.projects = { status: 'ready', deleted: [project], unsavedIds: new Set<string>() };
+    renderPage();
+    expect(screen.queryByText('Nothing has been deleted.')).not.toBeInTheDocument();
   });
 });

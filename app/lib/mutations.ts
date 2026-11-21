@@ -6,6 +6,7 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import type { EventKind, People, Reminder, Schedule } from '../../src/calendar/types';
 import type { MealType } from '../../src/meals/types';
 import type { MoneyChange, MoneyKind } from '../../src/money/types';
+import type { ProjectStatus, StepState } from '../../src/projects/types';
 import type { Repeat } from '../../src/shared/schedule';
 import { needsProposal } from '../../src/tasks/ownership';
 import type { Caller } from '../../src/tasks/ownership';
@@ -22,14 +23,17 @@ import { MONEY_KEY, moneyMutationKeys } from './moneyKeys';
 import { moneyFailureText } from './moneyText';
 import type { MoneyMutationKind } from './moneyKeys';
 import { noteMutationSettled, TASKS_KEY } from './queries';
+import { PROJECT_KEY_PREFIX, PROJECTS_KEY, projectMutationKeys } from './projectKeys';
+import type { ProjectMutationKind } from './projectKeys';
+import { addNotice } from './projectNotices';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
 import type { RecipeChanges } from './recipeFields';
 import { PLAN_KEY } from './planKeys';
 import { RECIPES_KEY } from './recipeKeys';
 import { retryDelay, shouldRetry } from './retryRules';
 
-export { calendarMutationKeys, moneyMutationKeys };
-export type { CalendarMutationKind, MoneyMutationKind };
+export { calendarMutationKeys, moneyMutationKeys, projectMutationKeys };
+export type { CalendarMutationKind, MoneyMutationKind, ProjectMutationKind };
 
 export type MutationKind =
   | 'create' | 'edit' | 'schedule' | 'delete' | 'complete' | 'uncomplete' | 'tick' | 'restore'
@@ -171,6 +175,23 @@ export interface CalendarMutationVars {
   setReminders: Common & { eventId: string; list: Reminder[] };
   // Each event with the deletion the person saw, so a restore queued before a later change applies nothing they did not see.
   eventRestore: Common & { entries: { id: string; deletedAt: number }[] };
+}
+
+// A project's or a step's changed fields. `null` clears an optional one.
+export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus }
+export interface StepChanges { text?: string; note?: string | null; state?: StepState; position?: string }
+
+export interface ProjectMutationVars {
+  putProject: Common & { projectId: string; changes: ProjectChanges };
+  deleteProject: Common & { projectId: string };
+  // Each project with the deletion the person saw, so a restore queued before a later change applies nothing they did not see.
+  restoreProject: Common & { entries: { id: string; deletedAt: number }[] };
+  takeProject: Common & { projectId: string };
+  releaseProject: Common & { projectId: string };
+  putStep: Common & { projectId: string; stepId: string; changes: StepChanges };
+  deleteStep: Common & { projectId: string; stepId: string };
+  takeStep: Common & { projectId: string; stepId: string };
+  releaseStep: Common & { projectId: string; stepId: string };
 }
 
 type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
@@ -351,6 +372,33 @@ const CALENDAR_RUNNERS: { [K in CalendarMutationKind]: (vars: CalendarMutationVa
   }),
 };
 
+const projectPath = (id: string): string => `/api/hh/projects/${id}`;
+const stepPath = (projectId: string, stepId: string): string => `${projectPath(projectId)}/steps/${stepId}`;
+const plain = (v: Common): { mutationId: string; clientAt: number } => ({ mutationId: v.mutationId, clientAt: v.at });
+
+// Each changed field goes with the time of the action, as the server's per-field rule expects.
+function stamped(changes: object, at: number): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  for (const [field, value] of Object.entries(changes)) {
+    if (value === undefined) continue;
+    body[field] = value;
+    body[`${field}At`] = at;
+  }
+  return body;
+}
+
+const PROJECT_RUNNERS: { [K in ProjectMutationKind]: (vars: ProjectMutationVars[K], request: Request) => Promise<unknown> } = {
+  putProject: (v, request) => send(request, 'PUT', projectPath(v.projectId), { ...plain(v), ...stamped(v.changes, v.at) }),
+  deleteProject: (v, request) => send(request, 'DELETE', projectPath(v.projectId), plain(v)),
+  restoreProject: (v, request) => send(request, 'POST', '/api/hh/restore', { ...plain(v), entries: v.entries.map(entry => ({ kind: 'project', ...entry })) }),
+  takeProject: (v, request) => send(request, 'POST', `${projectPath(v.projectId)}/take`, plain(v)),
+  releaseProject: (v, request) => send(request, 'POST', `${projectPath(v.projectId)}/release`, plain(v)),
+  putStep: (v, request) => send(request, 'PUT', stepPath(v.projectId, v.stepId), { ...plain(v), ...stamped(v.changes, v.at) }),
+  deleteStep: (v, request) => send(request, 'DELETE', stepPath(v.projectId, v.stepId), plain(v)),
+  takeStep: (v, request) => send(request, 'POST', `${stepPath(v.projectId, v.stepId)}/take`, plain(v)),
+  releaseStep: (v, request) => send(request, 'POST', `${stepPath(v.projectId, v.stepId)}/release`, plain(v)),
+};
+
 // What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
 // error that is still being retried says nothing (retryRules.ts); one that has used up its tries, or that the server refused, does.
 // A write dropped because someone else is now signed in says nothing.
@@ -358,6 +406,8 @@ export function describeFailure(error: unknown, kind?: string, otherName?: strin
   if (!(error instanceof ApiError)) return undefined;
   if (error.code === 'wrong_user') return undefined;
   if (error.code === 'recipe_limit') return 'This household has reached 200 recipes.';
+  if (error.code === 'project_limit') return 'This household has reached 60 projects.';
+  if (error.code === 'step_limit') return 'This project has reached 40 steps.';
   const calendar = kind !== undefined && kind in calendarMutationKeys && error.code !== undefined ? calendarFailureText(error.code) : undefined;
   if (calendar) return calendar;
   // The money codes come before the generic 409 text, which says less.
@@ -436,6 +486,38 @@ function registerSet(client: QueryClient, request: Request, guard: OwnerGuard | 
         for (const queryKey of set.invalidate(kind)) void client.invalidateQueries({ queryKey });
       },
     });
+  }
+}
+
+function memberName(client: QueryClient, userId: string | undefined): string {
+  const household = client.getQueryData<HouseholdData>(HOUSEHOLD_KEY);
+  return household?.members.find(member => member.userId === userId)?.displayName ?? 'Someone';
+}
+
+// The person's own words for a field whose write was older than what is stored, in words for the fields that are not text.
+function keptText(field: string, changes: Record<string, unknown>): string {
+  const value = changes[field];
+  if (field === 'state') return value === 'done' ? 'Done' : 'Not started';
+  if (field === 'position') return 'A move to another place in the list';
+  if (value === null) return 'Cleared';
+  return String(value);
+}
+
+function saveProjectNotices(client: QueryClient, kind: ProjectMutationKind, variables: ProjectMutationVars[ProjectMutationKind], data: unknown): void {
+  const answer = data as { outcome?: string; stale?: string[]; step?: { takenBy?: string }; project?: { takenBy?: string } } | undefined;
+  if (!answer) return;
+  const { by, at } = variables;
+  if ((kind === 'putProject' || kind === 'putStep') && answer.stale && answer.stale.length > 0) {
+    const vars = variables as ProjectMutationVars['putProject'] | ProjectMutationVars['putStep'];
+    const recordId = kind === 'putStep' ? (vars as ProjectMutationVars['putStep']).stepId : vars.projectId;
+    for (const field of answer.stale) addNotice(by, { kind: 'replaced', projectId: vars.projectId, recordId, field, text: keptText(field, vars.changes as Record<string, unknown>), at });
+    return;
+  }
+  if ((kind === 'takeStep' || kind === 'takeProject') && answer.outcome === 'held_by_other') {
+    const vars = variables as ProjectMutationVars['takeStep'];
+    const holder = (answer.step ?? answer.project)?.takenBy;
+    const recordId = kind === 'takeStep' ? vars.stepId : vars.projectId;
+    addNotice(by, { kind: 'taken', projectId: vars.projectId, recordId, text: `${memberName(client, holder)} already has this`, at });
   }
 }
 
@@ -527,6 +609,26 @@ export function registerMutations(
   });
 
   registerSet(client, request, guard, {
+    keys: projectMutationKeys,
+    run: (kind, variables: ProjectMutationVars[ProjectMutationKind], send) =>
+      (PROJECT_RUNNERS[kind as ProjectMutationKind] as (vars: ProjectMutationVars[ProjectMutationKind], request: Request) => Promise<unknown>)(variables, send),
+    invalidate: () => [PROJECTS_KEY, PROJECT_KEY_PREFIX],
+    // Registered here, not in a component, so they still run after a reload replays a saved write. A replaced edit and a refused take are
+    // answered with a 200 and an outcome, so the notices are made from the answer.
+    onSuccess: (kind, variables: ProjectMutationVars[ProjectMutationKind], data) => {
+      saveProjectNotices(client, kind as ProjectMutationKind, variables, data);
+      // A restore is answered with a status for each project rather than an error.
+      if (kind !== 'restoreProject') return;
+      const results = (data as { results?: { status: string }[] } | undefined)?.results ?? [];
+      if (results.some(result => result.status === 'project_limit')) report('This household has reached 60 projects.');
+    },
+    onError: (kind, error) => {
+      const message = describeFailure(error, kind);
+      if (message) report(message);
+    },
+  });
+
+  registerSet(client, request, guard, {
     keys: calendarMutationKeys,
     run: (kind, variables: CalendarMutationVars[CalendarMutationKind], send) =>
       (CALENDAR_RUNNERS[kind as CalendarMutationKind] as (vars: CalendarMutationVars[CalendarMutationKind], request: Request) => Promise<unknown>)(variables, send),
@@ -554,6 +656,10 @@ export function useHouseholdMutation<K extends MutationKind>(kind: K) {
 
 export function useItemMutation<K extends ItemMutationKind>(kind: K) {
   return useMutation<unknown, Error, ItemMutationVars[K]>({ mutationKey: itemMutationKeys[kind] });
+}
+
+export function useProjectMutation<K extends ProjectMutationKind>(kind: K) {
+  return useMutation<unknown, Error, ProjectMutationVars[K]>({ mutationKey: projectMutationKeys[kind] });
 }
 
 export function useMealMutation<K extends MealMutationKind>(kind: K) {

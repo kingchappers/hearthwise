@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import { calendarMutationKeys, itemMutationKeys, mealMutationKeys, moneyMutationKeys, registerMutations } from '~/lib/mutations';
+import { calendarMutationKeys, itemMutationKeys, mealMutationKeys, moneyMutationKeys, projectMutationKeys, registerMutations } from '~/lib/mutations';
+import { applyPendingProjectDetail, applyPendingProjectsList } from '~/lib/projectOverlay';
 import { applyPendingCalendar } from '~/lib/calendarOverlay';
 import { applyPendingItems } from '~/lib/itemOverlay';
 import { applyPendingMoney } from '~/lib/moneyOverlay';
@@ -162,5 +163,43 @@ describe('the calendar mutations', () => {
     const start = { events: event ? [{ ...base, ...event }] : [], deleted: deleted ? [{ ...base, ...deleted }] : [], serverTime: 0 };
     const result = applyPendingCalendar(start, [{ mutationKey: key, variables: { mutationId: 'm', at: 1_800_000_000_000, by: 'u', ...vars } }]);
     expect(result).not.toEqual(start);
+  });
+});
+
+describe('the project mutations', () => {
+  const client = new QueryClient();
+  registerMutations(client, vi.fn(), () => ({ tasks: [], proposals: [], serverTime: 0 }), vi.fn());
+
+  it.each(Object.entries(projectMutationKeys))('%s is registered with a function and the household scope', (_kind, key) => {
+    const defaults = client.getMutationDefaults(key);
+    expect(defaults.mutationFn).toBeTypeOf('function');
+    expect(defaults.scope).toEqual({ id: 'household' });
+  });
+
+  const AT = 1_800_000_000_000;
+  const project = { id: 'p1', title: 'Decking', status: 'active' as const, fieldTimes: { title: 1 }, createdBy: 'o', createdAt: 1, updatedAt: 1, updatedBy: 'o' };
+  const step = { id: 's1', projectId: 'p1', text: 'Lift', state: 'todo' as const, position: 'i', fieldTimes: { text: 1, position: 1 }, createdBy: 'o', createdAt: 1, updatedAt: 1, updatedBy: 'o' };
+  const held = { ...step, takenBy: 'u', takenAt: 1 };
+  // A starting state each kind of write needs, and the variables that change it. A restore only changes a deleted project, a release only a held step.
+  const cases: Record<string, { detail: object; list: object; vars: Record<string, unknown> }> = {
+    putProject: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', changes: { notes: 'x' } } },
+    deleteProject: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1' } },
+    restoreProject: { detail: { project, steps: [step] }, list: { projects: [], deleted: [{ ...project, deletedAt: 5 }] }, vars: { entries: [{ id: 'p1', deletedAt: 5 }] } },
+    takeProject: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1' } },
+    releaseProject: { detail: { project: { ...project, takenBy: 'u' }, steps: [step] }, list: { projects: [{ ...project, takenBy: 'u' }], deleted: [] }, vars: { projectId: 'p1' } },
+    putStep: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', stepId: 's1', changes: { text: 'Lift the boards' } } },
+    deleteStep: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', stepId: 's1' } },
+    takeStep: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', stepId: 's1' } },
+    releaseStep: { detail: { project, steps: [held] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', stepId: 's1' } },
+  };
+
+  it.each(Object.entries(projectMutationKeys))('%s has an overlay that changes the data it is about', (kind, key) => {
+    const { detail, list, vars } = cases[kind];
+    const pending = [{ mutationKey: key, variables: { mutationId: 'm', at: AT, by: 'u', ...vars } }];
+    const detailStart = { materials: [], serverTime: 0, ...detail } as never;
+    const listStart = { serverTime: 0, ...list } as never;
+    const changed = JSON.stringify(applyPendingProjectDetail(detailStart, pending)) !== JSON.stringify(detailStart)
+      || JSON.stringify(applyPendingProjectsList(listStart, pending)) !== JSON.stringify(listStart);
+    expect(changed).toBe(true);
   });
 });
