@@ -1,8 +1,10 @@
+import { Button, Group, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { Step } from '../../src/projects/types';
 import { useHousehold } from '~/lib/household';
 import { notifyFields } from '~/lib/letThemKnow';
 import { useProjectMutation } from '~/lib/mutations';
+import { COPY } from '~/lib/projectText';
 import type { ProjectChanges, StepChanges } from '~/lib/mutations';
 
 export interface ProjectActions {
@@ -41,7 +43,11 @@ export function useProjectActions(): ProjectActions {
   const me = household.data?.me.userId ?? '';
   const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by: me, ...notifyFields() });
   const plain = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by: me });
-  const toast = (message: string): void => { notifications.show({ id: crypto.randomUUID(), autoClose: 5000, message }); };
+  const toast = (message: React.ReactNode): void => { notifications.show({ id: crypto.randomUUID(), autoClose: 8000, message }); };
+  const undoDeleteStep = (projectId: string, step: Step): void => putStep.mutate({
+    ...plain(), projectId, stepId: crypto.randomUUID(),
+    changes: { text: step.text, position: step.position, ...(step.note === undefined ? {} : { note: step.note }) },
+  });
 
   return {
     me,
@@ -61,12 +67,15 @@ export function useProjectActions(): ProjectActions {
     },
     deleteStep: (projectId, step) => {
       delStep.mutate({ ...common(), projectId, stepId: step.id });
-      toast('Step deleted');
+      // The step's words are kept in this toast for as long as it shows; Undo writes them again under a new id.
+      toast(
+        <Group justify="space-between" wrap="nowrap">
+          <Text size="sm">Step deleted</Text>
+          <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => undoDeleteStep(projectId, step)}>{COPY.undo}</Button>
+        </Group>,
+      );
     },
-    undoDeleteStep: (projectId, step) => putStep.mutate({
-      ...plain(), projectId, stepId: crypto.randomUUID(),
-      changes: { text: step.text, position: step.position, ...(step.note === undefined ? {} : { note: step.note }) },
-    }),
+    undoDeleteStep,
     takeStep: (projectId, stepId) => takeS.mutate({ ...common(), projectId, stepId }),
     releaseStep: (projectId, stepId) => releaseS.mutate({ ...common(), projectId, stepId }),
   };
