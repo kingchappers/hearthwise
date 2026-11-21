@@ -4,6 +4,11 @@ export interface HourSetting {
   hour: number;
 }
 
+// The colours a person may choose for their items on the calendar: the brand's terracotta, yellow and green. Not a setting: the other
+// person sees it too, so it is kept on the member beside the name.
+export const MARK_COLOURS = ['hearth', 'honey', 'sage'] as const;
+export type MarkColour = (typeof MARK_COLOURS)[number];
+
 export interface MemberSettings {
   digest: HourSetting;
   dueNudges: HourSetting;

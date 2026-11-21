@@ -1,5 +1,6 @@
 import { isValidTimeZone } from '../api/dates';
-import type { HourSetting, MemberSettingsPatch } from './household';
+import { MARK_COLOURS } from './household';
+import type { HourSetting, MarkColour, MemberSettingsPatch } from './household';
 
 // One validator per request field. A failure names the field, so the API can answer 400 { error: 'invalid', field }.
 export type Parsed<T> = { ok: true; value: T } | { ok: false; field: string };
@@ -104,15 +105,20 @@ function parseSettingsPatch(value: unknown): Parsed<MemberSettingsPatch> {
 }
 
 // The body of PATCH /api/hh/members/me. An optional mutationId may travel with it; it is not part of the patch.
-export function parseMemberPatch(body: Record<string, unknown>): Parsed<{ displayName?: string; settings?: MemberSettingsPatch }> {
-  const extra = unknownKey(body, ['displayName', 'settings', 'mutationId'], '');
+export function parseMemberPatch(body: Record<string, unknown>): Parsed<{ displayName?: string; colour?: MarkColour; settings?: MemberSettingsPatch }> {
+  const extra = unknownKey(body, ['displayName', 'colour', 'settings', 'mutationId'], '');
   if (extra) return bad(extra);
 
-  const patch: { displayName?: string; settings?: MemberSettingsPatch } = {};
+  const patch: { displayName?: string; colour?: MarkColour; settings?: MemberSettingsPatch } = {};
   if ('displayName' in body) {
     const parsed = parseDisplayName(body.displayName);
     if (!parsed.ok) return parsed;
     patch.displayName = parsed.value;
+  }
+  if ('colour' in body) {
+    const colour = MARK_COLOURS.find(candidate => candidate === body.colour);
+    if (colour === undefined) return bad('colour');
+    patch.colour = colour;
   }
   if ('settings' in body) {
     const parsed = parseSettingsPatch(body.settings);

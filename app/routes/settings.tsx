@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { InviteLink } from '~/components/household/InviteLink';
 import { Members } from '~/components/household/Members';
+import { CalendarColour } from '~/components/settings/CalendarColour';
 import { DefaultView } from '~/components/settings/DefaultView';
 import { PushCheck } from '~/components/settings/PushCheck';
 import { QuietHours } from '~/components/settings/QuietHours';
@@ -62,6 +63,11 @@ function SettingsContent() {
       <Card withBorder>
         <Title order={2} size="h4" mb="sm">Your view</Title>
         <DefaultView />
+      </Card>
+
+      <Card withBorder>
+        <Title order={2} size="h4" mb="sm">Calendar</Title>
+        <CalendarColour />
       </Card>
 
       <Card withBorder>
