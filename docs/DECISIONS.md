@@ -346,3 +346,22 @@ The server half of step 6 is recorded in the step's commits; these rows are the 
 | The offline case reads a saved imported window | Three cases in the spike (`e2e/offline/`): a cold launch with no signal shows a saved window and says an unread one is not saved; a failed refresh keeps the window; sign-out clears it | The spike does not use app code, so these prove the saving rule, not the screens |
 | Not stated | `yarn test:e2e` here needs `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set, because the installed Playwright wants a browser build that is not downloaded | Run with the cached Chrome for Testing |
 
+## Phase 5 (DIY projects)
+
+The design is `docs/designs/phase-5-diy-projects.md`. The author decided the scope, the claim rule (first to reach the server), the rejection of a lock, and that costs stay apart from the ledger. Everything else in it is a **Claude** decision, which the author has not yet reviewed. The design was reviewed in five stages (`docs/designs/phase-5-review/`).
+
+### Phase 5, built (2026-11-21)
+
+| Spec says | Built | Why |
+|---|---|---|
+| A shopping line's label uses `forRecipes` (no `forProject`) | Done: `forRecipes` holds the project title, cut to 200 characters | A new field touches about nine places and risks a silent wipe where one is missed. The name is misleading in the code and is recorded here |
+| The list's counts skip steps of deleted and finished projects | Counts are given for active projects and for the 50 listed deleted ones, and not for finished ones. They include live materials | The Deleted page needs "12 steps, 8 materials" from the list |
+| The count query reads `SK`, `state`, `deletedAt` and `takenBy` | It reads `SK`, `state` and `deletedAt` (and `SK`, `deletedAt` for materials) | `takenBy` is not needed for a count |
+| A refused move at 64 characters, no re-spacing | `positionBetween` returns `{ ok: false }` and the phone says "This step can't be moved there. Move another step instead." | No multi-record write for ordering |
+| Take and release answer `{ record, outcome }` | `{ project \| step, outcome }`; `gone` also covers a step under a deleted project | A 4xx is final in the retry rules |
+| Done is conditioned on the holder it read | Every step update that is applied carries the hold condition (`ifMissing(takenBy)` or `ifEquals(takenBy)`), so a take between the read and the write makes it read again | One rule for every write, at the price of a rare retry |
+| The colour mark from `calendarPeople.ts` is a second sign for who holds a step | Not built: the file is on the unmerged calendar-cards branch. A holder is shown by name in words only | Colour is never the only sign; it is a second one and can be added when that merges |
+| The new-project sheet has "Add details" | The sheet asks only for a title. Notes, a planned day and costs are in the Edit project sheet and the page | Fewer moving parts for the smallest case |
+| Add-to-list notices | A press where every line was already there saves a project notice, "Already on the list"; a line that was on the list and since cleared says "Added earlier, and since cleared" from the shopping list the app already has | The server answers a status for each line and the app has the list |
+| Cost figures read "£1,250" | They read "£1,250.00": `formatPounds` always prints pence | One formatter for money |
+| Undo of a deleted step | A toast with Undo keeps the deleted step's words for as long as it shows; Undo writes them again under a new id | Not a restore kind (Alternative T) |

@@ -1,5 +1,5 @@
 // The offline spike: the smallest version of the step 5 setup that can prove it works in a real browser. It builds a persister, five
-// registered mutations (two for shopping-style lines, one each for a recipe, a plan day and a money entry) and the retry rule, and talks to a stub
+// registered mutations (two for shopping-style lines, one each for a recipe, a plan day, a money entry, a project step write and a step take) and the retry rule, and talks to a stub
 // API the tests control. It does not use any app code.
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -43,9 +43,12 @@ function createClient(ownerId: string): QueryClient {
     if (kind === 'recipeAdd') return { path: `/api/hh/recipes/${variables.id}`, method: 'PUT' };
     if (kind === 'moneyAdd') return { path: `/api/hh/money/${variables.id}`, method: 'PUT' };
     if (kind === 'planSet') return { path: `/api/hh/plan/${variables.day}`, method: 'PUT' };
+    // The project kinds use the routes the app uses: a step write (an add or a move), and a take.
+    if (kind === 'putStep') return { path: `/api/hh/projects/p1/steps/${variables.id}`, method: 'PUT' };
+    if (kind === 'takeStep') return { path: `/api/hh/projects/p1/steps/${variables.id}/take`, method: 'POST' };
     return { path: `/api/${kind}`, method: 'POST' };
   };
-  for (const kind of ['add', 'rename', 'recipeAdd', 'planSet', 'moneyAdd'] as const) {
+  for (const kind of ['add', 'rename', 'recipeAdd', 'planSet', 'moneyAdd', 'putStep', 'takeStep'] as const) {
     client.setMutationDefaults(['household', kind], {
       scope: { id: 'household' },
       networkMode: 'online',
@@ -83,6 +86,9 @@ function Screen({ client, ownerId, restored, onSignOut }: { client: QueryClient;
   const recipe = useMutation<unknown, Error, { id: string; text: string; mutationId: string }>({ mutationKey: ['household', 'recipeAdd'] });
   const money = useMutation<unknown, Error, { id: string; text: string; mutationId: string }>({ mutationKey: ['household', 'moneyAdd'] });
   const plan = useMutation<unknown, Error, { id: string; text: string; mutationId: string; day: string }>({ mutationKey: ['household', 'planSet'] });
+  const putStep = useMutation<unknown, Error, { id: string; text: string; mutationId: string; position?: string }>({ mutationKey: ['household', 'putStep'] });
+  const takeStep = useMutation<unknown, Error, { id: string; text: string; mutationId: string }>({ mutationKey: ['household', 'takeStep'] });
+  const [stepId] = useState(() => crypto.randomUUID());
 
   // "Signing in": it works only if the stub accepts the token, so a cold launch with no signal or an expired token stays signed out.
   useEffect(() => {
@@ -118,6 +124,9 @@ function Screen({ client, ownerId, restored, onSignOut }: { client: QueryClient;
       <button data-testid="recipe-button" onClick={() => recipe.mutate({ id: crypto.randomUUID(), text: 'Soup', mutationId: crypto.randomUUID() })}>add recipe</button>
       <button data-testid="money-button" onClick={() => money.mutate({ id: crypto.randomUUID(), text: 'Loan', mutationId: crypto.randomUUID() })}>add money entry</button>
       <button data-testid="plan-button" onClick={() => plan.mutate({ id: crypto.randomUUID(), text: 'Chilli', mutationId: crypto.randomUUID(), day: '2026-11-16' })}>plan a day</button>
+      <button data-testid="step-button" onClick={() => putStep.mutate({ id: stepId, text: 'Lift the boards', mutationId: crypto.randomUUID(), position: 'i' })}>add a step</button>
+      <button data-testid="take-button" onClick={() => takeStep.mutate({ id: stepId, text: '', mutationId: crypto.randomUUID() })}>take the step</button>
+      <button data-testid="move-button" onClick={() => putStep.mutate({ id: stepId, text: '', mutationId: crypto.randomUUID(), position: 'h' })}>move the step</button>
       <button data-testid="sign-out" onClick={() => { void onSignOut(); }}>sign out</button>
     </div>
   );

@@ -74,6 +74,21 @@ Needs two real phones, one signed in as each person.
 - [ ] Check that no screen relies on colour alone: a stopped feed, a busy item, an unsaved event and an approximate time all say it in words.
 - [ ] The month-later check (the success measure): after a month, both people look at the calendar instead of asking each other, and a work calendar is on it. Ask both people. If not, note what is missing.
 
+## Projects (phase 5)
+
+Run these on two real phones, one for each person, with phase 5 in place. Design: `docs/designs/phase-5-diy-projects.md`.
+
+- [ ] Both phones offline: each taps "I'm on this" on the same step, Alex first, then both reconnect with Sam's tap reaching the server first. Alex's phone then says "Sam is on this" and "Sam already has this" in calm words, with no red and nothing shown as failed, and "I'm on this" is not offered there. The refused person's notice stays until dismissed.
+- [ ] Both phones offline: reorder different steps on each. Both moves are kept and both phones show one order. Move the same step on both: the later one wins and the other person's page still shows one order.
+- [ ] Edit the same step's words on both phones offline. The newer wording stays, and the other person sees "This was changed after you wrote it. Your wording is kept here." with their own words below, which they can copy.
+- [ ] Add materials on a project and press "Add to the shopping list" twice. Nothing is doubled. Edit a line on the shopping list and press the button again: the edit stays. Clear a line from the list and press again: it says "Added earlier, and since cleared" and is not added again.
+- [ ] Give a project a planned day and a span. It shows on the calendar day view for each of those days, and also offline after the calendar has been opened online. It reads "Planned for ..." and nothing changes when the day passes.
+- [ ] Add an estimate and an amount spent. The page shows "£1,250.00 of £4,000.00", "Last changed by", and "Not in Money. This is only for the project." The Money page and its total are unchanged.
+- [ ] Delete a project and restore it from Deleted. Its steps and materials come back with it, and the row said what would come back (for example "12 steps, 8 materials").
+- [ ] An older copy of the app (a phone that has not updated) restores a saved queue that holds project writes: note what happens. This is accepted, not tested: that phone may drop its whole saved queue.
+- [ ] The Plan switch ("Dinners | Calendar | Projects") at 360px wide with the largest text size: the three links wrap, nothing is cut off, and each is easy to hit with a thumb.
+- [ ] The month-later check (the success measure): after a month, each person opens the plan instead of asking the other what is next, and neither starts a step the other has. Ask both people. If not, note what is missing.
+
 ## Reading and touch
 
 - [ ] Every screen at the largest text size and with reduce motion on (Settings): nothing is cut off, no two controls overlap, and every button is easy to hit with a thumb.
@@ -81,3 +96,4 @@ Needs two real phones, one signed in as each person.
 - [ ] Phase 2 screens (Plan, Recipes, the cooking view, the add review): the same, and none says forgot, skipped, incomplete, missing or unplanned.
 - [ ] Phase 3 screens (Money, an entry, the add sheet): the same, and none says owe, owed, debt, unpaid or behind.
 - [ ] Phase 4 screens (Calendar, the add sheet, the Calendars sheet, Now and next): the same, and none says failed, error, alert or warning, and none uses red.
+- [ ] Phase 5 screens (Projects, a project, the step and materials sheets, the Deleted page group): the same, and none says over budget, overspent, behind schedule, stuck, blocked, conflict, rejected, lost, claim or assign, and none uses red. A step's state and who is on it are said in words.
