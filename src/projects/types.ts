@@ -69,10 +69,17 @@ export interface Stamped<T> {
   at: number;
 }
 
+// The planned day: the start and an optional end, written together under one time. `plannedOn: null` clears both.
+export interface PlannedValue {
+  plannedOn: string | null;
+  plannedEndOn?: string | null;
+}
+
 export interface ProjectWrite {
   title?: Stamped<string>;
   notes?: Stamped<string | null>;
   status?: Stamped<ProjectStatus>;
+  planned?: Stamped<PlannedValue>;
 }
 
 export interface StepWrite {

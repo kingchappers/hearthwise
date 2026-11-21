@@ -31,6 +31,13 @@ describe('the project runners', () => {
     expect(request).toHaveBeenCalledWith('/api/hh/projects/p1', { method: 'PUT', body: JSON.stringify({ mutationId: common.mutationId, clientAt: AT, title: 'New', titleAt: AT, notes: null, notesAt: AT }) });
   });
 
+  it('sends the planned day as two days under one time, and a clear as null', async () => {
+    await run('putProject', { projectId: 'p1', changes: { planned: { plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' } } });
+    expect(JSON.parse(String(request.mock.calls.at(-1)![1]?.body))).toEqual({ mutationId: common.mutationId, clientAt: AT, plannedOn: '2026-12-05', plannedEndOn: '2026-12-06', plannedAt: AT });
+    await run('putProject', { projectId: 'p1', changes: { planned: { plannedOn: null } } });
+    expect(JSON.parse(String(request.mock.calls.at(-1)![1]?.body))).toEqual({ mutationId: common.mutationId, clientAt: AT, plannedOn: null, plannedAt: AT });
+  });
+
   it('sends a step write, a delete and a take or release to the step routes', async () => {
     await run('putStep', { projectId: 'p1', stepId: 's1', changes: { state: 'done' } });
     expect(request).toHaveBeenLastCalledWith('/api/hh/projects/p1/steps/s1', expect.objectContaining({ method: 'PUT' }));
@@ -79,6 +86,11 @@ describe('the project notices', () => {
     const notices = readNotices('u1');
     expect(notices.map(notice => [notice.field, notice.text])).toEqual([['text', 'Sam wording'], ['position', 'A move to another place in the list']]);
     expect(window.localStorage.getItem(projectNoticesKey('u1'))).not.toBeNull();
+  });
+
+  it('keeps a replaced planned day in words', () => {
+    settle('putProject', { projectId: 'p1', changes: { planned: { plannedOn: '2026-12-05' } } }, { outcome: 'noop', stale: ['planned'] });
+    expect(readNotices('u1')[0]).toMatchObject({ recordId: 'p1', field: 'planned', text: 'Planned for Saturday 5 December' });
   });
 
   it('saves "{name} already has this" when a take was refused', () => {

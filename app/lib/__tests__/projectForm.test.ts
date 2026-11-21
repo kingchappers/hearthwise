@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { positionFor, positionsForLines, splitLines } from '../projectForm';
+import { plannedChange, positionFor, positionsForLines, splitLines } from '../projectForm';
 
 const steps = [{ id: 'a', position: 'i' }, { id: 'b', position: 'j' }, { id: 'c', position: 'k' }];
 
@@ -55,5 +55,24 @@ describe('positionsForLines', () => {
 describe('splitLines', () => {
   it('splits on newlines of either kind and trims', () => {
     expect(splitLines('a\r\n b \n\n c')).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('plannedChange', () => {
+  it('reads a start, a start and an end, and an empty start as a clear', () => {
+    expect(plannedChange('2026-12-05', '')).toEqual({ ok: true, change: { plannedOn: '2026-12-05', plannedEndOn: null } });
+    expect(plannedChange('2026-12-05', '2026-12-06')).toEqual({ ok: true, change: { plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' } });
+    expect(plannedChange('', '')).toEqual({ ok: true, change: { plannedOn: null } });
+  });
+
+  it('refuses an end with no start, an end before the start, and one more than 13 days after', () => {
+    expect(plannedChange('', '2026-12-06')).toEqual({ ok: false, field: 'start' });
+    expect(plannedChange('2026-12-05', '2026-12-04')).toEqual({ ok: false, field: 'end' });
+    expect(plannedChange('2026-12-05', '2026-12-19')).toEqual({ ok: false, field: 'end' });
+    expect(plannedChange('2026-12-05', '2026-12-18').ok).toBe(true);
+  });
+
+  it('refuses a day that is not real', () => {
+    expect(plannedChange('2026-02-30', '')).toEqual({ ok: false, field: 'start' });
   });
 });

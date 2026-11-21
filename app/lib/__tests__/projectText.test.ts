@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { holderLine, onItFor, stepsDone, stepStatus } from '../projectText';
+import { holderLine, onItFor, plannedText, stepsDone, stepStatus } from '../projectText';
 
 const members = [{ userId: 'u1', displayName: 'Sam', joinedAt: '' }, { userId: 'u2', displayName: 'Alex', joinedAt: '' }];
 const DAY = 86_400_000;
@@ -40,5 +40,22 @@ describe('stepsDone', () => {
   it('reads "3 of 8 steps done"', () => {
     expect(stepsDone(3, 8)).toBe('3 of 8 steps done');
     expect(stepsDone(0, 1)).toBe('0 of 1 step done');
+  });
+});
+
+describe('plannedText', () => {
+  it('says "Planned for Saturday 5 December" for one day and "Planned for 5 to 6 December" for a span, the same on a day that has passed', () => {
+    expect(plannedText({ plannedOn: '2026-12-05' })).toBe('Planned for Saturday 5 December');
+    expect(plannedText({ plannedOn: '2026-12-05', plannedEndOn: null })).toBe('Planned for Saturday 5 December');
+    expect(plannedText({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' })).toBe('Planned for 5 to 6 December');
+    expect(plannedText({ plannedOn: '2026-11-03' })).toBe('Planned for Tuesday 3 November');
+  });
+
+  it('names both months for a span across two', () => {
+    expect(plannedText({ plannedOn: '2026-11-29', plannedEndOn: '2026-12-02' })).toBe('Planned for 29 November to 2 December');
+  });
+
+  it('says no day for a clear', () => {
+    expect(plannedText({ plannedOn: null })).toBe('No day planned');
   });
 });

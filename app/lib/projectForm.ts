@@ -1,4 +1,6 @@
 import { positionBetween } from '../../src/shared/projectRules';
+import { addDays, isRealDate } from '../../src/shared/schedule';
+import type { PlannedChange } from './mutations';
 import { compareSteps } from '../../src/shared/projectRules';
 
 type Placed = { id: string; position: string };
@@ -37,3 +39,13 @@ export function positionsForLines(steps: Placed[], lines: string[]): { text: str
 }
 
 export const splitLines = (text: string): string[] => text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '');
+
+// What the planned-day fields say, as a change, or the reason it cannot be saved. An empty start is a clear; an end with no start is
+// refused; an end must be on or after the start and at most 13 days after it (a span of 14 days).
+export function plannedChange(start: string, end: string): { ok: true; change: PlannedChange } | { ok: false; field: 'start' | 'end' } {
+  if (start === '') return end === '' ? { ok: true, change: { plannedOn: null } } : { ok: false, field: 'start' };
+  if (!isRealDate(start)) return { ok: false, field: 'start' };
+  if (end === '') return { ok: true, change: { plannedOn: start, plannedEndOn: null } };
+  if (!isRealDate(end) || end < start || end > addDays(start, 13)) return { ok: false, field: 'end' };
+  return { ok: true, change: { plannedOn: start, plannedEndOn: end } };
+}

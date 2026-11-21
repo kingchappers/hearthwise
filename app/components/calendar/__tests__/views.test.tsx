@@ -23,6 +23,24 @@ const noSmallButtons = () => {
   for (const control of [...screen.queryAllByRole('button'), ...screen.queryAllByRole('link')]) expect(control, control.textContent ?? '').toHaveStyle({ minHeight: '44px' });
 };
 
+describe('TimelineList: a project with a planned day', () => {
+  const project = { id: 'p1', title: 'Take down the decking', status: 'active' as const, plannedOn: TODAY };
+
+  it('shows "Project: {title}" in the strip with no time, linking to the project', () => {
+    renderIn(<TimelineList timeline={buildTimeline(TODAY, { events: [], tasks: [], members: MEMBERS, projects: [project] }, SAM)} unsavedIds={new Set()} onOpen={vi.fn()} />);
+    const link = screen.getByRole('link', { name: /Project: Take down the decking/ });
+    expect(link).toHaveAttribute('href', '/plan/projects/p1');
+    expect(link).toHaveStyle({ minHeight: '44px' });
+    expect(within(link).queryByText(/\d:\d\d/)).not.toBeInTheDocument();
+  });
+
+  it('says who is on it, in words, and uses no due or late word', () => {
+    renderIn(<TimelineList timeline={buildTimeline(TODAY, { events: [], tasks: [], members: MEMBERS, projects: [{ ...project, takenBy: ALEX }] }, SAM)} unsavedIds={new Set()} onOpen={vi.fn()} />);
+    expect(screen.getByRole('link')).toHaveTextContent('Alex');
+    expect(screen.getByRole('link')).not.toHaveTextContent(/due|late|overdue/i);
+  });
+});
+
 describe('TimelineList', () => {
   const show = (inputs: TimelineInputs, unsaved: string[] = [], onOpen = vi.fn()) =>
     renderIn(<TimelineList timeline={buildTimeline(TODAY, inputs, SAM)} unsavedIds={new Set(unsaved)} onOpen={onOpen} />);

@@ -229,3 +229,59 @@ describe('buildTimeline with imported events', () => {
     expect(buildTimeline('2026-11-16', inputs(), SAM).timed).toEqual([]);
   });
 });
+
+describe('buildTimeline: projects with a planned day', () => {
+  const project = (id: string, over: Partial<{ title: string; status: 'active' | 'finished'; plannedOn: string; plannedEndOn: string; takenBy: string; deletedAt: number }> = {}) =>
+    ({ id, title: id, status: 'active' as const, plannedOn: '2026-12-05', ...over });
+  const day = (date: string, projects: ReturnType<typeof project>[], viewer = SAM) => buildTimeline(date, inputs([], { projects }), viewer);
+
+  it('shows a one-day project in the all-day strip, labelled "Project: {title}", with no time', () => {
+    const { allDay, timed } = day('2026-12-05', [project('Take down the decking', { title: 'Take down the decking' })]);
+    expect(timed).toEqual([]);
+    expect(allDay).toHaveLength(1);
+    expect(allDay[0]).toMatchObject({ type: 'project', label: 'Project: Take down the decking', allDay: true, on: '2026-12-05', endOn: '2026-12-05', projectId: 'Take down the decking', who: '' });
+    expect(allDay[0].startTime).toBeUndefined();
+  });
+
+  it('shows a span on each of its days and on no other', () => {
+    const projects = [project('p1', { plannedEndOn: '2026-12-07' })];
+    expect(labels(day('2026-12-04', projects).allDay)).toEqual([]);
+    for (const date of ['2026-12-05', '2026-12-06', '2026-12-07']) expect(labels(day(date, projects).allDay)).toEqual(['Project: p1']);
+    expect(labels(day('2026-12-08', projects).allDay)).toEqual([]);
+  });
+
+  it('gives each day its own key, and one key to a project on one day', () => {
+    const projects = [project('p1', { plannedEndOn: '2026-12-06' })];
+    expect(day('2026-12-05', projects).allDay[0].key).toBe('project:p1:2026-12-05');
+    expect(day('2026-12-06', projects).allDay[0].key).toBe('project:p1:2026-12-06');
+  });
+
+  it('leaves out a project with no day, a finished one and a deleted one, and nothing changes when the day has passed', () => {
+    const projects = [project('none', { plannedOn: undefined as never }), project('done', { status: 'finished' }), project('gone', { deletedAt: 5 }), project('live')];
+    expect(labels(day('2026-12-05', projects).allDay)).toEqual(['Project: live']);
+    expect(labels(day('2027-03-01', [project('old', { plannedOn: '2026-11-03' })]).allDay)).toEqual([]);
+    expect(labels(day('2026-11-03', [project('old', { plannedOn: '2026-11-03' })]).allDay)).toEqual(['Project: old']);
+  });
+
+  it('names the holder through the household, and shows none for a holder who has left', () => {
+    expect(day('2026-12-05', [project('p1', { takenBy: ALEX })]).allDay[0].who).toBe('Alex');
+    expect(day('2026-12-05', [project('p1', { takenBy: 'u-gone' })]).allDay[0].who).toBe('');
+  });
+
+  it('sorts after the dinner, tasks and events, whatever order the inputs come in', () => {
+    const base = inputs([event('Holiday', { allDay: true, startTime: undefined, durationMin: undefined, endOn: '2026-12-05', startOn: '2026-12-05' } as never)], {
+      tasks: [task('Bins', { dueOn: '2026-12-05' })], dinner: { title: 'Chilli' }, projects: [project('A project')],
+    });
+    expect(labels(buildTimeline('2026-12-05', base, SAM).allDay)).toEqual(['Holiday', 'Due: Bins', 'Dinner: Chilli', 'Project: A project']);
+  });
+
+  it('is not a timed item, so it never reaches Now and next', () => {
+    const base = inputs([], { projects: [project('p1')] });
+    const result = nowAndNext(base, zonedInstant('2026-12-05', '10:00', LONDON), LONDON, SAM);
+    expect(result).toEqual({ now: undefined, next: undefined });
+  });
+
+  it('orders two projects by title then key', () => {
+    expect(labels(day('2026-12-05', [project('b', { title: 'Beta' }), project('a', { title: 'Alpha' })]).allDay)).toEqual(['Project: Alpha', 'Project: Beta']);
+  });
+});

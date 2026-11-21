@@ -2,7 +2,7 @@ import { Card, Group, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router';
 import type { ListedProject } from '~/lib/projects';
 import type { MemberSummary } from '~/lib/household';
-import { COPY, holderLine, stepsDone } from '~/lib/projectText';
+import { COPY, holderLine, plannedText, stepsDone } from '~/lib/projectText';
 
 // One project in the list: its title, how many steps are done, who is on it, and whether a write is waiting. Everything is in words.
 export function ProjectCard({ project, members, me, unsaved }: { project: ListedProject; members: MemberSummary[]; me: string; unsaved: boolean }) {
@@ -17,6 +17,7 @@ export function ProjectCard({ project, members, me, unsaved }: { project: Listed
         </Group>
         {counts && <Text size="sm">{counts}</Text>}
         {holder && <Text size="sm">{holder}</Text>}
+        {project.plannedOn !== undefined && <Text size="sm">{plannedText({ plannedOn: project.plannedOn, plannedEndOn: project.plannedEndOn })}</Text>}
       </Stack>
     </Card>
   );

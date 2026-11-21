@@ -78,7 +78,7 @@ function Card({ item, unsaved, feedLine, members }: { item: TimelineItem; unsave
       <Edge mark={mark} members={members} />
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
         <Stack gap={2} style={{ minWidth: 0 }}>
-          {item.type !== 'task' && item.type !== 'dinner' && <Text size="sm" fw={600}>{timeRange(item)}</Text>}
+          {item.type !== 'task' && item.type !== 'dinner' && item.type !== 'project' && <Text size="sm" fw={600}>{timeRange(item)}</Text>}
           <Text fw={600} style={{ overflowWrap: 'anywhere' }}>{item.label}</Text>
           {meta !== '' && <Text size="sm">{meta}</Text>}
           {item.approx === true && <Text size="sm">{APPROX}</Text>}
@@ -96,6 +96,7 @@ function Row({ item, unsaved, feedLine, members, onOpen }: { item: TimelineItem;
   // An imported item is read from someone's calendar and never edited here: no button, no link.
   if (item.feedId !== undefined) return <div style={ROW}>{card(false)}</div>;
   if (item.type === 'task') return <Link to={`/tasks/${item.taskId}`} style={ROW}>{card(false)}</Link>;
+  if (item.type === 'project') return <Link to={`/plan/projects/${item.projectId}`} style={ROW}>{card(false)}</Link>;
   if (item.type === 'dinner') return <Link to="/plan" style={ROW}>{card(false)}</Link>;
   // Someone else's private event can be seen to be there, and nothing more: it has no id to open.
   if (item.type === 'busy') return <div style={ROW}>{card(false)}</div>;

@@ -43,6 +43,35 @@ describe('parseProjectPut', () => {
   });
 });
 
+describe('parseProjectPut: the planned day', () => {
+  it('reads a start, a start and an end, and a clear, each with one time', () => {
+    expect(parseProjectPut({ plannedOn: '2026-12-05', plannedAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { planned: { value: { plannedOn: '2026-12-05', plannedEndOn: null }, at: AT } } } });
+    expect(parseProjectPut({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-06', plannedAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { planned: { value: { plannedEndOn: '2026-12-06' } } } } });
+    expect(parseProjectPut({ plannedOn: null, plannedAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { planned: { value: { plannedOn: null } } } } });
+  });
+
+  it('can come with other fields in one write', () => {
+    expect(parseProjectPut({ title: 'x', titleAt: AT, plannedOn: '2026-12-05', plannedAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { title: { value: 'x' }, planned: { value: { plannedOn: '2026-12-05' } } } } });
+  });
+
+  it.each([
+    ['a day that is not real', { plannedOn: '2026-02-30', plannedAt: AT }, 'plannedOn'],
+    ['text that is not a date', { plannedOn: 'soon', plannedAt: AT }, 'plannedOn'],
+    ['an end before the start', { plannedOn: '2026-12-05', plannedEndOn: '2026-12-04', plannedAt: AT }, 'plannedEndOn'],
+    ['an end 14 days after', { plannedOn: '2026-12-05', plannedEndOn: '2026-12-19', plannedAt: AT }, 'plannedEndOn'],
+    ['an end with a cleared start', { plannedOn: null, plannedEndOn: '2026-12-06', plannedAt: AT }, 'plannedEndOn'],
+    ['an end with no start', { plannedEndOn: '2026-12-06', plannedAt: AT }, 'plannedOn'],
+    ['a day with no time', { plannedOn: '2026-12-05' }, 'plannedAt'],
+    ['a time with no day', { plannedAt: AT }, 'plannedOn'],
+  ])('refuses %s', (_name, body, field) => {
+    expect(parseProjectPut({ ...body, ...env })).toEqual({ ok: false, field });
+  });
+
+  it('accepts an end exactly 13 days after, a 14-day span', () => {
+    expect(parseProjectPut({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-18', plannedAt: AT, ...env }).ok).toBe(true);
+  });
+});
+
 describe('parseStepPut', () => {
   it('reads text, note, state and position with times', () => {
     const parsed = parseStepPut({ text: 'Lift the boards', textAt: AT, note: 'Mind the nails', noteAt: AT, state: 'done', stateAt: AT, position: 'i', positionAt: AT, ...env });

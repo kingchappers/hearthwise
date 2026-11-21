@@ -145,6 +145,16 @@ describe('useTimelineSources', () => {
     expect(result.current.inputsFor('2026-11-17').dinner).toBeUndefined();
   });
 
+  it('gives the timeline the household\'s projects from the light read, so no step counts are polled', async () => {
+    const project = { id: 'p1', title: 'Take down the decking', status: 'active', plannedOn: '2026-11-16', fieldTimes: {}, createdBy: SAM, createdAt: 1, updatedAt: 1, updatedBy: SAM };
+    request.mockImplementation(async (path: string) => (path.startsWith('/api/hh/projects') ? { projects: [project], deleted: [], serverTime: NOW } : served([event('a')])));
+    const { result } = renderHook(() => useTimelineSources(), { wrapper });
+    await waitFor(() => expect(result.current.inputsFor('2026-11-16').projects).toHaveLength(1));
+    expect(result.current.inputsFor('2026-11-16').projects?.[0]).toMatchObject({ id: 'p1', plannedOn: '2026-11-16' });
+    expect(request).toHaveBeenCalledWith('/api/hh/projects?counts=0');
+    expect(request).not.toHaveBeenCalledWith('/api/hh/projects');
+  });
+
   it('is loading while the calendar loads, and an error when it cannot', async () => {
     request.mockRejectedValue(new Error('down'));
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
