@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { plannedChange, positionFor, positionsForLines, splitLines } from '../projectForm';
+import { costChange, costFieldText, plannedChange, positionFor, positionsForLines, splitLines } from '../projectForm';
 
 const steps = [{ id: 'a', position: 'i' }, { id: 'b', position: 'j' }, { id: 'c', position: 'k' }];
 
@@ -74,5 +74,37 @@ describe('plannedChange', () => {
 
   it('refuses a day that is not real', () => {
     expect(plannedChange('2026-02-30', '')).toEqual({ ok: false, field: 'start' });
+  });
+});
+
+describe('costChange', () => {
+  it('reads pounds as whole pence', () => {
+    expect(costChange('4000', undefined)).toEqual({ ok: true, value: 400000 });
+    expect(costChange('£1,250.50', 100)).toEqual({ ok: true, value: 125050 });
+  });
+
+  it('turns empty and 0 into a clear, or no change when nothing is stored', () => {
+    for (const typed of ['', '  ', '0', '0.00', '£0']) {
+      expect(costChange(typed, 5000)).toEqual({ ok: true, value: null });
+      expect(costChange(typed, undefined)).toEqual({ ok: true, unchanged: true });
+    }
+  });
+
+  it('is unchanged when the field says what is stored, so an untouched figure sends nothing', () => {
+    expect(costChange('12.50', 1250)).toEqual({ ok: true, unchanged: true });
+    expect(costChange(costFieldText(125000), 125000)).toEqual({ ok: true, unchanged: true });
+  });
+
+  it('refuses text, a negative, too many decimals and a figure over the largest, in plain words', () => {
+    for (const typed of ['abc', '-5', '12.505', '1,000,001', '1000000.01']) {
+      const result = costChange(typed, undefined);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.message.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('shows a stored figure with pence and no symbol, and an empty field for none', () => {
+    expect(costFieldText(400000)).toBe('4000.00');
+    expect(costFieldText(undefined)).toBe('');
   });
 });

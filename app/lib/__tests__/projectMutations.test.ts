@@ -38,6 +38,11 @@ describe('the project runners', () => {
     expect(JSON.parse(String(request.mock.calls.at(-1)![1]?.body))).toEqual({ mutationId: common.mutationId, clientAt: AT, plannedOn: null, plannedAt: AT });
   });
 
+  it('sends each figure with its own time, and a clear as null', async () => {
+    await run('putProject', { projectId: 'p1', changes: { estimatePence: 400000, spentPence: null } });
+    expect(JSON.parse(String(request.mock.calls.at(-1)![1]?.body))).toEqual({ mutationId: common.mutationId, clientAt: AT, estimatePence: 400000, estimateAt: AT, spentPence: null, spentAt: AT });
+  });
+
   it('sends a step write, a delete and a take or release to the step routes', async () => {
     await run('putStep', { projectId: 'p1', stepId: 's1', changes: { state: 'done' } });
     expect(request).toHaveBeenLastCalledWith('/api/hh/projects/p1/steps/s1', expect.objectContaining({ method: 'PUT' }));
@@ -91,6 +96,11 @@ describe('the project notices', () => {
   it('keeps a replaced planned day in words', () => {
     settle('putProject', { projectId: 'p1', changes: { planned: { plannedOn: '2026-12-05' } } }, { outcome: 'noop', stale: ['planned'] });
     expect(readNotices('u1')[0]).toMatchObject({ recordId: 'p1', field: 'planned', text: 'Planned for Saturday 5 December' });
+  });
+
+  it('keeps a replaced figure as pounds', () => {
+    settle('putProject', { projectId: 'p1', changes: { spentPence: 125000 } }, { outcome: 'noop', stale: ['spent'] });
+    expect(readNotices('u1')[0]).toMatchObject({ field: 'spent', text: '£1,250.00' });
   });
 
   it('saves "{name} already has this" when a take was refused', () => {

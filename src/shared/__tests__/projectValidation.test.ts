@@ -72,6 +72,29 @@ describe('parseProjectPut: the planned day', () => {
   });
 });
 
+describe('parseProjectPut: costs', () => {
+  it('reads each figure in whole pence with its own time, and a clear', () => {
+    expect(parseProjectPut({ estimatePence: 400000, estimateAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { estimate: { value: 400000, at: AT } } } });
+    expect(parseProjectPut({ spentPence: 125000, spentAt: AT, estimatePence: null, estimateAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { spent: { value: 125000 }, estimate: { value: null } } } });
+  });
+
+  it('accepts 1 pence and the largest figure, and refuses 0, a negative, a fraction, text and one over the largest', () => {
+    expect(parseProjectPut({ spentPence: 1, spentAt: AT, ...env }).ok).toBe(true);
+    expect(parseProjectPut({ spentPence: 100_000_000, spentAt: AT, ...env }).ok).toBe(true);
+    for (const bad of [0, -5, 12.5, '12', 100_000_001, NaN]) expect(parseProjectPut({ spentPence: bad, spentAt: AT, ...env })).toEqual({ ok: false, field: 'spentPence' });
+  });
+
+  it('refuses a figure with no time, a time with no figure, and the field names of the design that are not the write fields', () => {
+    expect(parseProjectPut({ estimatePence: 100, ...env })).toEqual({ ok: false, field: 'estimateAt' });
+    expect(parseProjectPut({ estimateAt: AT, ...env })).toEqual({ ok: false, field: 'estimatePence' });
+    expect(parseProjectPut({ estimate: 100, ...env })).toEqual({ ok: false, field: 'estimate' });
+  });
+
+  it('can come with the planned day and a title in one write', () => {
+    expect(parseProjectPut({ title: 'x', titleAt: AT, plannedOn: '2026-12-05', plannedAt: AT, spentPence: 5, spentAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { title: {}, planned: {}, spent: { value: 5 } } } });
+  });
+});
+
 describe('parseStepPut', () => {
   it('reads text, note, state and position with times', () => {
     const parsed = parseStepPut({ text: 'Lift the boards', textAt: AT, note: 'Mind the nails', noteAt: AT, state: 'done', stateAt: AT, position: 'i', positionAt: AT, ...env });

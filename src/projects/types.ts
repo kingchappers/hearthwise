@@ -80,6 +80,9 @@ export interface ProjectWrite {
   notes?: Stamped<string | null>;
   status?: Stamped<ProjectStatus>;
   planned?: Stamped<PlannedValue>;
+  // Whole pence, 1 or more, or `null` to clear. Each figure has its own time.
+  estimate?: Stamped<number | null>;
+  spent?: Stamped<number | null>;
 }
 
 export interface StepWrite {

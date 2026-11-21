@@ -27,6 +27,7 @@ import { PROJECT_KEY_PREFIX, PROJECTS_KEY, projectMutationKeys } from './project
 import type { ProjectMutationKind } from './projectKeys';
 import { addNotice } from './projectNotices';
 import { plannedText } from './projectText';
+import { formatPounds } from '../../src/shared/money';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
 import type { RecipeChanges } from './recipeFields';
 import { PLAN_KEY } from './planKeys';
@@ -181,7 +182,8 @@ export interface CalendarMutationVars {
 // A project's or a step's changed fields. `null` clears an optional one.
 // The planned day: a start and an optional end, written together. `plannedOn: null` clears both.
 export interface PlannedChange { plannedOn: string | null; plannedEndOn?: string | null }
-export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus; planned?: PlannedChange }
+// A cost figure is whole pence from 1, or `null` to clear it. Each has its own time.
+export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus; planned?: PlannedChange; estimatePence?: number | null; spentPence?: number | null }
 export interface StepChanges { text?: string; note?: string | null; state?: StepState; position?: string }
 
 export interface ProjectMutationVars {
@@ -398,7 +400,8 @@ function stamped(changes: object, at: number): Record<string, unknown> {
       continue;
     }
     body[field] = value;
-    body[`${field}At`] = at;
+    // The figures are `estimatePence` and `spentPence`, each with its own time, `estimateAt` and `spentAt`.
+    body[field === 'estimatePence' ? 'estimateAt' : field === 'spentPence' ? 'spentAt' : `${field}At`] = at;
   }
   return body;
 }
@@ -518,6 +521,7 @@ function keptText(field: string, changes: Record<string, unknown>): string {
   const value = changes[field];
   if (field === 'state') return value === 'done' ? 'Done' : 'Not started';
   if (field === 'planned') return plannedText(value as PlannedChange);
+  if (field === 'estimate' || field === 'spent') return value === null ? 'Cleared' : formatPounds(Number(changes[field === 'estimate' ? 'estimatePence' : 'spentPence']));
   if (field === 'position') return 'A move to another place in the list';
   if (value === null) return 'Cleared';
   return String(value);

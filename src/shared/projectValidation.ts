@@ -1,4 +1,5 @@
-import type { MaterialWrite, PlannedValue, ProjectStatus, ProjectWrite, StepState, StepWrite } from '../projects/types';
+import type { MaterialWrite, PlannedValue, ProjectStatus, ProjectWrite, Stamped, StepState, StepWrite } from '../projects/types';
+import { MAX_PENCE } from './money';
 import { ID_PATTERN, MAX_POSITION, POSITION_ALPHABET } from './projectRules';
 import { addDays, isRealDate } from './schedule';
 import { ENVELOPE_KEYS, parseClientTime, parseEnvelope, parseStamped, parseUuid } from './taskValidation';
@@ -66,17 +67,37 @@ function parsePlanned(body: Record<string, unknown>): Parsed<{ value: PlannedVal
   return good({ value: { plannedOn: start, plannedEndOn: end }, at: at.value });
 }
 
+// One cost figure with its time: whole pence from 1 to MAX_PENCE, or `null` to clear. 0 is not accepted: the form turns it into a clear.
+function parseCost(body: Record<string, unknown>, field: string, timeField: string): Parsed<Stamped<number | null> | undefined> {
+  if (!(field in body) && !(timeField in body)) return good(undefined);
+  if (!(field in body)) return bad(field);
+  const at = parseClientTime(body[timeField], timeField);
+  if (!at.ok) return at;
+  const value = body[field];
+  if (value === null) return good({ value: null, at: at.value });
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > MAX_PENCE) return bad(field);
+  return good({ value, at: at.value });
+}
+
 export function parseProjectPut(body: Record<string, unknown>): Put<ProjectWrite> {
-  const { plannedOn: _on, plannedEndOn: _end, plannedAt: _at, ...rest } = body;
+  const { plannedOn: _on, plannedEndOn: _end, plannedAt: _at, estimatePence: _e, estimateAt: _ea, spentPence: _s, spentAt: _sa, ...rest } = body;
   const planned = parsePlanned(body);
   if (!planned.ok) return planned;
+  const estimate = parseCost(body, 'estimatePence', 'estimateAt');
+  if (!estimate.ok) return estimate;
+  const spent = parseCost(body, 'spentPence', 'spentAt');
+  if (!spent.ok) return spent;
   const parsed = parseWrite<ProjectWrite>(rest, PROJECT_FIELD_KEYS, {
     title: value => trimmedText(value, MAX_PROJECT_TITLE, 'title'),
     notes: optionalText(MAX_PROJECT_NOTES, 'notes'),
     status: oneOf<ProjectStatus>(['active', 'finished'], 'status'),
-  }, planned.value !== undefined);
-  if (!parsed.ok || planned.value === undefined) return parsed;
-  return good({ ...parsed.value, write: { ...parsed.value.write, planned: planned.value } });
+  }, planned.value !== undefined || estimate.value !== undefined || spent.value !== undefined);
+  if (!parsed.ok) return parsed;
+  const write: ProjectWrite = { ...parsed.value.write };
+  if (planned.value !== undefined) write.planned = planned.value;
+  if (estimate.value !== undefined) write.estimate = estimate.value;
+  if (spent.value !== undefined) write.spent = spent.value;
+  return good({ ...parsed.value, write });
 }
 
 export function parseStepPut(body: Record<string, unknown>): Put<StepWrite> {

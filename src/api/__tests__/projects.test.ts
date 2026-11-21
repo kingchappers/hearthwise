@@ -221,6 +221,30 @@ describe('taking', () => {
   });
 });
 
+describe('costs', () => {
+  it('sets, changes and clears each figure on its own, shows who changed last, and refuses 0', async () => {
+    const { id } = await newProject();
+    const est = await call(U1, 'PUT', `${P}/${id}`, mut({ estimatePence: 400000, estimateAt: AT }));
+    expect(est.json).toMatchObject({ outcome: 'applied', project: { estimatePence: 400000, costBy: U1 } });
+    const spent = await call(U2, 'PUT', `${P}/${id}`, mut({ spentPence: 125000, spentAt: AT }));
+    expect(spent.json.project).toMatchObject({ estimatePence: 400000, spentPence: 125000, costBy: U2 });
+    expect((await call(U1, 'PUT', `${P}/${id}`, mut({ spentPence: 0, spentAt: AT + 5 }))).json).toEqual({ error: 'invalid', field: 'spentPence' });
+    const older = await call(U1, 'PUT', `${P}/${id}`, mut({ spentPence: 90000, spentAt: AT - 50 }));
+    expect(older.json).toMatchObject({ outcome: 'noop', stale: ['spent'] });
+    const cleared = await call(U1, 'PUT', `${P}/${id}`, mut({ spentPence: null, spentAt: AT + 10 }));
+    expect(cleared.json.project.spentPence).toBeUndefined();
+    expect((await call(U2, 'GET', `${P}/${id}`)).json.project).toMatchObject({ estimatePence: 400000 });
+  });
+
+  it('never writes a MONEY# item, and never puts a figure in a log or a push', async () => {
+    const { id } = await newProject(SENTINEL);
+    await call(U1, 'PUT', `${P}/${id}`, mut({ spentPence: 8374651, spentAt: AT, estimatePence: 9274651, estimateAt: AT, notify: true, clientAt: AT }));
+    expect(await getStore().query(hhPk(householdId), { skPrefix: 'MONEY#' })).toEqual([]);
+    expect(JSON.stringify(logged)).not.toMatch(/8374651|9274651|SENTINEL/);
+    expect(JSON.stringify(sent)).not.toMatch(/8374651|9274651|SENTINEL/);
+  });
+});
+
 describe('the planned day', () => {
   it('sets, changes and clears a planned day that both people see, and refuses a bad span with 400', async () => {
     const { id } = await newProject();

@@ -43,8 +43,10 @@ const PROJECT_PHRASES = [
   'This household has reached 60 projects.', 'This was changed after you wrote it. Your wording is kept here.', 'Mark as finished', 'Finished', 'Bring back',
   ' already has this', 'Last changed by ', 'On it for ',
   'Add to the shopping list', 'On the list', 'Already on the list', 'Added earlier, and since cleared',
-  'Planned for ', 'No day planned',
+  'Planned for ', 'No day planned', 'Add a cost', 'Not in Money. This is only for the project.', ' spent so far', 'Estimated ',
 ];
+// The costs read as figures, never as a verdict or a settling up: nothing says over, under or on budget, who paid, or settle.
+const COST_VERDICT = /\b(over budget|under budget|on budget|overspent|overspend|who paid|paid by|settle|settled|settling|owe|owes|owed|debt|unpaid|behind)\b/i;
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];
 // The fixed phrases the design promises, each of which must appear in what a person can read in the meal files.
 const FIXED_PHRASES = [
@@ -288,6 +290,16 @@ describe('wording: projects', () => {
   it('uses every fixed phrase of the projects wording table in at least one file', () => {
     const text = projectFiles().flatMap(file => readableText(readFileSync(file, 'utf8')));
     expect(PROJECT_PHRASES.filter(phrase => !text.some(line => line.includes(phrase)))).toEqual([]);
+  });
+
+  it('keeps verdicts and settling up out of the cost files, which also pass the phase 3 list', () => {
+    const costFiles = projectFiles().filter(file => /(CostsSection|projectText)\.tsx?$/.test(file));
+    expect(costFiles.map(file => relative(APP, file).split('\\').join('/')).sort()).toEqual(['components/projects/CostsSection.tsx', 'lib/projectText.ts']);
+    expect(readableText(`const a = 'You are over budget';`).some(line => COST_VERDICT.test(line))).toBe(true);
+    const hits = costFiles.flatMap(file =>
+      readableText(readFileSync(file, 'utf8')).filter(line => COST_VERDICT.test(line) || BANNED_PHASE_3.test(line)).map(line => `${relative(APP, file)}: ${line}`),
+    );
+    expect(hits).toEqual([]);
   });
 
   it('uses no red in the projects files', () => {

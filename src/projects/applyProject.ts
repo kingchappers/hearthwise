@@ -10,12 +10,12 @@ export interface ProjectApplied {
   stale: string[];
 }
 
-const FIELDS: (keyof ProjectWrite & keyof ProjectFieldTimes)[] = ['title', 'notes', 'status', 'planned'];
+const FIELDS: (keyof ProjectWrite & keyof ProjectFieldTimes)[] = ['title', 'notes', 'status', 'planned', 'estimate', 'spent'];
 
 const plannedOf = (project: Project): { plannedOn: string | null; plannedEndOn: string | null } => ({ plannedOn: project.plannedOn ?? null, plannedEndOn: project.plannedEndOn ?? null });
 
 // Writes the fields of `write` onto `project` that are newer than what it holds.
-function applyFields(project: Project, write: ProjectWrite, serverNow: number): { changed: boolean; stale: string[] } {
+function applyFields(project: Project, write: ProjectWrite, userId: string, serverNow: number): { changed: boolean; stale: string[] } {
   let changed = false;
   const stale: string[] = [];
   for (const field of FIELDS) {
@@ -24,7 +24,7 @@ function applyFields(project: Project, write: ProjectWrite, serverNow: number): 
     const at = clampTime(entry.at, serverNow);
     const value = entry.value;
     if (at <= (project.fieldTimes[field] ?? 0)) {
-      const stored = field === 'notes' ? project.notes ?? null : field === 'planned' ? JSON.stringify(plannedOf(project)) : project[field];
+      const stored = field === 'notes' ? project.notes ?? null : field === 'estimate' ? project.estimatePence ?? null : field === 'spent' ? project.spentPence ?? null : field === 'planned' ? JSON.stringify(plannedOf(project)) : project[field];
       const incoming = field === 'planned' ? JSON.stringify({ plannedOn: (value as PlannedValue).plannedOn, plannedEndOn: (value as PlannedValue).plannedEndOn ?? null }) : value;
       if (stored !== incoming) stale.push(field);
       continue;
@@ -32,6 +32,12 @@ function applyFields(project: Project, write: ProjectWrite, serverNow: number): 
     if (field === 'notes') {
       if (value === null) delete project.notes;
       else project.notes = value as string;
+    } else if (field === 'estimate' || field === 'spent') {
+      // Each figure is its own field with its own time. `costBy` says who last changed either, and has no time of its own.
+      const name = field === 'estimate' ? 'estimatePence' : 'spentPence';
+      if (value === null) delete project[name];
+      else project[name] = value as number;
+      project.costBy = userId;
     } else if (field === 'planned') {
       // The two days change together: a clear (no start) takes the end with it, and a start with no end leaves no end.
       const planned = value as PlannedValue;
@@ -46,6 +52,8 @@ function applyFields(project: Project, write: ProjectWrite, serverNow: number): 
     project.fieldTimes[field] = at;
     changed = true;
   }
+  // With neither figure left there is nothing for "last changed by" to say.
+  if (project.estimatePence === undefined && project.spentPence === undefined) delete project.costBy;
   return { changed, stale };
 }
 
@@ -59,12 +67,12 @@ export function applyProjectWrite(existing: Project | undefined, id: string, wri
     const project: Project = {
       id, title: '', status: 'active', fieldTimes: {}, createdBy: userId, createdAt: serverNow, updatedAt: serverNow, updatedBy: userId,
     };
-    applyFields(project, write, serverNow);
+    applyFields(project, write, userId, serverNow);
     return { result: 'created', project, stale: [] };
   }
 
   const project = structuredClone(existing);
-  const { changed, stale } = applyFields(project, write, serverNow);
+  const { changed, stale } = applyFields(project, write, userId, serverNow);
   if (!changed) return { result: 'noop', project: existing, stale };
   project.updatedAt = forward(existing, serverNow);
   project.updatedBy = userId;

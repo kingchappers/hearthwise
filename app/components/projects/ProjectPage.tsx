@@ -9,6 +9,7 @@ import { COPY, holderLine, lastChangedBy, nameOf, plannedText } from '~/lib/proj
 import type { MemberSummary } from '~/lib/household';
 import { LetThemKnow } from '../shared/LetThemKnow';
 import { AddSteps } from './AddSteps';
+import { CostsSection } from './CostsSection';
 import { MaterialsSection } from './MaterialsSection';
 import { EditProjectSheet } from './EditProjectSheet';
 import { NoticeBar } from './NoticeBar';
@@ -92,6 +93,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
               </List>
             )}
           <AddSteps projectId={project.id} steps={steps} actions={actions} />
+          <CostsSection key={`${project.estimatePence}:${project.spentPence}`} project={project} members={members} actions={actions} />
           <MaterialsSection projectId={project.id} materials={materials} unsavedIds={unsavedIds} listState={listState} actions={actions} />
           <Button variant="default" style={{ minHeight: 44 }} onClick={() => { actions.deleteProject(project.id); onBack(); }}>Delete project</Button>
         </>
