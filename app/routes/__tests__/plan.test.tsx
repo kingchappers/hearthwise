@@ -16,6 +16,7 @@ function renderAt(path: string) {
           <Route path="/plan" element={<Plan />}>
             <Route index element={<p>dinners child</p>} />
             <Route path="calendar" element={<p>calendar child</p>} />
+            <Route path="projects" element={<p>projects child</p>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -31,6 +32,13 @@ describe('the Plan layout', () => {
     expect(screen.getByRole('link', { name: 'Dinners' })).toHaveAttribute('href', '/plan');
     expect(screen.getByRole('link', { name: 'Calendar' })).toHaveAttribute('href', '/plan/calendar');
     expect(screen.getByText('dinners child')).toBeInTheDocument();
+  });
+
+  it('has a Projects link, marked as the open page on /plan/projects', () => {
+    renderAt('/plan/projects');
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/plan/projects');
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('projects child')).toBeInTheDocument();
   });
 
   it('marks the open page with aria-current, so it is not told apart by colour alone', () => {

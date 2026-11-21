@@ -35,6 +35,14 @@ const CALENDAR_PHRASES = [
   'Calendars are not set up on this server', 'Not saved for offline yet', 'Time may be an hour out', 'Try again later', 'Checking the link...',
   'That is the most calendars we can add', 'No calendars added yet',
 ];
+// Phase 5 also avoids these in the projects files: nothing there reads as pressure, blame or a verdict on a plan. "claim" and "assign" are
+// never on screen (phase 4 uses "claim" for a send-once record, and both read as adversarial).
+const BANNED_PHASE_5 = /\b(over budget|overspent|overrun|behind schedule|stuck|stalled|blocked|abandoned|unfinished|undone|conflict|rejected|lost|claim|assign)\b/i;
+const PROJECT_PHRASES = [
+  'Not started', 'On it', 'Done', "I'm on this", 'Free this step', 'Not saved yet', 'Not saved for offline yet', 'No projects yet. Add one when you start a bigger job.',
+  'This household has reached 60 projects.', 'This was changed after you wrote it. Your wording is kept here.', 'Mark as finished', 'Finished', 'Bring back',
+  ' already has this', 'Last changed by ', 'On it for ',
+];
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];
 // The fixed phrases the design promises, each of which must appear in what a person can read in the meal files.
 const FIXED_PHRASES = [
@@ -81,6 +89,14 @@ function moneyFiles(): string[] {
 }
 
 // The files of the shared calendar: the screens, the routes, the client data and the actions.
+function projectFiles(): string[] {
+  return sourceFiles(APP).filter(file => {
+    const path = relative(APP, file).split('\\').join('/');
+    return /^lib\/project[A-Za-z]*\.ts$/.test(path) || path === 'lib/projects.ts' || path.startsWith('components/projects/')
+      || /^routes\/plan\.projects\./.test(path) || path === 'hooks/useProjectActions.tsx';
+  });
+}
+
 function calendarFiles(): string[] {
   // The timeline's own words ("Busy", "Due: ", "Dinner: ") are made in shared code, so it is read with the app's files.
   return [TIMELINE_WORDS, ...sourceFiles(APP)].filter(file => {
@@ -243,3 +259,39 @@ describe('wording: the calendar', () => {
   });
 });
 
+
+describe('wording: projects', () => {
+  it('finds the files of the projects feature, and not others', () => {
+    const files = projectFiles().map(file => relative(APP, file).split('\\').join('/'));
+    expect(files).toEqual(expect.arrayContaining([
+      'lib/projectText.ts', 'lib/projectKeys.ts', 'lib/projectOverlay.ts', 'lib/projectNotices.ts', 'lib/projectForm.ts', 'lib/projectLookup.ts', 'lib/projects.ts',
+      'components/projects/ProjectPage.tsx', 'components/projects/StepRow.tsx', 'routes/plan.projects._index.tsx', 'routes/plan.projects.$id.tsx', 'hooks/useProjectActions.tsx',
+    ]));
+    expect(files).not.toContain('components/money/AddSheet.tsx');
+  });
+
+  it('keeps the phase 5 words out of what a person reads, and the phase 4 ones too', () => {
+    const banned = (line: string): boolean => BANNED_PHASE_5.test(line) || (SENTENCE.test(line) && BANNED_PHASE_4.test(line));
+    expect(readableText(`const a = 'Your plan is behind schedule';`).some(banned)).toBe(true);
+    const hits = projectFiles().flatMap(file => readableText(readFileSync(file, 'utf8')).filter(banned).map(line => `${relative(APP, file)}: ${line}`));
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps the earlier phases\' words out of the projects files too', () => {
+    const banned = (line: string): boolean => BANNED.test(line) || BANNED_PHASE_2.test(line);
+    const hits = projectFiles().flatMap(file => readableText(readFileSync(file, 'utf8')).filter(banned).map(line => `${relative(APP, file)}: ${line}`));
+    expect(hits).toEqual([]);
+  });
+
+  it('uses every fixed phrase of the projects wording table in at least one file', () => {
+    const text = projectFiles().flatMap(file => readableText(readFileSync(file, 'utf8')));
+    expect(PROJECT_PHRASES.filter(phrase => !text.some(line => line.includes(phrase)))).toEqual([]);
+  });
+
+  it('uses no red in the projects files', () => {
+    const hits = projectFiles().flatMap(file =>
+      readFileSync(file, 'utf8').split('\n').filter(line => /\b(red|crimson|#f00|#ff0000|c="red"|color="red")\b|color=["']red/i.test(line)).map(line => `${relative(APP, file)}: ${line.trim()}`),
+    );
+    expect(hits).toEqual([]);
+  });
+});

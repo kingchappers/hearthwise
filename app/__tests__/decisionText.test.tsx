@@ -41,6 +41,8 @@ vi.mock('~/lib/calendar', () => ({
   }),
 }));
 vi.mock('~/hooks/useFeedActions', () => ({ useFeedActions: () => ({ add: vi.fn(), replace: vi.fn(), edit: vi.fn(), refresh: vi.fn(), remove: vi.fn() }) }));
+vi.mock('~/lib/projects', () => ({ useProjects: () => ({ status: 'ready', projects: [], deleted: [], unsavedIds: new Set<string>() }) }));
+vi.mock('~/hooks/useProjectActions', () => ({ useProjectActions: () => ({ restoreProject: vi.fn() }) }));
 vi.mock('~/hooks/useCalendarActions', () => ({ useCalendarActions: () => ({ me: 'a', add: vi.fn(), edit: vi.fn(), skipDay: vi.fn(), remove: vi.fn(), setReminders: vi.fn(), restore: vi.fn() }) }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
