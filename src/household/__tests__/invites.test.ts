@@ -209,11 +209,17 @@ describe('acceptInvite', () => {
     ['a calendar event', 'EVENT#e1'],
     ['a deleted calendar event', 'EVENT#e2'],
     ['a calendar feed', 'CALFEED#f1'],
+    ['a project', 'PROJECT#p1'],
+    ['a deleted project', 'PROJECT#p2'],
+    ['a project step', 'PSTEP#p1#s1'],
+    ['a deleted project step', 'PSTEP#p1#s2'],
+    ['a project material', 'PMAT#p1#m1'],
+    ['a deleted project material', 'PMAT#p1#m2'],
   ])('refuses a move from a household that has %s', async (_name, sk) => {
     const { token } = await createInvite(store, ctx, NOW);
     await createHousehold(store, { userId: B, name: 'Theirs', timezone: 'Europe/London', displayName: 'Bea' }, vi.fn());
     const theirs = await fresh(B);
-    await store.put({ PK: hhPk(theirs.householdId), SK: sk, title: 'Chilli', ...(sk === 'RECIPE#r2' || sk === 'MONEY#e2' || sk === 'EVENT#e2' ? { deletedAt: 5 } : {}) });
+    await store.put({ PK: hhPk(theirs.householdId), SK: sk, title: 'Chilli', ...(['RECIPE#r2', 'MONEY#e2', 'EVENT#e2', 'PROJECT#p2', 'PSTEP#p1#s2', 'PMAT#p1#m2'].includes(sk) ? { deletedAt: 5 } : {}) });
     await expect(accept(token, B, { confirmMove: true })).rejects.toMatchObject({ extra: { canMove: false } });
     expect(await store.get(membershipKey(B))).toMatchObject({ householdId: theirs.householdId });
   });
