@@ -5,18 +5,19 @@ import { MantineProvider } from '@mantine/core';
 import { DEFAULT_SETTINGS, type MemberSettings } from '../../../../src/shared/household';
 import { expectNoViolations } from '~/test-utils/accessibility';
 
-const state = vi.hoisted(() => ({ settings: undefined as unknown, support: 'supported', vapid: 'KEY' as string | undefined, permission: 'default' }));
+const state = vi.hoisted(() => ({ colour: undefined as string | undefined, other: undefined as string | undefined, settings: undefined as unknown, support: 'supported', vapid: 'KEY' as string | undefined, permission: 'default' }));
 const updateMe = vi.hoisted(() => vi.fn().mockResolvedValue({}));
 const subscribe = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const unsubscribe = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('~/lib/household', () => ({
-  useHousehold: () => ({ status: 'ready', data: { me: { userId: 'a', displayName: 'Sam', settings: state.settings }, members: [], household: { timezone: 'Europe/London' } } }),
+  useHousehold: () => ({ status: 'ready', data: { me: { userId: 'a', displayName: 'Sam', settings: state.settings, ...(state.colour ? { colour: state.colour } : {}) }, members: [{ userId: 'a', displayName: 'Sam', joinedAt: '', ...(state.colour ? { colour: state.colour } : {}) }, { userId: 'b', displayName: 'Alex', joinedAt: '', ...(state.other ? { colour: state.other } : {}) }], household: { timezone: 'Europe/London' } } }),
   useUpdateMe: () => ({ mutateAsync: updateMe, isPending: false }),
 }));
 vi.mock('~/lib/push', () => ({ pushSupport: () => state.support, subscribeToPush: subscribe, unsubscribeFromPush: unsubscribe, hasPushSubscription: async () => false }));
 vi.mock('~/lib/runtimeConfig', () => ({ peekRuntimeConfig: () => (state.vapid ? { auth: 'local', vapidPublicKey: state.vapid } : { auth: 'local' }) }));
 vi.mock('~/hooks/useProtectedApi', () => ({ useProtectedApi: () => ({ request: vi.fn() }) }));
 
+import { CalendarColour } from '../CalendarColour';
 import { DefaultView } from '../DefaultView';
 import { PushCheck } from '../PushCheck';
 import { QuietHours } from '../QuietHours';
@@ -28,6 +29,8 @@ const withSettings = (over: Partial<MemberSettings> = {}) => { state.settings = 
 beforeEach(() => {
   updateMe.mockClear(); subscribe.mockClear(); unsubscribe.mockClear();
   withSettings();
+  state.colour = undefined;
+  state.other = undefined;
   state.support = 'supported';
   state.vapid = 'KEY';
   state.permission = 'default';
@@ -159,5 +162,38 @@ describe('PushCheck', () => {
   it('uses no banned wording', () => {
     const { container } = ui(<PushCheck />);
     expect(container.textContent).not.toMatch(/overdue|missed|streak/i);
+  });
+});
+
+describe('CalendarColour', () => {
+  it('offers the three brand colours by name, and shows the one you have as chosen', () => {
+    ui(<CalendarColour />);
+    expect(screen.getAllByRole('radio').map(radio => (radio as HTMLInputElement).labels?.[0]?.textContent)).toEqual(['Terracotta', 'Yellow', 'Green']);
+    // Sam's user id comes first and nobody has chosen: Sam starts as terracotta.
+    expect(screen.getByRole('radio', { name: 'Terracotta' })).toBeChecked();
+  });
+
+  it('shows the colour you chose', () => {
+    state.colour = 'sage';
+    ui(<CalendarColour />);
+    expect(screen.getByRole('radio', { name: 'Green' })).toBeChecked();
+  });
+
+  it('saves the choice on your own member, beside the name', async () => {
+    const user = userEvent.setup();
+    ui(<CalendarColour />);
+    await user.click(screen.getByRole('radio', { name: 'Green' }));
+    expect(updateMe).toHaveBeenLastCalledWith({ colour: 'sage' });
+  });
+
+  it('says that the other person sees it, and that the letter and name say it too', () => {
+    ui(<CalendarColour />);
+    expect(screen.getByText(/Alex sees this colour too/)).toBeInTheDocument();
+    expect(screen.getByText(/your name and the letter S/)).toBeInTheDocument();
+  });
+
+  it('has names and labels for everything', async () => {
+    const { container } = ui(<CalendarColour />);
+    await expectNoViolations(container);
   });
 });

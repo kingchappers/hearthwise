@@ -346,6 +346,18 @@ The server half of step 6 is recorded in the step's commits; these rows are the 
 | The offline case reads a saved imported window | Three cases in the spike (`e2e/offline/`): a cold launch with no signal shows a saved window and says an unread one is not saved; a failed refresh keeps the window; sign-out clears it | The spike does not use app code, so these prove the saving rule, not the screens |
 | Not stated | `yarn test:e2e` here needs `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set, because the installed Playwright wants a browser build that is not downloaded | Run with the cached Chrome for Testing |
 
+### Calendar cards and person colours (2026-11-21)
+
+Not in the phase 4 design: a change asked for after the first real use.
+
+| Spec says | Built | Why |
+|---|---|---|
+| Items listed with the person named in words | Each item is its own card with a coloured left edge and an initial badge for the person it belongs to; the name stays in the text | Items run together in a plain list; the author asked for them to be clearly separate and for people to be told apart by more than a name |
+| Colour is never the only sign (brand) | The first member's badge is round and the second's square, the name is always written, and the badges are hidden from screen readers because the name is in the text | Colour alone fails for some people |
+| Not stated | A person chooses their own colour from terracotta, yellow or green (`colour` on the member, `PATCH /api/hh/members/me`), shown to both people. Unchosen colours follow the place (first terracotta, second yellow) and step aside if the other person chose it | A colour the other person sees must be shared, so it is not a per-device preference; the choices are the brand's shades with checked contrast (white on terracotta and green, Ink on yellow) |
+| Not stated | Members are ordered by user id, so the same person has the same place and shape on both phones | Not the viewer, which would swap them |
+| Not stated | Two people may choose the same colour | The shape and the name still tell them apart |
+
 ## Phase 5 (DIY projects)
 
 The design is `docs/designs/phase-5-diy-projects.md`. The author decided the scope, the claim rule (first to reach the server), the rejection of a lock, and that costs stay apart from the ledger. Everything else in it is a **Claude** decision, which the author has not yet reviewed. The design was reviewed in five stages (`docs/designs/phase-5-review/`).
@@ -360,7 +372,7 @@ The design is `docs/designs/phase-5-diy-projects.md`. The author decided the sco
 | A refused move at 64 characters, no re-spacing | `positionBetween` returns `{ ok: false }` and the phone says "This step can't be moved there. Move another step instead." | No multi-record write for ordering |
 | Take and release answer `{ record, outcome }` | `{ project \| step, outcome }`; `gone` also covers a step under a deleted project | A 4xx is final in the retry rules |
 | Done is conditioned on the holder it read | Every step update that is applied carries the hold condition (`ifMissing(takenBy)` or `ifEquals(takenBy)`), so a take between the read and the write makes it read again | One rule for every write, at the price of a rare retry |
-| The colour mark from `calendarPeople.ts` is a second sign for who holds a step | Not built: the file is on the unmerged calendar-cards branch. A holder is shown by name in words only | Colour is never the only sign; it is a second one and can be added when that merges |
+| The colour mark from `calendarPeople.ts` is a second sign for who holds a step | Not built yet: the file reached `main` (calendar cards) after the build. A holder is shown by name in words only | Colour is never the only sign; it is a second one and can be added now that the file is on `main` |
 | The new-project sheet has "Add details" | The sheet asks only for a title. Notes, a planned day and costs are in the Edit project sheet and the page | Fewer moving parts for the smallest case |
 | Add-to-list notices | A press where every line was already there saves a project notice, "Already on the list"; a line that was on the list and since cleared says "Added earlier, and since cleared" from the shopping list the app already has | The server answers a status for each line and the app has the list |
 | Cost figures read "£1,250" | They read "£1,250.00": `formatPounds` always prints pence | One formatter for money |

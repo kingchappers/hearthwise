@@ -1,4 +1,4 @@
-import type { MemberSettings } from '../shared/household';
+import type { MarkColour, MemberSettings } from '../shared/household';
 
 export interface HouseholdMeta {
   name: string;
@@ -11,6 +11,8 @@ export interface HouseholdMeta {
 export interface Member {
   userId: string;
   displayName: string;
+  // The person's colour on the calendar, shown to both of them. None until they choose one.
+  colour?: MarkColour;
   settings: MemberSettings;
   joinedAt: string;
   lastDigestSent?: string;

@@ -29,7 +29,7 @@ export function DayView({ day, today, inputsFor, viewer, unsavedIds, now, onDay,
         <Button variant="default" style={BUTTON} onClick={() => onDay(addDays(day, 1))}>Next day</Button>
       </Group>
       <Title order={2} size="h4">{dayHeading(day, today)}</Title>
-      <TimelineList timeline={buildTimeline(day, inputs, viewer)} unsavedIds={unsavedIds} feeds={inputs.feeds} now={now} onOpen={onOpen} />
+      <TimelineList timeline={buildTimeline(day, inputs, viewer)} unsavedIds={unsavedIds} feeds={inputs.feeds} members={inputs.members} now={now} onOpen={onOpen} />
     </Stack>
   );
 }

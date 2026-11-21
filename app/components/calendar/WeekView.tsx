@@ -40,7 +40,7 @@ export function WeekView({ start, today, inputsFor, viewer, unsavedIds, now, onS
               <Title order={2} size="h5">{heading}</Title>
               <Button variant="subtle" style={BUTTON} aria-label={`See this day, ${heading}`} onClick={() => onDay(day)}>See this day</Button>
             </Group>
-            <TimelineList timeline={buildTimeline(day, inputs, viewer)} unsavedIds={unsavedIds} feeds={inputs.feeds} now={now} onOpen={onOpen} />
+            <TimelineList timeline={buildTimeline(day, inputs, viewer)} unsavedIds={unsavedIds} feeds={inputs.feeds} members={inputs.members} now={now} onOpen={onOpen} />
           </section>
         );
       })}
