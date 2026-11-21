@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { emitSecurityEvent } from '../security/events';
 import { PLAN_PREFIX, RECIPE_PREFIX } from '../meals/keys';
 import { EVENT_PREFIX, FEED_PREFIX } from '../calendar/keys';
+import { MATERIAL_PREFIX, PROJECT_PREFIX, STEP_PREFIX } from '../projects/keys';
 import { MONEY_PREFIX } from '../money/keys';
 import { DEFAULT_SETTINGS } from '../shared/household';
 import { ConditionFailedError } from '../store';
@@ -123,11 +124,11 @@ export function joinFailure(failedIndex: number | undefined, offset = 0): Househ
   return new HouseholdError('already_member', 409, { canMove: false });
 }
 
-// An empty household is one the person is alone in, with no tasks, shopping items, recipes, money entries, calendar events or feeds (deleted ones too) or plan days. Anything else would be lost.
+// An empty household is one the person is alone in, with no tasks, shopping items, recipes, money entries, calendar events or feeds, projects, steps or materials (deleted ones too) or plan days. Anything else would be lost.
 async function moveOptions(store: Store, oldId: string, userId: string): Promise<MoveFrom | undefined> {
   const meta = await store.get(metaKey(oldId), { consistent: true });
   if (!meta || Number(meta.memberCount) !== 1) return undefined;
-  const [members, tasks, items, recipes, plan, money, events, feeds, pointers] = await Promise.all([
+  const [members, tasks, items, recipes, plan, money, events, feeds, projects, steps, materials, pointers] = await Promise.all([
     store.query(hhPk(oldId), { skPrefix: MEMBER_PREFIX, attributes: ['SK'] }),
     store.query(hhPk(oldId), { skPrefix: 'TASK#', attributes: ['SK'] }),
     store.query(hhPk(oldId), { skPrefix: 'ITEM#', attributes: ['SK'] }),
@@ -136,9 +137,12 @@ async function moveOptions(store: Store, oldId: string, userId: string): Promise
     store.query(hhPk(oldId), { skPrefix: MONEY_PREFIX, attributes: ['SK'] }),
     store.query(hhPk(oldId), { skPrefix: EVENT_PREFIX, attributes: ['SK'] }),
     store.query(hhPk(oldId), { skPrefix: FEED_PREFIX, attributes: ['SK'] }),
+    store.query(hhPk(oldId), { skPrefix: PROJECT_PREFIX, attributes: ['SK'] }),
+    store.query(hhPk(oldId), { skPrefix: STEP_PREFIX, attributes: ['SK'] }),
+    store.query(hhPk(oldId), { skPrefix: MATERIAL_PREFIX, attributes: ['SK'] }),
     store.query(hhPk(oldId), { skPrefix: INVITE_POINTER_PREFIX, attributes: ['SK'] }),
   ]);
-  if (members.length !== 1 || members[0].SK !== memberSk(userId) || tasks.length > 0 || items.length > 0 || recipes.length > 0 || plan.length > 0 || money.length > 0 || events.length > 0 || feeds.length > 0) return undefined;
+  if (members.length !== 1 || members[0].SK !== memberSk(userId) || tasks.length > 0 || items.length > 0 || recipes.length > 0 || plan.length > 0 || money.length > 0 || events.length > 0 || feeds.length > 0 || projects.length > 0 || steps.length > 0 || materials.length > 0) return undefined;
   return { householdId: oldId, inviteHashes: pointers.map(pointer => pointer.SK.slice(INVITE_POINTER_PREFIX.length)) };
 }
 

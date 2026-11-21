@@ -3,7 +3,7 @@ import { createRouter } from '../router';
 import { registerApiRoutes } from '../apiRoutes';
 
 describe('registerApiRoutes', () => {
-  it('registers the health, household, invite, member, task, proposal, restore, item, recipe, money, calendar and push routes', () => {
+  it('registers the health, household, invite, member, task, proposal, restore, item, recipe, money, calendar, project and push routes', () => {
     const router = createRouter();
     registerApiRoutes(router);
     expect(router.routes()).toEqual([
@@ -56,6 +56,16 @@ describe('registerApiRoutes', () => {
       { method: 'POST', template: '/api/hh/calendar/feeds/{id}/refresh' },
       { method: 'PATCH', template: '/api/hh/calendar/feeds/{id}' },
       { method: 'DELETE', template: '/api/hh/calendar/feeds/{id}' },
+      { method: 'GET', template: '/api/hh/projects' },
+      { method: 'GET', template: '/api/hh/projects/{id}' },
+      { method: 'PUT', template: '/api/hh/projects/{id}' },
+      { method: 'DELETE', template: '/api/hh/projects/{id}' },
+      { method: 'POST', template: '/api/hh/projects/{id}/take' },
+      { method: 'POST', template: '/api/hh/projects/{id}/release' },
+      { method: 'PUT', template: '/api/hh/projects/{id}/steps/{sid}' },
+      { method: 'DELETE', template: '/api/hh/projects/{id}/steps/{sid}' },
+      { method: 'POST', template: '/api/hh/projects/{id}/steps/{sid}/take' },
+      { method: 'POST', template: '/api/hh/projects/{id}/steps/{sid}/release' },
       { method: 'POST', template: '/api/push/subscriptions' },
       { method: 'DELETE', template: '/api/push/subscriptions' },
     ]);

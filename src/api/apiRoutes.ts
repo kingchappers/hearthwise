@@ -4,6 +4,7 @@ import { registerHouseholdRoutes } from './households';
 import { registerItemRoutes } from './items';
 import { registerMealRoutes } from './meals';
 import { registerMoneyRoutes } from './money';
+import { registerProjectRoutes } from './projects';
 import { registerPushRoutes } from './push';
 import { registerCoreRoutes } from './routes';
 import { registerTaskRoutes } from './tasks';
@@ -16,5 +17,6 @@ export function registerApiRoutes(router: Router): void {
   registerMealRoutes(router);
   registerMoneyRoutes(router);
   registerCalendarRoutes(router);
+  registerProjectRoutes(router);
   registerPushRoutes(router);
 }
