@@ -59,7 +59,7 @@ export interface Timeline {
 }
 
 const BUSY = 'Busy';
-const BOTH = 'Both';
+export const BOTH = 'Both';
 const FORMER = 'Former member';
 const ALL_DAY_ORDER: Record<TimelineType, number> = { event: 0, block: 0, busy: 0, imported: 0, task: 1, dinner: 2 };
 

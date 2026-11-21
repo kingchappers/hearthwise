@@ -201,3 +201,63 @@ describe('TimelineList: imported items', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 });
+
+describe('TimelineList: cards and people', () => {
+  const show = (inputs: TimelineInputs, members = MEMBERS) =>
+    renderIn(<TimelineList timeline={buildTimeline(TODAY, inputs, SAM)} unsavedIds={new Set()} members={members} onOpen={vi.fn()} />);
+  const marks = (): (string | null)[] => screen.getAllByRole('listitem').map(item => item.querySelector('[data-person]')?.getAttribute('data-person') ?? null);
+  const three = inputsFor({
+    events: [
+      event({ id: 'a', title: 'Dentist', who: ALEX }), event({ id: 'b', title: 'Work meeting', who: SAM, startTime: '14:00' }),
+      event({ id: 'c', title: 'Dinner out', who: 'both', startTime: '19:00' }),
+    ],
+    tasks: [task()], dinner: { title: 'Chilli' },
+  })();
+
+  it('gives every item its own card', () => {
+    show(three);
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(5);
+    for (const item of items) expect(item.querySelectorAll('[data-card]')).toHaveLength(1);
+  });
+
+  it('marks each person the same way on every card, and both of you in a way of its own', () => {
+    show(three);
+    // Members are ordered by user id, so u-alex is first and u-sam second. On screen: the task (Sam), the dinner, then the timed items by
+    // start: Dentist (Alex), Work meeting (Sam), Dinner out (both).
+    expect(marks()).toEqual(['second', null, 'first', 'second', 'both']);
+  });
+
+  it('keeps a person\'s mark whichever order the members arrive in, so both phones agree', () => {
+    show(three, [...MEMBERS].reverse());
+    expect(marks()).toEqual(['second', null, 'first', 'second', 'both']);
+  });
+
+  it('says it with the initial as well as the name, and keeps the name in words', () => {
+    show(three);
+    const dentist = screen.getAllByRole('listitem')[2];
+    expect(within(dentist).getByText('A')).toHaveAttribute('aria-hidden', 'true');
+    expect(dentist.textContent).toContain('Alex');
+    const both = screen.getAllByRole('listitem')[4];
+    expect(both.textContent).toContain('Both');
+    expect(within(both).getAllByText(/^[AS]$/)).toHaveLength(2);
+  });
+
+  it('marks someone else\'s busy time with their mark too, by their name', () => {
+    show(inputsFor({ events: [busy({ owner: 'Alex' })] })());
+    expect(marks()).toEqual(['first']);
+  });
+
+  it('gives a name it does not know, a task for anyone and the dinner no person mark', () => {
+    show(inputsFor({ events: [], tasks: [task({ assignee: 'either' })], dinner: { title: 'Chilli' } })());
+    expect(marks()).toEqual([null, null]);
+  });
+
+  it('does not rely on colour: nothing is said only by the card\'s colour', () => {
+    show(three);
+    for (const item of screen.getAllByRole('listitem')) {
+      const mark = item.querySelector('[data-person]');
+      if (mark) expect(item.textContent).toMatch(/Sam|Alex|Both/);
+    }
+  });
+});
