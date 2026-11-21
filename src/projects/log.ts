@@ -11,3 +11,8 @@ export function logProjectWrite(householdId: string, kind: ProjectRecordKind, ac
 export function logProjectTake(householdId: string, kind: 'project' | 'step', outcome: TakeOutcome): void {
   console.log(JSON.stringify({ event: 'project_take', householdId, kind, outcome }));
 }
+
+// Counts only: never the text of a material or the project's title.
+export function logProjectMaterials(householdId: string, counts: { lines: number; created: number; already: number; cleared: number }): void {
+  console.log(JSON.stringify({ event: 'project_materials', householdId, ...counts }));
+}

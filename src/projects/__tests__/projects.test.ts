@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getProject, getProjectsList, putProject, MAX_LIVE_PROJECTS } from '../projects';
 import { putStep } from '../steps';
-import { projectKey } from '../keys';
+import { materialKey, projectKey } from '../keys';
 import { NOW, makeWorld, uuid } from './world';
 import type { World } from './world';
 import { TaskError } from '../../tasks/types';
@@ -75,7 +75,7 @@ describe('getProjectsList', () => {
     await w.store.patch({ PK: `HH#${w.householdId}`, SK: `PSTEP#${id}#${a}` }, { state: 'done' });
     const list = await getProjectsList(w.store, w.ctx1, { counts: true }, NOW);
     expect(list.projects).toHaveLength(1);
-    expect(list.projects[0]).toMatchObject({ id, counts: { steps: 2, done: 1 } });
+    expect(list.projects[0]).toMatchObject({ id, counts: { steps: 2, done: 1, materials: 0 } });
     const light = await getProjectsList(w.store, w.ctx1, { counts: false }, NOW);
     expect('counts' in light.projects[0]).toBe(false);
   });
@@ -85,7 +85,14 @@ describe('getProjectsList', () => {
     const s = await newStep(id, 'Clear', 'i');
     await w.store.patch({ PK: `HH#${w.householdId}`, SK: `PSTEP#${id}#${s}` }, { deletedAt: NOW });
     const list = await getProjectsList(w.store, w.ctx1, { counts: true }, NOW);
-    expect(list.projects[0].counts).toEqual({ steps: 0, done: 0 });
+    expect(list.projects[0].counts).toEqual({ steps: 0, done: 0, materials: 0 });
+  });
+
+  it('counts live materials too, and not deleted ones', async () => {
+    const { id } = await newProject();
+    await w.store.put({ ...materialKey(w.householdId, id, 'm1'), text: 'Timber', fieldTimes: {}, updatedAt: 1 });
+    await w.store.put({ ...materialKey(w.householdId, id, 'm2'), text: 'Gone', fieldTimes: {}, updatedAt: 1, deletedAt: 5 });
+    expect((await getProjectsList(w.store, w.ctx1, { counts: true }, NOW)).projects[0].counts).toMatchObject({ materials: 1 });
   });
 
   it('lists the 50 newest deleted projects from the last 30 days', async () => {

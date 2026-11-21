@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseProjectPut, parseStepPut, parseTakeBody } from '../projectValidation';
+import { parseAddMaterials, parseMaterialPut, parseProjectPut, parseStepPut, parseTakeBody } from '../projectValidation';
 
 const MUT = '00000000-0000-4000-8000-000000000001';
 const AT = 1_790_000_000_000;
@@ -83,5 +83,36 @@ describe('parseTakeBody', () => {
 
   it('refuses a missing mutation id', () => {
     expect(parseTakeBody({})).toEqual({ ok: false, field: 'mutationId' });
+  });
+});
+
+describe('parseMaterialPut', () => {
+  it('reads a line of text with its time, and refuses empty or over 120 characters', () => {
+    expect(parseMaterialPut({ text: ' 1 box of 75mm screws ', textAt: AT, ...env })).toMatchObject({ ok: true, value: { write: { text: { value: '1 box of 75mm screws', at: AT } } } });
+    expect(parseMaterialPut({ text: '', textAt: AT, ...env })).toEqual({ ok: false, field: 'text' });
+    expect(parseMaterialPut({ text: 'a'.repeat(121), textAt: AT, ...env })).toEqual({ ok: false, field: 'text' });
+    expect(parseMaterialPut({ text: 'a'.repeat(120), textAt: AT, ...env }).ok).toBe(true);
+  });
+
+  it('refuses null, a note, and a write with no text', () => {
+    expect(parseMaterialPut({ text: null, textAt: AT, ...env })).toEqual({ ok: false, field: 'text' });
+    expect(parseMaterialPut({ text: 'x', textAt: AT, note: 'n', ...env })).toEqual({ ok: false, field: 'note' });
+    expect(parseMaterialPut({ ...env })).toEqual({ ok: false, field: 'body' });
+  });
+});
+
+describe('parseAddMaterials', () => {
+  const ID = '11111111-1111-4111-8111-111111111111';
+
+  it('reads up to 60 line ids', () => {
+    expect(parseAddMaterials({ lineIds: [ID], ...env })).toEqual({ ok: true, value: { lineIds: [ID], mutationId: MUT } });
+    expect(parseAddMaterials({ lineIds: Array.from({ length: 60 }, () => ID), ...env }).ok).toBe(true);
+  });
+
+  it.each([
+    ['none', { lineIds: [] }, 'lineIds'], ['over 60', { lineIds: Array.from({ length: 61 }, () => ID) }, 'lineIds'],
+    ['a bad id', { lineIds: ['nope'] }, 'lineIds[0]'], ['not an array', { lineIds: ID }, 'lineIds'], ['an unknown key', { lineIds: [ID], text: 'x' }, 'text'],
+  ])('refuses %s', (_name, body, field) => {
+    expect(parseAddMaterials({ ...body, ...env })).toEqual({ ok: false, field });
   });
 });

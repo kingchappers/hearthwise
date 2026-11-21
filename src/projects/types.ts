@@ -82,6 +82,21 @@ export interface StepWrite {
   position?: Stamped<string>;
 }
 
+export interface Material extends Tombstone {
+  id: string;
+  projectId: string;
+  text: string;
+  fieldTimes: { text?: number };
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  updatedBy: string;
+}
+
+export interface MaterialWrite {
+  text?: Stamped<string>;
+}
+
 export interface ProjectsData {
   projects: Project[];
   deleted: Project[];

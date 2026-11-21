@@ -1,14 +1,16 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { withHousehold } from '../household/guard';
 import type { HouseholdContext } from '../household/types';
+import { addMaterialsToList } from '../projects/addToList';
 import { deleteProjectTree } from '../projects/children';
 import { releaseRecord, takeRecord } from '../projects/holds';
 import type { HoldTarget } from '../projects/holds';
+import { deleteMaterial, putMaterial } from '../projects/materials';
 import { getProject, getProjectsList, putProject } from '../projects/projects';
 import { deleteStep, putStep } from '../projects/steps';
 import * as events from '../push/events';
 import type { NotifyEvent } from '../push/notifyOther';
-import { parseProjectPut, parseStepPut, parseTakeBody } from '../shared/projectValidation';
+import { parseAddMaterials, parseMaterialPut, parseProjectPut, parseStepPut, parseTakeBody } from '../shared/projectValidation';
 import { getStore } from '../store';
 import { invalid, noStore, ok, parseJsonObject } from './http';
 import { notifyAfter } from './notify';
@@ -71,6 +73,37 @@ const deleteStepRoute: TaskHandler = async (event, ctx, params) => {
   return written(outcome, 200);
 };
 
+const putMaterialRoute: TaskHandler = async (event, ctx, params) => {
+  const body = parseJsonObject(event);
+  if (!body) return invalid('body');
+  const input = parseMaterialPut(body);
+  if (!input.ok) return invalid(input.field);
+  const outcome = await putMaterial(getStore(), ctx, params.id, params.lid, input.value);
+  await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? changed(ctx, input.value.mutationId, params.id) : undefined);
+  return written(outcome, 200);
+};
+
+const deleteMaterialRoute: TaskHandler = async (event, ctx, params) => {
+  const body = parseJsonObject(event);
+  if (!body) return invalid('body');
+  const input = parseTakeBody(body);
+  if (!input.ok) return invalid(input.field);
+  const outcome = await deleteMaterial(getStore(), ctx, params.id, params.lid, input.value);
+  await notifyAfter(ctx, body, outcome.fresh, outcome.result.outcome === 'applied' ? changed(ctx, input.value.mutationId, params.id) : undefined);
+  return written(outcome, 200);
+};
+
+const addToListRoute: TaskHandler = async (event, ctx, params) => {
+  const body = parseJsonObject(event);
+  if (!body) return invalid('body');
+  const input = parseAddMaterials(body);
+  if (!input.ok) return invalid(input.field);
+  const outcome = await addMaterialsToList(getStore(), ctx, params.id, input.value);
+  // The number of lines asked for, not only those newly created: a replay finds them already there. Counts only, never text.
+  await notifyAfter(ctx, body, outcome.fresh, events.itemsBatch(ctx.member.displayName, outcome.result.results.length, 0, input.value.mutationId));
+  return written(outcome, 200);
+};
+
 // A take or release of a project (no `sid`) or of one of its steps. Every answer is a 200 with an outcome.
 function holdRoute(act: typeof takeRecord): TaskHandler {
   return async (event, ctx, params) => {
@@ -96,4 +129,7 @@ export function registerProjectRoutes(router: Router): void {
   router.delete('/api/hh/projects/{id}/steps/{sid}', withHousehold(guarded(['id', 'sid'], deleteStepRoute)));
   router.post('/api/hh/projects/{id}/steps/{sid}/take', withHousehold(guarded(['id', 'sid'], holdRoute(takeRecord))));
   router.post('/api/hh/projects/{id}/steps/{sid}/release', withHousehold(guarded(['id', 'sid'], holdRoute(releaseRecord))));
+  router.put('/api/hh/projects/{id}/materials/{lid}', withHousehold(guarded(['id', 'lid'], putMaterialRoute)));
+  router.delete('/api/hh/projects/{id}/materials/{lid}', withHousehold(guarded(['id', 'lid'], deleteMaterialRoute)));
+  router.post('/api/hh/projects/{id}/materials/add-to-list', withHousehold(guarded(['id'], addToListRoute)));
 }

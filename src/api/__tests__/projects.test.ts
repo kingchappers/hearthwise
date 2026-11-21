@@ -91,7 +91,7 @@ describe('projects', () => {
     expect(res).toMatchObject({ status: 200, json: { outcome: 'created', project: { title: 'Decking' } } });
     const theirs = await call(U2, 'GET', P);
     expect(theirs.json.projects.map((p: { id: string }) => p.id)).toEqual([id]);
-    expect(theirs.json.projects[0].counts).toEqual({ steps: 0, done: 0 });
+    expect(theirs.json.projects[0].counts).toEqual({ steps: 0, done: 0, materials: 0 });
   });
 
   it('leaves the counts out when asked for the light read', async () => {
@@ -218,6 +218,61 @@ describe('taking', () => {
     await call(U1, 'PUT', `${P}/${id}/steps/${step.id}`, mut({ state: 'done', stateAt: AT + 10 }));
     expect((await call(U2, 'POST', `${P}/${id}/steps/${step.id}/take`, mut())).json.outcome).toBe('done');
     expect((await call(U2, 'POST', `${P}/${id}/steps/${uuid()}/take`, mut())).json.outcome).toBe('gone');
+  });
+});
+
+describe('materials', () => {
+  const line = async (projectId: string, text = '1 box of 75mm screws', who = U1) => {
+    const id = uuid();
+    const res = await call(who, 'PUT', `${P}/${projectId}/materials/${id}`, mut({ text, textAt: AT }));
+    return { id, res };
+  };
+
+  it('creates lines both people see, edits and deletes one, and returns them in the project', async () => {
+    const { id: projectId } = await newProject();
+    const a = await line(projectId, 'Timber');
+    const b = await line(projectId, 'Screws', U2);
+    expect(a.res).toMatchObject({ status: 200, json: { outcome: 'created', material: { text: 'Timber' } } });
+    expect((await call(U2, 'GET', `${P}/${projectId}`)).json.materials.map((m: { text: string }) => m.text)).toEqual(['Timber', 'Screws']);
+    expect((await call(U1, 'PUT', `${P}/${projectId}/materials/${a.id}`, mut({ text: 'Older', textAt: AT - 500 }))).json).toMatchObject({ outcome: 'noop', stale: ['text'] });
+    expect((await call(U1, 'DELETE', `${P}/${projectId}/materials/${b.id}`, mut())).json.outcome).toBe('applied');
+    expect((await call(U1, 'GET', `${P}/${projectId}`)).json.materials).toHaveLength(1);
+  });
+
+  it('refuses unknown keys, and a 61st line with 409 material_limit', async () => {
+    const { id: projectId } = await newProject();
+    expect((await call(U1, 'PUT', `${P}/${projectId}/materials/${uuid()}`, mut({ text: 'x', textAt: AT, qty: 2 }))).json).toEqual({ error: 'invalid', field: 'qty' });
+    for (let i = 0; i < 60; i += 1) await line(projectId, `m${i}`);
+    expect((await line(projectId, 'over')).res).toMatchObject({ status: 409, json: { error: 'material_limit' } });
+  });
+
+  it('copies lines to the shopping list once, with the project\'s label, and says already the second time', async () => {
+    const { id: projectId } = await newProject('Garden room');
+    const a = await line(projectId, 'Timber');
+    const first = await call(U1, 'POST', `${P}/${projectId}/materials/add-to-list`, mut({ lineIds: [a.id] }));
+    expect(first.json.results).toEqual([{ id: a.id, status: 'created' }]);
+    const items = (await getStore().query(hhPk(householdId), { skPrefix: 'ITEM#' }));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ text: 'Timber', forRecipes: 'Garden room' });
+    const second = await call(U2, 'POST', `${P}/${projectId}/materials/add-to-list`, mut({ lineIds: [a.id] }));
+    expect(second.json.results).toEqual([{ id: a.id, status: 'already' }]);
+  });
+
+  it('answers 400 for no lines, 404 for a project that never existed, and 200 missing for an unknown line', async () => {
+    const { id: projectId } = await newProject();
+    expect((await call(U1, 'POST', `${P}/${projectId}/materials/add-to-list`, mut({ lineIds: [] }))).json).toEqual({ error: 'invalid', field: 'lineIds' });
+    expect((await call(U1, 'POST', `${P}/${uuid()}/materials/add-to-list`, mut({ lineIds: [uuid()] }))).status).toBe(404);
+    expect((await call(U1, 'POST', `${P}/${projectId}/materials/add-to-list`, mut({ lineIds: [uuid()] }))).json.results[0].status).toBe('missing');
+  });
+
+  it('never puts a line\'s text or the title in a log or a push, and an add sends a counts-only push', async () => {
+    const { id: projectId } = await newProject(SENTINEL);
+    const a = await line(projectId, `${SENTINEL}-timber`);
+    await call(U1, 'PUT', `${P}/${projectId}/materials/${uuid()}`, mut({ text: `${SENTINEL}-screws`, textAt: AT, notify: true, clientAt: AT }));
+    await call(U1, 'POST', `${P}/${projectId}/materials/add-to-list`, mut({ lineIds: [a.id], notify: true, clientAt: AT }));
+    expect(JSON.stringify(logged)).not.toContain('SENTINEL');
+    expect(JSON.stringify(sent)).not.toContain('SENTINEL');
+    expect(sent.length).toBeGreaterThan(0);
   });
 });
 

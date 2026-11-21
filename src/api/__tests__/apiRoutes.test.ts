@@ -66,6 +66,9 @@ describe('registerApiRoutes', () => {
       { method: 'DELETE', template: '/api/hh/projects/{id}/steps/{sid}' },
       { method: 'POST', template: '/api/hh/projects/{id}/steps/{sid}/take' },
       { method: 'POST', template: '/api/hh/projects/{id}/steps/{sid}/release' },
+      { method: 'PUT', template: '/api/hh/projects/{id}/materials/{lid}' },
+      { method: 'DELETE', template: '/api/hh/projects/{id}/materials/{lid}' },
+      { method: 'POST', template: '/api/hh/projects/{id}/materials/add-to-list' },
       { method: 'POST', template: '/api/push/subscriptions' },
       { method: 'DELETE', template: '/api/push/subscriptions' },
     ]);
