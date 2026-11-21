@@ -2,7 +2,7 @@ import { Group, Paper, Stack, Text, UnstyledButton } from '@mantine/core';
 import { Link } from 'react-router';
 import type { FeedView } from '../../../src/calendar/types';
 import type { Timeline, TimelineItem } from '../../../src/shared/timeline';
-import { initialOf, MARK_FILL, markOf } from '~/lib/calendarPeople';
+import { COLOUR_FILL, colourOfMember, initialOf, markOf, orderedMembers } from '~/lib/calendarPeople';
 import type { Mark, Person } from '~/lib/calendarPeople';
 import { feedUpdatedText, NOT_SAVED, timeRange } from '~/lib/calendarText';
 
@@ -22,37 +22,44 @@ const ROW = { display: 'block', width: '100%', minHeight: 44, textAlign: 'left',
 const EDGE = 6;
 const BADGE = 28;
 
-// The round badge is the first member's, the square one the second's: each also has its own colour, but the shape and the written name
+// The round badge is the first member's, the square one the second's: each also has its colour, but the shape and the written name
 // say it too, so colour is never the only sign. Hidden from screen readers because the name is in the text.
-function Badge({ mark, letter, overlap }: { mark: 'first' | 'second'; letter: string; overlap?: boolean }) {
+function Badge({ person, members, round, overlap }: { person: Person | undefined; members: Person[]; round: boolean; overlap?: boolean }) {
+  if (!person) return null;
   return (
     <span
       aria-hidden="true"
       style={{
-        ...MARK_FILL[mark], display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: BADGE, height: BADGE, flex: 'none', fontWeight: 700, fontSize: 14,
-        borderRadius: mark === 'first' ? '50%' : 6, border: '2px solid var(--mantine-color-body)', marginLeft: overlap ? -10 : 0,
+        ...COLOUR_FILL[colourOfMember(person, members)], display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: BADGE, height: BADGE, flex: 'none',
+        fontWeight: 700, fontSize: 14, borderRadius: round ? '50%' : 6, border: '2px solid var(--mantine-color-body)', marginLeft: overlap ? -10 : 0,
       }}
     >
-      {letter}
+      {initialOf(person.displayName)}
     </span>
   );
 }
 
-function Marks({ mark, who, members }: { mark: Mark; who: string; members: Person[] }) {
+function Marks({ mark, members }: { mark: Mark; members: Person[] }) {
   if (mark === 'none') return null;
-  const ordered = [...members].sort((a, b) => (a.userId < b.userId ? -1 : 1));
+  const [first, second] = orderedMembers(members);
   if (mark === 'both') {
-    return <span data-person="both" style={{ display: 'inline-flex' }}><Badge mark="first" letter={initialOf(ordered[0]?.displayName ?? '')} /><Badge mark="second" letter={initialOf(ordered[1]?.displayName ?? '')} overlap /></span>;
+    return <span data-person="both" style={{ display: 'inline-flex' }}><Badge person={first} members={members} round /><Badge person={second} members={members} round={false} overlap /></span>;
   }
-  return <span data-person={mark} style={{ display: 'inline-flex' }}><Badge mark={mark} letter={initialOf(who)} /></span>;
+  return (
+    <span data-person={mark} style={{ display: 'inline-flex' }}>
+      <Badge person={mark === 'first' ? first : second} members={members} round={mark === 'first'} />
+    </span>
+  );
 }
 
 // The coloured edge down the card's left side: one colour for one person, split in two for both of you, and none for the rest.
-function Edge({ mark }: { mark: Mark }) {
+function Edge({ mark, members }: { mark: Mark; members: Person[] }) {
   if (mark === 'none') return null;
+  const [first, second] = orderedMembers(members);
+  const fillOf = (person: Person | undefined): string => (person ? COLOUR_FILL[colourOfMember(person, members)].background : 'transparent');
   const background = mark === 'both'
-    ? `linear-gradient(to bottom, ${MARK_FILL.first.background} 50%, ${MARK_FILL.second.background} 50%)`
-    : MARK_FILL[mark].background;
+    ? `linear-gradient(to bottom, ${fillOf(first)} 50%, ${fillOf(second)} 50%)`
+    : fillOf(mark === 'first' ? first : second);
   return <span aria-hidden="true" style={{ position: 'absolute', insetBlock: 0, insetInlineStart: 0, width: EDGE, background }} />;
 }
 
@@ -68,7 +75,7 @@ function Card({ item, unsaved, feedLine, members }: { item: TimelineItem; unsave
   const mark = markOf(item.who, members);
   return (
     <Paper data-card withBorder radius="md" p="sm" style={{ position: 'relative', overflow: 'hidden', paddingInlineStart: `calc(var(--mantine-spacing-sm) + ${EDGE}px)` }}>
-      <Edge mark={mark} />
+      <Edge mark={mark} members={members} />
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
         <Stack gap={2} style={{ minWidth: 0 }}>
           {item.type !== 'task' && item.type !== 'dinner' && <Text size="sm" fw={600}>{timeRange(item)}</Text>}
@@ -78,7 +85,7 @@ function Card({ item, unsaved, feedLine, members }: { item: TimelineItem; unsave
           {feedLine !== undefined && <Text size="sm">{feedLine}</Text>}
           {unsaved && <Text size="sm">{NOT_SAVED}</Text>}
         </Stack>
-        <Marks mark={mark} who={item.who} members={members} />
+        <Marks mark={mark} members={members} />
       </Group>
     </Paper>
   );

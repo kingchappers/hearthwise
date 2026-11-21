@@ -1,7 +1,7 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { err } from '../api/http';
 import type { ApiResponse } from '../api/types';
-import { DEFAULT_SETTINGS, type MemberSettings } from '../shared/household';
+import { DEFAULT_SETTINGS, MARK_COLOURS, type MemberSettings } from '../shared/household';
 import { getStore } from '../store';
 import type { Item, Store } from '../store';
 import { MEMBER_PREFIX, hhPk, membershipKey, metaKey } from './keys';
@@ -31,6 +31,8 @@ export function toMember(item: Item): Member {
     settings: settingsOf(item.settings),
     joinedAt: String(item.joinedAt),
   };
+  const colour = MARK_COLOURS.find(candidate => candidate === item.colour);
+  if (colour !== undefined) member.colour = colour;
   if (typeof item.lastDigestSent === 'string') member.lastDigestSent = item.lastDigestSent;
   if (typeof item.lastNudgeSent === 'string') member.lastNudgeSent = item.lastNudgeSent;
   return member;

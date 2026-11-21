@@ -53,7 +53,7 @@ async function createHouseholdRoute(event: APIGatewayProxyEventV2, userId: strin
 async function getHousehold(_event: APIGatewayProxyEventV2, ctx: HouseholdContext): Promise<ApiResponse> {
   return noStore(ok({
     household: ctx.household,
-    members: ctx.members.map(({ userId, displayName, joinedAt }) => ({ userId, displayName, joinedAt })),
+    members: ctx.members.map(({ userId, displayName, colour, joinedAt }) => ({ userId, displayName, joinedAt, ...(colour === undefined ? {} : { colour }) })),
     me: ctx.member,
   }));
 }

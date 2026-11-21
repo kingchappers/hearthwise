@@ -83,6 +83,15 @@ describe('parseMemberPatch', () => {
     expect(parseMemberPatch({ displayName: 'Sam', settings: { digest: { on: true } } }).ok).toBe(true);
   });
 
+  it('accepts one of the three brand colours for the calendar, alone or with other changes', () => {
+    for (const colour of ['hearth', 'honey', 'sage']) expect(parseMemberPatch({ colour })).toEqual(ok({ colour }));
+    expect(parseMemberPatch({ displayName: 'Sam', colour: 'sage' })).toEqual(ok({ displayName: 'Sam', colour: 'sage' }));
+  });
+
+  it.each([['red'], ['#9C3D22'], [''], [null], [3], ['Hearth']])('rejects %j as a colour', colour => {
+    expect(parseMemberPatch({ colour })).toEqual(bad('colour'));
+  });
+
   it('lets an optional mutationId travel with the body without making it part of the patch', () => {
     expect(parseMemberPatch({ displayName: 'Sam', mutationId: '0190a2b4-7c3e-7f10-9a11-2b3c4d5e6f70' })).toEqual(ok({ displayName: 'Sam' }));
   });

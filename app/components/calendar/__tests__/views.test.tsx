@@ -6,6 +6,7 @@ import { zonedInstant } from '../../../../src/shared/zoned';
 import type { Task } from '../../../../src/tasks/types';
 import { buildTimeline } from '../../../../src/shared/timeline';
 import type { TimelineInputs } from '../../../../src/shared/timeline';
+import type { Person } from '~/lib/calendarPeople';
 import { expectNoViolations } from '~/test-utils/accessibility';
 import { DayView } from '../DayView';
 import { TimelineList } from '../TimelineList';
@@ -203,7 +204,7 @@ describe('TimelineList: imported items', () => {
 });
 
 describe('TimelineList: cards and people', () => {
-  const show = (inputs: TimelineInputs, members = MEMBERS) =>
+  const show = (inputs: TimelineInputs, members: Person[] = MEMBERS) =>
     renderIn(<TimelineList timeline={buildTimeline(TODAY, inputs, SAM)} unsavedIds={new Set()} members={members} onOpen={vi.fn()} />);
   const marks = (): (string | null)[] => screen.getAllByRole('listitem').map(item => item.querySelector('[data-person]')?.getAttribute('data-person') ?? null);
   const three = inputsFor({
@@ -251,6 +252,24 @@ describe('TimelineList: cards and people', () => {
   it('gives a name it does not know, a task for anyone and the dinner no person mark', () => {
     show(inputsFor({ events: [], tasks: [task({ assignee: 'either' })], dinner: { title: 'Chilli' } })());
     expect(marks()).toEqual([null, null]);
+  });
+
+  it('uses the colour each person chose, with the shape that goes with their place', () => {
+    show(three, [{ ...MEMBERS[0], colour: 'sage' }, MEMBERS[1]]);
+    const badge = (index: number): HTMLElement => screen.getAllByRole('listitem')[index].querySelector('[data-person] span') as HTMLElement;
+    // Sam (second) chose green; Alex (first) has not, and gets terracotta. Shapes follow the place: round for the first, square for the second.
+    expect(badge(3).style.background).toContain('sage');
+    expect(badge(3).style.borderRadius).not.toBe('50%');
+    expect(badge(2).style.background).toContain('hearth');
+    expect(badge(2).style.borderRadius).toBe('50%');
+  });
+
+  it('colours the edge of a card in the person\'s colour, and splits it for both of you', () => {
+    show(three, [{ ...MEMBERS[0], colour: 'sage' }, { ...MEMBERS[1], colour: 'honey' }]);
+    const edge = (index: number): string => (screen.getAllByRole('listitem')[index].querySelector('[data-card] > span') as HTMLElement).getAttribute('style') ?? '';
+    expect(edge(3)).toContain('sage');
+    expect(edge(2)).toContain('honey');
+    expect(edge(4)).toMatch(/honey.*sage|sage.*honey/);
   });
 
   it('does not rely on colour: nothing is said only by the card\'s colour', () => {
