@@ -8,13 +8,15 @@ import type { EventRestoreBatch } from '../calendar/events';
 import { restoreMoneyEntry } from '../money/entries';
 import type { RestoreBatch } from '../money/entries';
 import { recipeKey } from '../meals/keys';
+import { restoreProjectTree } from '../projects/children';
+import { countLiveProjects, MAX_LIVE_PROJECTS } from '../projects/projects';
 import type { RestoreEntry } from '../shared/taskValidation';
 import { countLiveRecipes, RECIPE_LIMIT } from '../meals/recipes';
 import { itemKey, taskKey } from './keys';
 import { needsProposal, otherMemberId } from './ownership';
 import { restoreChange, toTask } from './record';
 
-export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found' | 'recipe_limit' | 'needs_two' | 'pair_changed' | 'money_limit' | 'entry_changed' | 'event_limit';
+export type RestoreStatus = 'restored' | 'noop' | 'proposal_required' | 'invalid' | 'not_found' | 'recipe_limit' | 'needs_two' | 'pair_changed' | 'money_limit' | 'entry_changed' | 'event_limit' | 'project_limit';
 
 export interface RestoreResult {
   id: string;
@@ -53,6 +55,7 @@ export async function restoreEntries(
 
   const results: RestoreResult[] = [];
   let liveRecipes: number | undefined;
+  let liveProjects: number | undefined;
   const moneyBatch: RestoreBatch = {};
   const eventBatch: EventRestoreBatch = {};
   for (const entry of input.entries) {
@@ -62,6 +65,18 @@ export async function restoreEntries(
     }
     if (entry.kind === 'event') {
       results.push({ id: entry.id, status: await restoreEventEntry(store, ctx, entry, eventBatch, nowMs) });
+      continue;
+    }
+    if (entry.kind === 'project') {
+      // A restore makes a project live, so it is held to the same 60 as a create, counting the restores made earlier in this batch.
+      liveProjects ??= await countLiveProjects(store, householdId);
+      if (liveProjects >= MAX_LIVE_PROJECTS) {
+        results.push({ id: entry.id, status: 'project_limit' });
+        continue;
+      }
+      const status = await restoreProjectTree(store, ctx, entry.id, entry.deletedAt, nowMs);
+      if (status === 'restored') liveProjects += 1;
+      results.push({ id: entry.id, status });
       continue;
     }
     if (entry.kind === 'item') {

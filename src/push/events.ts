@@ -38,3 +38,8 @@ export const moneyAsked = (actor: string, mutationId: string): NotifyEvent => ba
 const CALENDAR_BODY = 'Open the calendar to take a look.';
 export const eventAdded = (actor: string, mutationId: string): NotifyEvent => base('event.added', mutationId, `${actor} added an event`, CALENDAR_BODY, '/plan/calendar');
 export const eventChanged = (actor: string, mutationId: string): NotifyEvent => base('event.changed', mutationId, `${actor} changed an event`, CALENDAR_BODY, '/plan/calendar');
+
+// Projects. No title, step, material, note or figure is ever in the text; the body is fixed, as for money and the calendar.
+const PROJECT_BODY = 'Open the project to take a look.';
+export const projectAdded = (actor: string, mutationId: string, projectId: string): NotifyEvent => base('project.added', mutationId, `${actor} added a project`, PROJECT_BODY, `/plan/projects/${projectId}`);
+export const projectChanged = (actor: string, mutationId: string, projectId: string): NotifyEvent => base('project.changed', mutationId, `${actor} changed a project`, PROJECT_BODY, `/plan/projects/${projectId}`);
