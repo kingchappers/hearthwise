@@ -43,6 +43,17 @@ Each step is its own pull request, stacked in this order. Design: [`designs/phas
 6. **Feeds** (built): add, replace, refresh and remove feeds, the hourly refresh, imported events in the timeline, the Calendars sheet.
 7. **Finish** (built, except the real-world checks): the offline case, the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md) (a real link from each provider first), and these docs.
 
+## Phase 5: DIY projects
+
+Each step is its own pull request, stacked in this order. Design: [`designs/phase-5-diy-projects.md`](designs/phase-5-diy-projects.md).
+
+1. **Projects, steps and holds on the server** (built): projects, steps, take and release, delete and restore, the routes, push events, `moveOptions`.
+2. **The Projects page** (built): `/plan/projects`, the project page, holds, notices, offline use, the Deleted page group.
+3. **Materials** (built): one record per line, and the copy to the shopping list.
+4. **The planned day** (built): an all-day item on the calendar.
+5. **Costs** (built): an estimate and an amount spent, apart from the ledger.
+6. **Finish** (built, except the real-phone checks): the offline case, the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md), and these docs.
+
 ## Later phases
 
 Each gets its own design document.
@@ -50,5 +61,5 @@ Each gets its own design document.
 - Phase 2: meal plan feeding the shopping list. Design: [`designs/phase-2-meal-plan.md`](designs/phase-2-meal-plan.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
 - Phase 3: money tracker. Design: [`designs/phase-3-money-tracker.md`](designs/phase-3-money-tracker.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
 - Phase 4: shared calendar. Design: [`designs/phase-4-calendar.md`](designs/phase-4-calendar.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md), the real links first)
-- Phase 5: DIY projects
+- Phase 5: DIY projects. Design: [`designs/phase-5-diy-projects.md`](designs/phase-5-diy-projects.md) (built, not yet reviewed by the author, and waiting on the checks in [`MANUAL-CHECKS.md`](MANUAL-CHECKS.md))
 - Unscheduled: integration with the sibling budgeting app

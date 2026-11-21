@@ -1,7 +1,7 @@
 # Hearthwise: Phase 5 (DIY Projects)
 
 * **Author:** kingchappers
-* **Status:** Full draft, reviewed in five stages by independent reviewers; the fixes are applied (see "Review history"). Not yet approved by the author. The author has agreed the decisions marked **Author**; every decision marked **Claude** (Claude is the AI assistant that drafted this design) stands unless the author changes it.
+* **Status:** Built (steps 1 to 6), reviewed in five stages by independent reviewers with the fixes applied (see "Review history"). The author approved the design and the build; the real-phone checks are still to run. The author has agreed the decisions marked **Author**; every decision marked **Claude** (Claude is the AI assistant that drafted this design) stands unless the author changes it.
 * **Date:** 2026-11-21
 
 --------------------------------------------------------------------------------
@@ -357,7 +357,7 @@ The rule, for a step and for a project, is first to reach the server holds it. T
 
 Every route is wrapped in `withHousehold` and `guarded`, is validated by `src/shared/projectValidation.ts`, and rejects unknown keys (the envelope keys come from `ENVELOPE_KEYS`). Refusals thrown as `TaskError`: 404 `not_found` for a project id that has never existed, and 409 `project_limit` (step 1), `step_limit` (step 1) and `material_limit` (step 3). Everything under a project that exists answers 200 with an outcome, `gone` included. A queued write that meets a refusal is final: the retry rules do not retry a 4xx, `onError` reports it once through `describeFailure`, and the overlay drops it.
 
-The list is polled, so it is kept light: `GET /projects` reads the `PROJECT#` prefix and, for the counts, the `PSTEP#` prefix with only `SK`, `state`, `deletedAt` and `takenBy`. The bytes are small but the read cost is per item, so at the limits (60 projects of 40 steps) it is up to 2,400 items per poll per open phone. The count query skips steps of deleted and finished projects, and pages when a read passes 1 MB. `GET /projects?counts=0` skips the step query; Today and the calendar use it, since they need only titles, days and holders. Counts are worked out on each read and never stored, because a stored counter races.
+The list is polled, so it is kept light: `GET /projects` reads the `PROJECT#` prefix and, for the counts, the `PSTEP#` prefix with only `SK`, `state` and `deletedAt` (and the `PMAT#` prefix with `SK` and `deletedAt`). The bytes are small but the read cost is per item, so at the limits (60 projects of 40 steps) it is up to 2,400 items per poll per open phone. The count query skips steps of deleted and finished projects, and pages when a read passes 1 MB. `GET /projects?counts=0` skips the step query; Today and the calendar use it, since they need only titles, days and holders. Counts are worked out on each read and never stored, because a stored counter races.
 
 | Route | Body, in addition to the envelope | Answer |
 |---|---|---|
@@ -556,7 +556,7 @@ Not chosen. A step held by a person who has put the phone down for a week would 
 
 *   **Correctness.** The pure rules have property tests: any order of the same edit writes gives the same project (take and Done are tested separately, with races); `positionBetween` always sorts strictly between its inputs and says there is no room rather than pass 64 characters; ties break by id; per-field times never go backwards; a hold changes only through take, release and Done.
 *   **Accessibility.** Every new route passes the axe check at 360 px and at the largest text size. State and ownership are in words. Every control is at least 44 px high. Reordering is by buttons, not dragging.
-*   **Performance.** The list poll reads the project prefix and, unless `?counts=0`, the step prefix with four attributes. A project of 40 steps and 60 materials is about 100 small items. The notice store is one `localStorage` object per person.
+*   **Performance.** The list poll reads the project prefix and, unless `?counts=0`, the step prefix with three attributes. A project of 40 steps and 60 materials is about 100 small items. The notice store is one `localStorage` object per person.
 *   **Cost.** No new schedule, function, parameter or permission. Table reads rise by the project list poll (one project query and, with counts, one step query every 10 seconds per open phone; Today and the calendar make only the project query) and by the project page poll while it is open.
 
 ## Risks and Mitigations

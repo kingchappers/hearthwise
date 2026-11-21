@@ -13,6 +13,8 @@ interface Stub {
   recipes: { user: string; id: string; mutationId: string }[];
   planDays: { user: string; day: string; mutationId: string }[];
   money: { user: string; id: string; mutationId: string }[];
+  // What landed for a project step: each write and each take, once for each mutation id.
+  steps: { user: string; id: string; mutationId: string; kind: 'put' | 'take' }[];
   moneyRequests: number;
   recipeRequests: number;
   planRequests: number;
@@ -21,7 +23,7 @@ interface Stub {
 }
 
 function newStub(): Stub {
-  return { mode: 'ok', items: { a: [], b: [] }, seen: new Set(), addRequests: [], recipes: [], planDays: [], money: [], moneyRequests: 0, recipeRequests: 0, planRequests: 0, imported: ['Standup', 'Busy'], calls: 0 };
+  return { mode: 'ok', items: { a: [], b: [] }, seen: new Set(), addRequests: [], recipes: [], planDays: [], money: [], steps: [], moneyRequests: 0, recipeRequests: 0, planRequests: 0, imported: ['Standup', 'Busy'], calls: 0 };
 }
 
 const userOf = (route: Route): string | undefined => {
@@ -75,6 +77,17 @@ async function install(context: BrowserContext, stub: Stub): Promise<void> {
         stub.money.push({ user, id: moneyEntry[1], mutationId: body.mutationId });
       }
       return route.fulfill({ json: { entry: { id: moneyEntry[1] } } });
+    }
+    const stepTake = /^\/api\/hh\/projects\/p1\/steps\/([^/]+)\/take$/.exec(url.pathname);
+    const stepPut = /^\/api\/hh\/projects\/p1\/steps\/([^/]+)$/.exec(url.pathname);
+    if ((stepTake || stepPut) && ['PUT', 'POST'].includes(route.request().method())) {
+      const body = route.request().postDataJSON() as { mutationId: string };
+      if (!stub.seen.has(body.mutationId)) {
+        stub.seen.add(body.mutationId);
+        stub.steps.push({ user, id: (stepTake ?? stepPut)![1], mutationId: body.mutationId, kind: stepTake ? 'take' : 'put' });
+      }
+      // The take is answered with an outcome and a 200, as the real route does.
+      return route.fulfill({ json: stepTake ? { outcome: 'taken' } : { outcome: 'applied', stale: [] } });
     }
     const planDay = /^\/api\/hh\/plan\/(\d{4}-\d{2}-\d{2})$/.exec(url.pathname);
     if (planDay && route.request().method() === 'PUT') {
@@ -172,6 +185,30 @@ test.describe('offline spike', () => {
     await expect(page.getByTestId('pending-count')).toHaveText('0', { timeout: 15_000 });
     expect(stub.money).toHaveLength(1);
     expect(new Set(stub.money.map(write => write.mutationId)).size).toBe(1);
+  });
+
+  test('a project step added, taken and moved offline is kept when the page is closed, and each write is stored once, in order, when it reopens', async ({ context }) => {
+    const stub = newStub();
+    await install(context, stub);
+    let page = await context.newPage();
+    await signIn(page, 'a');
+
+    stub.mode = 'down';
+    await page.getByTestId('step-button').click();
+    await page.getByTestId('take-button').click();
+    await page.getByTestId('move-button').click();
+    await page.waitForTimeout(300);
+    await expect(page.getByTestId('pending-count')).toHaveText('3');
+    await page.close();
+    expect(stub.steps).toEqual([]);
+
+    stub.mode = 'ok';
+    page = await context.newPage();
+    await page.goto('/');
+    await expect(page.getByTestId('status')).toHaveText('signed in');
+    await expect(page.getByTestId('pending-count')).toHaveText('0', { timeout: 15_000 });
+    expect(stub.steps.map(write => write.kind)).toEqual(['put', 'take', 'put']);
+    expect(new Set(stub.steps.map(write => write.mutationId)).size).toBe(3);
   });
 
   test('a write made a moment before the page is closed is still pending when it reopens, and is saved once', async ({ context }) => {
