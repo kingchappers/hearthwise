@@ -3,6 +3,7 @@ import { effectiveAssignee } from '../tasks/ownership';
 import type { Task } from '../tasks/types';
 import { occurrencesOf } from './calendar';
 import type { Occurrence } from './calendar';
+import type { MarkColour } from './household';
 import { addDays, dayInZone } from './schedule';
 import { zonedInstant, zonedWall } from './zoned';
 
@@ -11,6 +12,8 @@ import { zonedInstant, zonedWall } from './zoned';
 export interface TimelineMember {
   userId: string;
   displayName: string;
+  // The colour the person chose for their items; the app's cards use it.
+  colour?: MarkColour;
 }
 
 export interface TimelineInputs {
@@ -59,7 +62,7 @@ export interface Timeline {
 }
 
 const BUSY = 'Busy';
-const BOTH = 'Both';
+export const BOTH = 'Both';
 const FORMER = 'Former member';
 const ALL_DAY_ORDER: Record<TimelineType, number> = { event: 0, block: 0, busy: 0, imported: 0, task: 1, dinner: 2 };
 
