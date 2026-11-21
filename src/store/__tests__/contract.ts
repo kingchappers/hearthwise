@@ -375,6 +375,44 @@ export function runStoreContract(name: string, backend: ContractBackend, options
         expect(await store.get(task(PK))).toMatchObject({ deletedAt: 30 });
       });
 
+      // The take pattern for a project step: absent holder and a state still `todo`, in one update.
+      it('applies an ifMissing and an ifEquals on different attributes in one update', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), state: 'todo' });
+        await store.transact([{ update: task(PK), set: { takenBy: 'a' }, ifMissing: ['takenBy', 'deletedAt'], ifEquals: { state: 'todo' } }]);
+        expect(await store.get(task(PK))).toMatchObject({ takenBy: 'a', state: 'todo' });
+      });
+
+      it('fails the combined take when the state is no longer todo, and when a holder is already there', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), state: 'done' });
+        await expect(store.transact([{ update: task(PK), set: { takenBy: 'a' }, ifMissing: ['takenBy'], ifEquals: { state: 'todo' } }]))
+          .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+        await store.put({ ...task(PK), state: 'todo', takenBy: 'b' });
+        await expect(store.transact([{ update: task(PK), set: { takenBy: 'a' }, ifMissing: ['takenBy'], ifEquals: { state: 'todo' } }]))
+          .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+        expect(await store.get(task(PK))).toMatchObject({ takenBy: 'b' });
+      });
+
+      it('replaces a stored holder only while it is still that holder', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), state: 'todo', takenBy: 'left' });
+        await store.transact([{ update: task(PK), set: { takenBy: 'a' }, ifEquals: { takenBy: 'left' }, ifMissing: ['deletedAt'] }]);
+        await expect(store.transact([{ update: task(PK), set: { takenBy: 'c' }, ifEquals: { takenBy: 'left' } }]))
+          .rejects.toMatchObject({ name: 'ConditionFailedError', failedIndex: 0 });
+        expect(await store.get(task(PK))).toMatchObject({ takenBy: 'a' });
+      });
+
+      it('lets only one of two updates with the same absent-holder condition win', async () => {
+        const PK = newUser();
+        await store.put({ ...task(PK), state: 'todo' });
+        const take = (by: string) => store.transact([{ update: task(PK), set: { takenBy: by }, ifMissing: ['takenBy'], ifEquals: { state: 'todo' } }]);
+        const settled = await Promise.allSettled([take('a'), take('b')]);
+        expect(settled.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+        const lost = settled.find(result => result.status === 'rejected') as PromiseRejectedResult;
+        expect(lost.reason).toBeInstanceOf(ConditionFailedError);
+      });
+
       it('removes an attribute so it is absent from the item', async () => {
         const PK = newUser();
         await store.put({ ...task(PK), title: 'Hoover', notes: 'x' });
