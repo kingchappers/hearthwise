@@ -40,6 +40,11 @@ export const COPY = {
   alreadyOnList: 'Already on the list',
   clearedFromList: 'Added earlier, and since cleared',
   limitMaterials: 'This project has reached 60 materials.',
+  plannedFor: 'Planned for',
+  plannedStart: 'Planned for (day)',
+  plannedEnd: 'Last day (optional)',
+  clearPlanned: 'Clear the planned day',
+  plannedEndError: 'The last day must be on or after the first, and within 14 days.',
 } as const;
 
 export const heldBy = (name: string): string => `${name} is on this`;
@@ -77,4 +82,16 @@ export function holderLine(record: { takenBy?: string }, members: MemberSummary[
   const holder = holderOf(record, members);
   if (holder === undefined) return undefined;
   return holder === me ? youHold : heldBy(nameOf(members, holder) ?? 'Someone');
+}
+
+const dayName = (day: string): string => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
+const dayMonth = (day: string): string => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
+
+// "Planned for Saturday 5 December", or "Planned for 5 to 6 December". It is not a deadline: a day that has passed reads the same way.
+export function plannedText(planned: { plannedOn: string | null; plannedEndOn?: string | null }): string {
+  if (planned.plannedOn === null) return 'No day planned';
+  if (planned.plannedEndOn === undefined || planned.plannedEndOn === null || planned.plannedEndOn === planned.plannedOn) return `Planned for ${dayName(planned.plannedOn)}`;
+  const [startDay, startMonth] = dayMonth(planned.plannedOn).split(' ');
+  const [endDay, endMonth] = dayMonth(planned.plannedEndOn).split(' ');
+  return startMonth === endMonth ? `Planned for ${startDay} to ${endDay} ${endMonth}` : `Planned for ${startDay} ${startMonth} to ${endDay} ${endMonth}`;
 }

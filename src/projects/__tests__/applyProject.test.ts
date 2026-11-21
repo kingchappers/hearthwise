@@ -72,6 +72,43 @@ describe('applyProjectWrite', () => {
   });
 });
 
+describe('applyProjectWrite: the planned day', () => {
+  const plan = (project: Project, planned: { plannedOn: string | null; plannedEndOn?: string | null }, at: number) =>
+    applyProjectWrite(project, 'p1', { planned: { value: planned, at } }, U2, NOW);
+
+  it('sets a start and an end together under one time, and a start alone leaves no end', () => {
+    const both = plan(made(), { plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' }, 2000).project!;
+    expect(both).toMatchObject({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-06', fieldTimes: { planned: 2000 } });
+    const one = plan(both, { plannedOn: '2026-12-12', plannedEndOn: null }, 3000).project!;
+    expect(one.plannedOn).toBe('2026-12-12');
+    expect('plannedEndOn' in one).toBe(false);
+  });
+
+  it('clears both when the start is null, with the attributes left out and not stored as null', () => {
+    const set = plan(made(), { plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' }, 2000).project!;
+    const cleared = plan(set, { plannedOn: null }, 3000).project!;
+    expect('plannedOn' in cleared).toBe(false);
+    expect('plannedEndOn' in cleared).toBe(false);
+  });
+
+  it('is newest-write-wins as one group: an older planned write is stale and changes neither day', () => {
+    const set = plan(made(), { plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' }, 3000).project!;
+    const older = plan(set, { plannedOn: '2026-12-20' }, 2000);
+    expect(older).toMatchObject({ result: 'noop', stale: ['planned'] });
+    expect(older.project).toMatchObject({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' });
+  });
+
+  it('does not call an older write stale when it says the same thing', () => {
+    const set = plan(made(), { plannedOn: '2026-12-05' }, 3000).project!;
+    expect(plan(set, { plannedOn: '2026-12-05', plannedEndOn: null }, 2000).stale).toEqual([]);
+  });
+
+  it('leaves the planned day alone when other fields are edited', () => {
+    const set = plan(made(), { plannedOn: '2026-12-05' }, 3000).project!;
+    expect(applyProjectWrite(set, 'p1', { notes: { value: 'x', at: 4000 } }, U1, NOW).project).toMatchObject({ plannedOn: '2026-12-05' });
+  });
+});
+
 describe('applyProjectDelete', () => {
   it('tombstones with a 30-day expiry in seconds', () => {
     const { result, project } = applyProjectDelete(made(), U2, NOW);

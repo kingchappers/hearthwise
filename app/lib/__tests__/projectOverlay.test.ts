@@ -128,3 +128,14 @@ describe('the materials overlay', () => {
     expect(applyPendingProjectDetail(data, [pending('materialsToList', { projectId: 'p1', lineIds: ['m1'] })])).toEqual(data);
   });
 });
+
+describe('the planned day overlay', () => {
+  it('shows a pending planned day on the list and on the page, and a clear', () => {
+    const change = { planned: { plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' } };
+    expect(applyPendingProjectsList(list(), [pending('putProject', { projectId: 'p1', changes: change })]).projects[0]).toMatchObject({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' });
+    const set = applyPendingProjectDetail(detail(), [pending('putProject', { projectId: 'p1', changes: change })]);
+    expect(set.project.plannedOn).toBe('2026-12-05');
+    const cleared = applyPendingProjectDetail(set, [pending('putProject', { projectId: 'p1', changes: { planned: { plannedOn: null } }, at: AT + 1 })]);
+    expect(cleared.project.plannedOn).toBeUndefined();
+  });
+});

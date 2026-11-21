@@ -26,7 +26,7 @@ function Body({ item, unsaved, feedLine }: { item: TimelineItem; unsaved: boolea
   const meta = metaLine(item);
   return (
     <Stack gap={2}>
-      {item.type !== 'task' && item.type !== 'dinner' && <Text size="sm" fw={600}>{timeRange(item)}</Text>}
+      {item.type !== 'task' && item.type !== 'dinner' && item.type !== 'project' && <Text size="sm" fw={600}>{timeRange(item)}</Text>}
       <Text fw={600} style={{ overflowWrap: 'anywhere' }}>{item.label}</Text>
       {meta !== '' && <Text size="sm">{meta}</Text>}
       {item.approx === true && <Text size="sm">{APPROX}</Text>}
@@ -40,6 +40,7 @@ function Row({ item, unsaved, feedLine, onOpen }: { item: TimelineItem; unsaved:
   // An imported item is read from someone's calendar and never edited here: no button, no link.
   if (item.feedId !== undefined) return <div style={ROW}><Body item={item} unsaved={false} feedLine={feedLine} /></div>;
   if (item.type === 'task') return <Link to={`/tasks/${item.taskId}`} style={ROW}><Body item={item} unsaved={false} /></Link>;
+  if (item.type === 'project') return <Link to={`/plan/projects/${item.projectId}`} style={ROW}><Body item={item} unsaved={false} /></Link>;
   if (item.type === 'dinner') return <Link to="/plan" style={ROW}><Body item={item} unsaved={false} /></Link>;
   // Someone else's private event can be seen to be there, and nothing more: it has no id to open.
   if (item.type === 'busy') return <div style={ROW}><Body item={item} unsaved={false} /></div>;

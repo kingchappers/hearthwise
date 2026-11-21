@@ -1,5 +1,5 @@
 import { clampTime, THIRTY_DAYS_SECONDS } from '../tasks/record';
-import type { Project, ProjectFieldTimes, ProjectOutcome, ProjectStatus, ProjectWrite } from './types';
+import type { PlannedValue, Project, ProjectFieldTimes, ProjectOutcome, ProjectStatus, ProjectWrite } from './types';
 
 const forward = (existing: Project | undefined, serverNow: number): number => Math.max(serverNow, (existing?.updatedAt ?? 0) + 1);
 
@@ -10,7 +10,9 @@ export interface ProjectApplied {
   stale: string[];
 }
 
-const FIELDS: (keyof ProjectWrite & keyof ProjectFieldTimes)[] = ['title', 'notes', 'status'];
+const FIELDS: (keyof ProjectWrite & keyof ProjectFieldTimes)[] = ['title', 'notes', 'status', 'planned'];
+
+const plannedOf = (project: Project): { plannedOn: string | null; plannedEndOn: string | null } => ({ plannedOn: project.plannedOn ?? null, plannedEndOn: project.plannedEndOn ?? null });
 
 // Writes the fields of `write` onto `project` that are newer than what it holds.
 function applyFields(project: Project, write: ProjectWrite, serverNow: number): { changed: boolean; stale: string[] } {
@@ -22,13 +24,23 @@ function applyFields(project: Project, write: ProjectWrite, serverNow: number): 
     const at = clampTime(entry.at, serverNow);
     const value = entry.value;
     if (at <= (project.fieldTimes[field] ?? 0)) {
-      const stored = field === 'notes' ? project.notes ?? null : project[field];
-      if (stored !== value) stale.push(field);
+      const stored = field === 'notes' ? project.notes ?? null : field === 'planned' ? JSON.stringify(plannedOf(project)) : project[field];
+      const incoming = field === 'planned' ? JSON.stringify({ plannedOn: (value as PlannedValue).plannedOn, plannedEndOn: (value as PlannedValue).plannedEndOn ?? null }) : value;
+      if (stored !== incoming) stale.push(field);
       continue;
     }
     if (field === 'notes') {
       if (value === null) delete project.notes;
       else project.notes = value as string;
+    } else if (field === 'planned') {
+      // The two days change together: a clear (no start) takes the end with it, and a start with no end leaves no end.
+      const planned = value as PlannedValue;
+      delete project.plannedOn;
+      delete project.plannedEndOn;
+      if (planned.plannedOn !== null) {
+        project.plannedOn = planned.plannedOn;
+        if (planned.plannedEndOn !== undefined && planned.plannedEndOn !== null) project.plannedEndOn = planned.plannedEndOn;
+      }
     } else if (field === 'title') project.title = value as string;
     else project.status = value as ProjectStatus;
     project.fieldTimes[field] = at;

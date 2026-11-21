@@ -43,6 +43,7 @@ const PROJECT_PHRASES = [
   'This household has reached 60 projects.', 'This was changed after you wrote it. Your wording is kept here.', 'Mark as finished', 'Finished', 'Bring back',
   ' already has this', 'Last changed by ', 'On it for ',
   'Add to the shopping list', 'On the list', 'Already on the list', 'Added earlier, and since cleared',
+  'Planned for ', 'No day planned',
 ];
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];
 // The fixed phrases the design promises, each of which must appear in what a person can read in the meal files.

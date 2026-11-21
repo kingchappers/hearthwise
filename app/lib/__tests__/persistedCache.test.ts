@@ -259,6 +259,18 @@ describe('what is restored', () => {
     expect(storage.map.has(cacheKey(THEM))).toBe(false);
   });
 
+  it('saves the projects list and a project with their planned days, so the calendar shows a project day offline', async () => {
+    const project = { id: 'p1', title: 'Take down the decking', status: 'active', plannedOn: '2026-12-05', fieldTimes: {}, createdBy: ME, createdAt: 1, updatedAt: 1, updatedBy: ME };
+    const before = newClient();
+    before.setQueryData(['projects', { counts: false }], { projects: [project], deleted: [], serverTime: 1 });
+    before.setQueryData(['project', 'p1'], { project, steps: [], materials: [], serverTime: 1 });
+    await save(before);
+    const after = newClient();
+    await restore(after);
+    expect(after.getQueryData(['projects', { counts: false }])).toMatchObject({ projects: [{ id: 'p1', plannedOn: '2026-12-05' }] });
+    expect(after.getQueryData(['project', 'p1'])).toMatchObject({ project: { id: 'p1' } });
+  });
+
   it('keeps the pending writes of an older version, and drops its query data to be fetched again', async () => {
     onlineManager.setOnline(false);
     const old = newClient();

@@ -221,6 +221,20 @@ describe('taking', () => {
   });
 });
 
+describe('the planned day', () => {
+  it('sets, changes and clears a planned day that both people see, and refuses a bad span with 400', async () => {
+    const { id } = await newProject();
+    const set = await call(U1, 'PUT', `${P}/${id}`, mut({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-06', plannedAt: AT }));
+    expect(set.json).toMatchObject({ outcome: 'applied', project: { plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' } });
+    expect((await call(U2, 'GET', P, undefined, 'counts=0')).json.projects[0]).toMatchObject({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-06' });
+    expect((await call(U1, 'PUT', `${P}/${id}`, mut({ plannedOn: '2026-12-05', plannedEndOn: '2026-12-30', plannedAt: AT + 5 }))).json).toEqual({ error: 'invalid', field: 'plannedEndOn' });
+    const older = await call(U2, 'PUT', `${P}/${id}`, mut({ plannedOn: '2026-12-20', plannedAt: AT - 50 }));
+    expect(older.json).toMatchObject({ outcome: 'noop', stale: ['planned'] });
+    const cleared = await call(U1, 'PUT', `${P}/${id}`, mut({ plannedOn: null, plannedAt: AT + 10 }));
+    expect(cleared.json.project.plannedOn).toBeUndefined();
+  });
+});
+
 describe('materials', () => {
   const line = async (projectId: string, text = '1 box of 75mm screws', who = U1) => {
     const id = uuid();

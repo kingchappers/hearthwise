@@ -26,6 +26,7 @@ import { noteMutationSettled, TASKS_KEY } from './queries';
 import { PROJECT_KEY_PREFIX, PROJECTS_KEY, projectMutationKeys } from './projectKeys';
 import type { ProjectMutationKind } from './projectKeys';
 import { addNotice } from './projectNotices';
+import { plannedText } from './projectText';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
 import type { RecipeChanges } from './recipeFields';
 import { PLAN_KEY } from './planKeys';
@@ -178,7 +179,9 @@ export interface CalendarMutationVars {
 }
 
 // A project's or a step's changed fields. `null` clears an optional one.
-export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus }
+// The planned day: a start and an optional end, written together. `plannedOn: null` clears both.
+export interface PlannedChange { plannedOn: string | null; plannedEndOn?: string | null }
+export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus; planned?: PlannedChange }
 export interface StepChanges { text?: string; note?: string | null; state?: StepState; position?: string }
 
 export interface ProjectMutationVars {
@@ -386,6 +389,14 @@ function stamped(changes: object, at: number): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   for (const [field, value] of Object.entries(changes)) {
     if (value === undefined) continue;
+    // The planned day is two days under one time: `plannedOn`, `plannedEndOn` and `plannedAt`.
+    if (field === 'planned') {
+      const planned = value as PlannedChange;
+      body.plannedOn = planned.plannedOn;
+      if (planned.plannedEndOn !== undefined) body.plannedEndOn = planned.plannedEndOn;
+      body.plannedAt = at;
+      continue;
+    }
     body[field] = value;
     body[`${field}At`] = at;
   }
@@ -506,6 +517,7 @@ function memberName(client: QueryClient, userId: string | undefined): string {
 function keptText(field: string, changes: Record<string, unknown>): string {
   const value = changes[field];
   if (field === 'state') return value === 'done' ? 'Done' : 'Not started';
+  if (field === 'planned') return plannedText(value as PlannedChange);
   if (field === 'position') return 'A move to another place in the list';
   if (value === null) return 'Cleared';
   return String(value);

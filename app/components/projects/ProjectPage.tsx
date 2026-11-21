@@ -5,7 +5,7 @@ import type { ProjectActions } from '~/hooks/useProjectActions';
 import { positionFor } from '~/lib/projectForm';
 import type { ProjectDetailData } from '~/lib/projectOverlay';
 import type { ProjectNotice } from '~/lib/projectNotices';
-import { COPY, holderLine, lastChangedBy, nameOf } from '~/lib/projectText';
+import { COPY, holderLine, lastChangedBy, nameOf, plannedText } from '~/lib/projectText';
 import type { MemberSummary } from '~/lib/household';
 import { LetThemKnow } from '../shared/LetThemKnow';
 import { AddSteps } from './AddSteps';
@@ -60,6 +60,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
 
       {!deleted && (
         <>
+          {project.plannedOn !== undefined && <Text>{plannedText({ plannedOn: project.plannedOn, plannedEndOn: project.plannedEndOn })}</Text>}
           {holder && <Text>{holder}</Text>}
           <Group gap="xs">
             {iHold

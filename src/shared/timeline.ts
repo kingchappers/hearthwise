@@ -1,12 +1,14 @@
 import type { EventOrBusy, FeedView, ImportedView } from '../calendar/types';
+import type { Project } from '../projects/types';
 import { effectiveAssignee } from '../tasks/ownership';
 import type { Task } from '../tasks/types';
 import { occurrencesOf } from './calendar';
 import type { Occurrence } from './calendar';
+import { holderOf } from './projectRules';
 import { addDays, dayInZone } from './schedule';
 import { zonedInstant, zonedWall } from './zoned';
 
-// The day's items in order: events, imported items (a later step), tasks due and the dinner. Worked out on the device each time and
+// The day's items in order: events, imported items, tasks due, the dinner and projects with a planned day. Worked out on the device each time and
 // never stored: each source keeps its own cache. Pure, so the day view, the week view and "Now and next" read the same thing.
 export interface TimelineMember {
   userId: string;
@@ -19,6 +21,8 @@ export interface TimelineInputs {
   tasks: Task[];
   // The plan's dinner for the day, with its title as it should be shown.
   dinner?: { title: string };
+  // Projects as the household's list gives them (the light read). Only an active, undeleted one with a planned day is shown.
+  projects?: TimelineProject[];
   members: TimelineMember[];
   // Imported occurrences as the viewer may see them, with their feeds (to know whose they are) and the zone their instants are read in.
   // Without a zone no imported item can be placed on a day, so none is shown.
@@ -27,7 +31,9 @@ export interface TimelineInputs {
   timezone?: string;
 }
 
-export type TimelineType = 'event' | 'block' | 'busy' | 'task' | 'dinner' | 'imported';
+export type TimelineProject = Pick<Project, 'id' | 'title' | 'status' | 'plannedOn' | 'plannedEndOn' | 'takenBy' | 'deletedAt'>;
+
+export type TimelineType = 'event' | 'block' | 'busy' | 'task' | 'dinner' | 'imported' | 'project';
 
 export interface TimelineItem {
   // Stable and unique for the day: the same events give the same keys in any order.
@@ -48,6 +54,7 @@ export interface TimelineItem {
   place?: string;
   eventId?: string;
   taskId?: string;
+  projectId?: string;
   // An imported item's feed, so the screen can say when that feed was last updated, and whether its time could not be read exactly.
   feedId?: string;
   approx?: true;
@@ -61,7 +68,7 @@ export interface Timeline {
 const BUSY = 'Busy';
 const BOTH = 'Both';
 const FORMER = 'Former member';
-const ALL_DAY_ORDER: Record<TimelineType, number> = { event: 0, block: 0, busy: 0, imported: 0, task: 1, dinner: 2 };
+const ALL_DAY_ORDER: Record<TimelineType, number> = { event: 0, block: 0, busy: 0, imported: 0, task: 1, dinner: 2, project: 3 };
 
 const nameOf = (members: TimelineMember[], userId: string): string => members.find(member => member.userId === userId)?.displayName ?? FORMER;
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -131,6 +138,20 @@ function taskItem(task: Task, day: string, inputs: TimelineInputs, viewer: strin
   };
 }
 
+// A project with a planned day is a strip item on each day from the start to the end (or the one day). It is not a deadline: nothing
+// about it changes when the day passes, and the label says "Project", never a due date. A departed holder shows as no one.
+function projectItems(day: string, inputs: TimelineInputs): TimelineItem[] {
+  return (inputs.projects ?? []).flatMap((project): TimelineItem[] => {
+    if (project.status !== 'active' || project.deletedAt !== undefined || project.plannedOn === undefined) return [];
+    if (project.plannedOn > day || (project.plannedEndOn ?? project.plannedOn) < day) return [];
+    const holder = holderOf(project, inputs.members);
+    return [{
+      key: `project:${project.id}:${day}`, type: 'project', label: `Project: ${project.title}`, who: holder === undefined ? '' : nameOf(inputs.members, holder),
+      forViewer: true, allDay: true, on: day, endOn: day, endsNextDay: false, projectId: project.id,
+    }];
+  });
+}
+
 const byAllDay = (a: TimelineItem, b: TimelineItem): number =>
   ALL_DAY_ORDER[a.type] - ALL_DAY_ORDER[b.type] || compare(a.label, b.label) || compare(a.key, b.key);
 const byStart = (a: TimelineItem, b: TimelineItem): number =>
@@ -145,7 +166,7 @@ export function buildTimeline(day: string, inputs: TimelineInputs, viewer: strin
     key: 'dinner', type: 'dinner', label: `Dinner: ${inputs.dinner.title}`, who: '', forViewer: true, allDay: true, on: day, endOn: day, endsNextDay: false,
   }];
   return {
-    allDay: [...fromEvents.filter(item => item.allDay), ...tasks, ...dinner].sort(byAllDay),
+    allDay: [...fromEvents.filter(item => item.allDay), ...tasks, ...dinner, ...projectItems(day, inputs)].sort(byAllDay),
     timed: fromEvents.filter(item => !item.allDay).sort(byStart),
   };
 }

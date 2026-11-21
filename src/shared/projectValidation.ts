@@ -1,6 +1,7 @@
-import type { MaterialWrite, ProjectStatus, ProjectWrite, StepState, StepWrite } from '../projects/types';
+import type { MaterialWrite, PlannedValue, ProjectStatus, ProjectWrite, StepState, StepWrite } from '../projects/types';
 import { ID_PATTERN, MAX_POSITION, POSITION_ALPHABET } from './projectRules';
-import { ENVELOPE_KEYS, parseEnvelope, parseStamped, parseUuid } from './taskValidation';
+import { addDays, isRealDate } from './schedule';
+import { ENVELOPE_KEYS, parseClientTime, parseEnvelope, parseStamped, parseUuid } from './taskValidation';
 import { bad, good, trimmedText, unknownKey } from './validation';
 import type { Parsed } from './validation';
 
@@ -30,7 +31,7 @@ const oneOf = <T extends string>(allowed: readonly T[], field: string) => (value
 type Put<W> = Parsed<{ write: W; mutationId: string; clientAt?: number }>;
 
 // Reads each named field with its time. A time with no field to go with it is a mistake, and so is a write with no fields.
-function parseWrite<W>(body: Record<string, unknown>, keys: string[], parsers: Record<string, (value: unknown) => Parsed<unknown>>): Put<W> {
+function parseWrite<W>(body: Record<string, unknown>, keys: string[], parsers: Record<string, (value: unknown) => Parsed<unknown>>, allowEmpty = false): Put<W> {
   const extra = unknownKey(body, [...keys, ...keys.map(key => `${key}At`), ...ENVELOPE_KEYS], '');
   if (extra) return bad(extra);
   const write: Record<string, unknown> = {};
@@ -42,17 +43,40 @@ function parseWrite<W>(body: Record<string, unknown>, keys: string[], parsers: R
   for (const key of keys) if (`${key}At` in body && !(key in body)) return bad(`${key}At`);
   const envelope = parseEnvelope(body);
   if (!envelope.ok) return envelope;
-  if (Object.keys(write).length === 0) return bad('body');
+  if (Object.keys(write).length === 0 && !allowEmpty) return bad('body');
   const { mutationId, clientAt } = envelope.value;
   return good(clientAt === undefined ? { write: write as W, mutationId } : { write: write as W, mutationId, clientAt });
 }
 
+// The longest planned span: the end is at most this many days after the start.
+export const MAX_PLANNED_DAYS_AFTER = 13;
+
+// The start and the optional end of a planned day, with the one time they share. `plannedOn: null` clears both.
+function parsePlanned(body: Record<string, unknown>): Parsed<{ value: PlannedValue; at: number } | undefined> {
+  if (!('plannedOn' in body) && !('plannedEndOn' in body) && !('plannedAt' in body)) return good(undefined);
+  if (!('plannedOn' in body)) return bad('plannedOn');
+  const at = parseClientTime(body.plannedAt, 'plannedAt');
+  if (!at.ok) return at;
+  const start = body.plannedOn;
+  if (start === null) return 'plannedEndOn' in body && body.plannedEndOn !== null ? bad('plannedEndOn') : good({ value: { plannedOn: null }, at: at.value });
+  if (typeof start !== 'string' || !isRealDate(start)) return bad('plannedOn');
+  const end = body.plannedEndOn;
+  if (end === undefined || end === null) return good({ value: { plannedOn: start, plannedEndOn: null }, at: at.value });
+  if (typeof end !== 'string' || !isRealDate(end) || end < start || end > addDays(start, MAX_PLANNED_DAYS_AFTER)) return bad('plannedEndOn');
+  return good({ value: { plannedOn: start, plannedEndOn: end }, at: at.value });
+}
+
 export function parseProjectPut(body: Record<string, unknown>): Put<ProjectWrite> {
-  return parseWrite<ProjectWrite>(body, PROJECT_FIELD_KEYS, {
+  const { plannedOn: _on, plannedEndOn: _end, plannedAt: _at, ...rest } = body;
+  const planned = parsePlanned(body);
+  if (!planned.ok) return planned;
+  const parsed = parseWrite<ProjectWrite>(rest, PROJECT_FIELD_KEYS, {
     title: value => trimmedText(value, MAX_PROJECT_TITLE, 'title'),
     notes: optionalText(MAX_PROJECT_NOTES, 'notes'),
     status: oneOf<ProjectStatus>(['active', 'finished'], 'status'),
-  });
+  }, planned.value !== undefined);
+  if (!parsed.ok || planned.value === undefined) return parsed;
+  return good({ ...parsed.value, write: { ...parsed.value.write, planned: planned.value } });
 }
 
 export function parseStepPut(body: Record<string, unknown>): Put<StepWrite> {
