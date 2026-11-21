@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Project, Step } from '../../../src/projects/types';
+import type { Material, Project, Step } from '../../../src/projects/types';
 import { projectMutationKeys } from '../projectKeys';
 import type { ProjectDetailData } from '../projectOverlay';
 import { applyPendingProjectDetail, applyPendingProjectsList } from '../projectOverlay';
@@ -15,7 +15,8 @@ const project = (over: Partial<Project> = {}): Project => ({
 const step = (id: string, position: string, over: Partial<Step> = {}): Step => ({
   id, projectId: 'p1', text: id, state: 'todo', position, fieldTimes: { text: AT - 10_000, position: AT - 10_000 }, createdBy: THEM, createdAt: 1, updatedAt: 1, updatedBy: THEM, ...over,
 });
-const detail = (steps: Step[] = [], p: Project = project()): ProjectDetailData => ({ project: p, steps, materials: [], serverTime: 0 });
+const detail = (steps: Step[] = [], p: Project = project(), materials: Material[] = []): ProjectDetailData => ({ project: p, steps, materials, serverTime: 0 });
+const line = (id: string, text: string): Material => ({ id, projectId: 'p1', text, fieldTimes: { text: AT - 10_000 }, createdBy: THEM, createdAt: 1, updatedAt: 1, updatedBy: THEM });
 const list = (projects: Project[] = [project()], deleted: Project[] = []): ProjectsListData => ({ projects, deleted, serverTime: 0 });
 const pending = (kind: keyof typeof projectMutationKeys, variables: object) => ({ mutationKey: projectMutationKeys[kind], variables: { mutationId: 'm', at: AT, by: ME, ...variables } });
 
@@ -106,5 +107,24 @@ describe('the detail overlay', () => {
       pending('putStep', { projectId: 'p1', stepId: 'a', changes: { state: 'todo' }, at: AT + 1 }),
     ]);
     expect(out.steps[0].state).toBe('todo');
+  });
+});
+
+describe('the materials overlay', () => {
+  it('shows a pending new line, and an edit that loses to a newer stored one as the server will', () => {
+    const added = applyPendingProjectDetail(detail([], project(), []), [pending('putMaterial', { projectId: 'p1', lineId: 'm1', text: 'Timber' })]);
+    expect(added.materials.map(m => m.text)).toEqual(['Timber']);
+    const newer = { ...line('m1', 'Alex wording'), fieldTimes: { text: AT + 5000 } };
+    expect(applyPendingProjectDetail(detail([], project(), [newer]), [pending('putMaterial', { projectId: 'p1', lineId: 'm1', text: 'Sam wording' })]).materials[0].text).toBe('Alex wording');
+  });
+
+  it('drops a deleted line at once', () => {
+    const data = detail([], project(), [line('m1', 'Timber'), line('m2', 'Screws')]);
+    expect(applyPendingProjectDetail(data, [pending('deleteMaterial', { projectId: 'p1', lineId: 'm1' })]).materials.map(m => m.id)).toEqual(['m2']);
+  });
+
+  it('adds no shopping lines and changes nothing on screen for the copy', () => {
+    const data = detail([], project(), [line('m1', 'Timber')]);
+    expect(applyPendingProjectDetail(data, [pending('materialsToList', { projectId: 'p1', lineIds: ['m1'] })])).toEqual(data);
   });
 });

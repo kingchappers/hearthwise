@@ -192,6 +192,11 @@ export interface ProjectMutationVars {
   deleteStep: Common & { projectId: string; stepId: string };
   takeStep: Common & { projectId: string; stepId: string };
   releaseStep: Common & { projectId: string; stepId: string };
+  // A material line is its text; `at` is the time it was written.
+  putMaterial: Common & { projectId: string; lineId: string; text: string };
+  deleteMaterial: Common & { projectId: string; lineId: string };
+  // The lines to copy onto the shopping list, by material id. The server skips any that are already there.
+  materialsToList: Common & { projectId: string; lineIds: string[] };
 }
 
 type Request = (endpoint: string, options?: RequestInit) => Promise<unknown>;
@@ -397,6 +402,9 @@ const PROJECT_RUNNERS: { [K in ProjectMutationKind]: (vars: ProjectMutationVars[
   deleteStep: (v, request) => send(request, 'DELETE', stepPath(v.projectId, v.stepId), plain(v)),
   takeStep: (v, request) => send(request, 'POST', `${stepPath(v.projectId, v.stepId)}/take`, plain(v)),
   releaseStep: (v, request) => send(request, 'POST', `${stepPath(v.projectId, v.stepId)}/release`, plain(v)),
+  putMaterial: (v, request) => send(request, 'PUT', `${projectPath(v.projectId)}/materials/${v.lineId}`, { ...plain(v), text: v.text, textAt: v.at }),
+  deleteMaterial: (v, request) => send(request, 'DELETE', `${projectPath(v.projectId)}/materials/${v.lineId}`, plain(v)),
+  materialsToList: (v, request) => send(request, 'POST', `${projectPath(v.projectId)}/materials/add-to-list`, { ...plain(v), lineIds: v.lineIds }),
 };
 
 // What to tell the person when a write was dropped. Only a final failure reaches here: a network failure, a lapsed sign-in or a server
@@ -504,9 +512,23 @@ function keptText(field: string, changes: Record<string, unknown>): string {
 }
 
 function saveProjectNotices(client: QueryClient, kind: ProjectMutationKind, variables: ProjectMutationVars[ProjectMutationKind], data: unknown): void {
-  const answer = data as { outcome?: string; stale?: string[]; step?: { takenBy?: string }; project?: { takenBy?: string } } | undefined;
+  const answer = data as { outcome?: string; stale?: string[]; step?: { takenBy?: string }; project?: { takenBy?: string }; results?: unknown } | undefined;
   if (!answer) return;
   const { by, at } = variables;
+  if (kind === 'materialsToList') {
+    const results = (data as { results?: { status: string }[] }).results ?? [];
+    // Every line was already there: say so, so the press is not mistaken for doing nothing.
+    if (results.length > 0 && results.every(result => result.status === 'already')) {
+      const vars = variables as ProjectMutationVars['materialsToList'];
+      addNotice(by, { kind: 'taken', projectId: vars.projectId, recordId: vars.projectId, field: 'list', text: 'Already on the list', at });
+    }
+    return;
+  }
+  if (kind === 'putMaterial' && answer.stale && answer.stale.length > 0) {
+    const vars = variables as ProjectMutationVars['putMaterial'];
+    addNotice(by, { kind: 'replaced', projectId: vars.projectId, recordId: vars.lineId, field: 'text', text: vars.text, at });
+    return;
+  }
   if ((kind === 'putProject' || kind === 'putStep') && answer.stale && answer.stale.length > 0) {
     const vars = variables as ProjectMutationVars['putProject'] | ProjectMutationVars['putStep'];
     const recordId = kind === 'putStep' ? (vars as ProjectMutationVars['putStep']).stepId : vars.projectId;
@@ -612,7 +634,8 @@ export function registerMutations(
     keys: projectMutationKeys,
     run: (kind, variables: ProjectMutationVars[ProjectMutationKind], send) =>
       (PROJECT_RUNNERS[kind as ProjectMutationKind] as (vars: ProjectMutationVars[ProjectMutationKind], request: Request) => Promise<unknown>)(variables, send),
-    invalidate: () => [PROJECTS_KEY, PROJECT_KEY_PREFIX],
+    // The add also changes the shopping list, so it is refreshed too.
+    invalidate: kind => (kind === 'materialsToList' ? [PROJECTS_KEY, PROJECT_KEY_PREFIX, ITEMS_KEY] : [PROJECTS_KEY, PROJECT_KEY_PREFIX]),
     // Registered here, not in a component, so they still run after a reload replays a saved write. A replaced edit and a refused take are
     // answered with a 200 and an outcome, so the notices are made from the answer.
     onSuccess: (kind, variables: ProjectMutationVars[ProjectMutationKind], data) => {

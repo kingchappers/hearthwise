@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('~/lib/projects', () => ({ useProjects: () => state.projects, useProject: () => state.project }));
 vi.mock('~/hooks/useProjectActions', () => ({ useProjectActions: () => state.actions }));
+vi.mock('~/lib/items', () => ({ useItems: () => ({ status: 'ready', items: [], refetch: vi.fn() }) }));
 vi.mock('~/lib/household', () => ({ useHousehold: () => ({ data: { members: [{ userId: 'u1', displayName: 'Sam' }], me: { userId: 'u1' } } }) }));
 vi.mock('~/lib/useNow', () => ({ useNow: () => 1_800_000_000_000 }));
 

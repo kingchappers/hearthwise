@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { Alert, Button, Loader, Stack, Text } from '@mantine/core';
 import { useNavigate } from 'react-router';
 import { LoadError } from '~/components/layout/LoadError';
 import { ProjectPage } from '~/components/projects/ProjectPage';
 import { useProjectActions } from '~/hooks/useProjectActions';
+import { useItems } from '~/lib/items';
 import { pageTitle } from '~/lib/pageTitle';
 import { useProjectNotices } from '~/lib/projectNotices';
 import { useProject } from '~/lib/projects';
@@ -18,6 +20,8 @@ function ProjectContent({ id }: { id: string }) {
   const notices = useProjectNotices(project.me, id);
   const navigate = useNavigate();
   const now = useNow();
+  const items = useItems();
+  const listState = useMemo(() => new Map(items.items.map(item => [item.id, item.deletedAt === undefined ? 'onList' as const : 'cleared' as const])), [items.items]);
 
   if (project.status === 'loading') return <Loader aria-label="Loading project" />;
   if (project.status === 'notfound') {
@@ -36,7 +40,7 @@ function ProjectContent({ id }: { id: string }) {
   }
   return (
     <ProjectPage
-      data={project.data} me={project.me} members={project.members} now={now} unsavedIds={project.unsavedIds} notices={notices}
+      data={project.data} me={project.me} members={project.members} now={now} unsavedIds={project.unsavedIds} notices={notices} listState={listState}
       actions={actions} onBack={() => { void navigate('/plan/projects'); }}
     />
   );

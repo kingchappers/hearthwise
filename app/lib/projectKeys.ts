@@ -7,10 +7,12 @@ export const PROJECT_KEY_PREFIX = ['project'] as const;
 
 export type ProjectMutationKind =
   | 'putProject' | 'deleteProject' | 'restoreProject' | 'takeProject' | 'releaseProject'
-  | 'putStep' | 'deleteStep' | 'takeStep' | 'releaseStep';
+  | 'putStep' | 'deleteStep' | 'takeStep' | 'releaseStep'
+  | 'putMaterial' | 'deleteMaterial' | 'materialsToList';
 
 export const projectMutationKeys: { [K in ProjectMutationKind]: readonly ['household', K] } = {
   putProject: ['household', 'putProject'], deleteProject: ['household', 'deleteProject'], restoreProject: ['household', 'restoreProject'],
   takeProject: ['household', 'takeProject'], releaseProject: ['household', 'releaseProject'],
   putStep: ['household', 'putStep'], deleteStep: ['household', 'deleteStep'], takeStep: ['household', 'takeStep'], releaseStep: ['household', 'releaseStep'],
+  putMaterial: ['household', 'putMaterial'], deleteMaterial: ['household', 'deleteMaterial'], materialsToList: ['household', 'materialsToList'],
 };
