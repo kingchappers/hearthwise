@@ -1,6 +1,6 @@
 import type { Item, Key, TxOp } from '../store';
-import { PROJECT_PREFIX, STEP_PREFIX } from './keys';
-import type { Project, Step } from './types';
+import { MATERIAL_PREFIX, PROJECT_PREFIX, STEP_PREFIX } from './keys';
+import type { Material, Project, Step } from './types';
 
 export function toProject(raw: Item): Project {
   const project: Project = {
@@ -52,6 +52,24 @@ export function toStep(raw: Item): Step {
   return step;
 }
 
+
+export function toMaterial(raw: Item): Material {
+  const [projectId, ...rest] = raw.SK.slice(MATERIAL_PREFIX.length).split('#');
+  const material: Material = {
+    id: rest.join('#'),
+    projectId,
+    text: String(raw.text),
+    fieldTimes: structuredClone((raw.fieldTimes as Material['fieldTimes'] | undefined) ?? {}),
+    createdBy: String(raw.createdBy ?? ''),
+    createdAt: Number(raw.createdAt ?? 0),
+    updatedAt: Number(raw.updatedAt),
+    updatedBy: String(raw.updatedBy ?? ''),
+  };
+  if (typeof raw.deletedAt === 'number') material.deletedAt = raw.deletedAt;
+  if (typeof raw.deletedBy === 'string') material.deletedBy = raw.deletedBy;
+  if (typeof raw.expiresAt === 'number') material.expiresAt = raw.expiresAt;
+  return material;
+}
 
 // The stored form: the same fields, with the keys, and nothing set to undefined. The ids are in the key, not the item.
 export function toRecord(key: Key, record: object): Item {

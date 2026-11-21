@@ -1,6 +1,6 @@
 import { Button, Group, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import type { Step } from '../../src/projects/types';
+import type { Material, Step } from '../../src/projects/types';
 import { useHousehold } from '~/lib/household';
 import { notifyFields } from '~/lib/letThemKnow';
 import { useProjectMutation } from '~/lib/mutations';
@@ -24,6 +24,12 @@ export interface ProjectActions {
   undoDeleteStep(projectId: string, step: Step): void;
   takeStep(projectId: string, stepId: string): void;
   releaseStep(projectId: string, stepId: string): void;
+  // Each pasted line is its own write; the tick goes with the first only.
+  addMaterials(projectId: string, lines: string[]): void;
+  editMaterial(projectId: string, lineId: string, text: string): void;
+  deleteMaterial(projectId: string, material: Material): void;
+  undoDeleteMaterial(projectId: string, material: Material): void;
+  copyToList(projectId: string, lineIds: string[]): void;
 }
 
 // Every project action the screens can take: each builds its mutation's variables (an id, the time of the tap, who made it, and the
@@ -39,6 +45,9 @@ export function useProjectActions(): ProjectActions {
   const delStep = useProjectMutation('deleteStep');
   const takeS = useProjectMutation('takeStep');
   const releaseS = useProjectMutation('releaseStep');
+  const putMat = useProjectMutation('putMaterial');
+  const delMat = useProjectMutation('deleteMaterial');
+  const toList = useProjectMutation('materialsToList');
 
   const me = household.data?.me.userId ?? '';
   const common = () => ({ mutationId: crypto.randomUUID(), at: Date.now(), by: me, ...notifyFields() });
@@ -78,6 +87,21 @@ export function useProjectActions(): ProjectActions {
     undoDeleteStep,
     takeStep: (projectId, stepId) => takeS.mutate({ ...common(), projectId, stepId }),
     releaseStep: (projectId, stepId) => releaseS.mutate({ ...common(), projectId, stepId }),
+    addMaterials: (projectId, lines) => lines.forEach((text, index) => {
+      putMat.mutate({ ...(index === 0 ? common() : plain()), projectId, lineId: crypto.randomUUID(), text });
+    }),
+    editMaterial: (projectId, lineId, text) => putMat.mutate({ ...common(), projectId, lineId, text }),
+    deleteMaterial: (projectId, material) => {
+      delMat.mutate({ ...common(), projectId, lineId: material.id });
+      toast(
+        <Group justify="space-between" wrap="nowrap">
+          <Text size="sm">Line deleted</Text>
+          <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => putMat.mutate({ ...plain(), projectId, lineId: crypto.randomUUID(), text: material.text })}>{COPY.undo}</Button>
+        </Group>,
+      );
+    },
+    undoDeleteMaterial: (projectId, material) => putMat.mutate({ ...plain(), projectId, lineId: crypto.randomUUID(), text: material.text }),
+    copyToList: (projectId, lineIds) => toList.mutate({ ...common(), projectId, lineIds }),
   };
 }
 

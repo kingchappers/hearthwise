@@ -16,7 +16,7 @@ export type { ProjectDetailData };
 
 const POLL_MS = 10_000;
 
-export type StepCounts = { steps: number; done: number };
+export type StepCounts = { steps: number; done: number; materials: number };
 export type ListedProject = Project & { counts?: StepCounts };
 
 export interface ProjectsListData {
@@ -83,10 +83,10 @@ export function useProjects(options: { counts?: boolean } = {}): ProjectsState {
 }
 
 // The record ids a pending write is about: the project, the step, or each restored project.
-function idsOf(variables: unknown): string[] {
-  const v = variables as Partial<ProjectMutationVars['putStep'] & ProjectMutationVars['restoreProject']> | undefined;
+export function idsOf(variables: unknown): string[] {
+  const v = variables as Partial<ProjectMutationVars['putStep'] & ProjectMutationVars['restoreProject'] & ProjectMutationVars['putMaterial'] & ProjectMutationVars['materialsToList']> | undefined;
   if (!v) return [];
-  return [v.projectId, v.stepId, ...(v.entries?.map(entry => entry.id) ?? [])].filter((id): id is string => id !== undefined);
+  return [v.projectId, v.stepId, v.lineId, ...(v.lineIds ?? []), ...(v.entries?.map(entry => entry.id) ?? [])].filter((id): id is string => id !== undefined);
 }
 
 export interface ProjectState {

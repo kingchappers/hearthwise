@@ -52,6 +52,25 @@ describe('the project runners', () => {
   });
 });
 
+describe('the material runners', () => {
+  it('sends a line with its time, a delete, and the lines to copy', async () => {
+    await run('putMaterial', { projectId: 'p1', lineId: 'm1', text: 'Timber' });
+    expect(request).toHaveBeenLastCalledWith('/api/hh/projects/p1/materials/m1', { method: 'PUT', body: JSON.stringify({ mutationId: common.mutationId, clientAt: AT, text: 'Timber', textAt: AT }) });
+    await run('deleteMaterial', { projectId: 'p1', lineId: 'm1' });
+    expect(request).toHaveBeenLastCalledWith('/api/hh/projects/p1/materials/m1', expect.objectContaining({ method: 'DELETE' }));
+    await run('materialsToList', { projectId: 'p1', lineIds: ['m1', 'm2'] });
+    const [path, options] = request.mock.calls.at(-1)!;
+    expect(path).toBe('/api/hh/projects/p1/materials/add-to-list');
+    expect(JSON.parse(String(options?.body)).lineIds).toEqual(['m1', 'm2']);
+  });
+
+  it('refreshes the shopping list as well when the copy settles', () => {
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    defaults('materialsToList').onSettled!(undefined, null, {} as never, undefined as never, undefined as never);
+    expect(spy.mock.calls.map(call => JSON.stringify(call[0]?.queryKey))).toEqual(expect.arrayContaining(['["items"]', '["projects"]']));
+  });
+});
+
 describe('the project notices', () => {
   const settle = (kind: keyof typeof projectMutationKeys, vars: object, data: unknown) => defaults(kind).onSuccess!(data, { ...common, ...vars } as never, undefined, undefined as never);
 
@@ -65,6 +84,17 @@ describe('the project notices', () => {
   it('saves "{name} already has this" when a take was refused', () => {
     settle('takeStep', { projectId: 'p1', stepId: 's1' }, { outcome: 'held_by_other', step: { takenBy: 'u2' } });
     expect(readNotices('u1')[0]).toMatchObject({ kind: 'taken', recordId: 's1', text: 'Alex already has this' });
+  });
+
+  it('keeps a replaced line\'s words, and says "Already on the list" when every line was already there', () => {
+    settle('putMaterial', { projectId: 'p1', lineId: 'm1', text: 'Sam line' }, { outcome: 'noop', stale: ['text'] });
+    settle('materialsToList', { projectId: 'p1', lineIds: ['m1'] }, { results: [{ id: 'm1', status: 'already' }] });
+    expect(readNotices('u1').map(notice => notice.text)).toEqual(['Sam line', 'Already on the list']);
+  });
+
+  it('says nothing when the copy created lines', () => {
+    settle('materialsToList', { projectId: 'p1', lineIds: ['m1'] }, { results: [{ id: 'm1', status: 'created' }] });
+    expect(readNotices('u1')).toEqual([]);
   });
 
   it('saves nothing for a write that was not replaced', () => {

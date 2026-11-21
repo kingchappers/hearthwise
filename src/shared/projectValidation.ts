@@ -1,6 +1,6 @@
-import type { ProjectStatus, ProjectWrite, StepState, StepWrite } from '../projects/types';
+import type { MaterialWrite, ProjectStatus, ProjectWrite, StepState, StepWrite } from '../projects/types';
 import { ID_PATTERN, MAX_POSITION, POSITION_ALPHABET } from './projectRules';
-import { ENVELOPE_KEYS, parseEnvelope, parseStamped } from './taskValidation';
+import { ENVELOPE_KEYS, parseEnvelope, parseStamped, parseUuid } from './taskValidation';
 import { bad, good, trimmedText, unknownKey } from './validation';
 import type { Parsed } from './validation';
 
@@ -8,6 +8,8 @@ export const MAX_PROJECT_TITLE = 80;
 export const MAX_PROJECT_NOTES = 1000;
 export const MAX_STEP_TEXT = 120;
 export const MAX_STEP_NOTE = 500;
+export const MAX_MATERIAL_TEXT = 120;
+export const MAX_ADD_MATERIALS = 60;
 
 const PROJECT_FIELD_KEYS = ['title', 'notes', 'status'];
 const STEP_FIELD_KEYS = ['text', 'note', 'state', 'position'];
@@ -68,4 +70,25 @@ export function parseTakeBody(body: Record<string, unknown>): Parsed<{ mutationI
   if (extra) return bad(extra);
   const envelope = parseEnvelope(body);
   return envelope.ok ? good({ mutationId: envelope.value.mutationId }) : envelope;
+}
+
+export function parseMaterialPut(body: Record<string, unknown>): Put<MaterialWrite> {
+  return parseWrite<MaterialWrite>(body, ['text'], { text: value => trimmedText(value, MAX_MATERIAL_TEXT, 'text') });
+}
+
+// The lines to copy onto the shopping list, by material id. Up to 60, each a UUID; a repeated id is one line.
+export function parseAddMaterials(body: Record<string, unknown>): Parsed<{ lineIds: string[]; mutationId: string; clientAt?: number }> {
+  const extra = unknownKey(body, ['lineIds', ...ENVELOPE_KEYS], '');
+  if (extra) return bad(extra);
+  if (!Array.isArray(body.lineIds) || body.lineIds.length < 1 || body.lineIds.length > MAX_ADD_MATERIALS) return bad('lineIds');
+  const lineIds: string[] = [];
+  for (const [index, raw] of body.lineIds.entries()) {
+    const id = parseUuid(raw, `lineIds[${index}]`);
+    if (!id.ok) return id;
+    lineIds.push(id.value);
+  }
+  const envelope = parseEnvelope(body);
+  if (!envelope.ok) return envelope;
+  const { mutationId, clientAt } = envelope.value;
+  return good(clientAt === undefined ? { lineIds, mutationId } : { lineIds, mutationId, clientAt });
 }

@@ -224,13 +224,13 @@ describe('the Deleted page: events', () => {
 });
 
 describe('the Deleted page: projects', () => {
-  const project = { id: 'p1', title: 'Take down the decking', status: 'active', deletedAt: Date.parse('2026-11-10T10:00:00Z'), deletedBy: ME.userId, counts: { steps: 12, done: 0 } };
+  const project = { id: 'p1', title: 'Take down the decking', status: 'active', deletedAt: Date.parse('2026-11-10T10:00:00Z'), deletedBy: ME.userId, counts: { steps: 12, done: 0, materials: 8 } };
 
   it('lists a Projects group saying what comes back, and restores with the deletion it saw', async () => {
     state.projects = { status: 'ready', deleted: [project], unsavedIds: new Set<string>() };
     renderPage();
     expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
-    expect(screen.getByText(/Comes back with 12 steps/)).toBeInTheDocument();
+    expect(screen.getByText(/Comes back with 12 steps, 8 materials/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Restore: Take down the decking' }));
     expect((state.projectActions as { restoreProject: ReturnType<typeof vi.fn> }).restoreProject).toHaveBeenCalledWith({ id: 'p1', deletedAt: project.deletedAt });
   });

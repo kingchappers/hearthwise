@@ -3,7 +3,8 @@
 import { applyProjectDelete, applyProjectWrite } from '../../src/projects/applyProject';
 import { applyStepDelete, applyStepWrite } from '../../src/projects/applyStep';
 import type { ListedProject, ProjectsListData } from './projects';
-import type { Project, ProjectWrite, Step, StepWrite } from '../../src/projects/types';
+import { applyMaterialDelete, applyMaterialWrite } from '../../src/projects/applyMaterial';
+import type { Material, Project, ProjectWrite, Step, StepWrite } from '../../src/projects/types';
 import { compareSteps } from '../../src/shared/projectRules';
 import { projectMutationKeys } from './mutations';
 import type { ProjectChanges, ProjectMutationKind, ProjectMutationVars, StepChanges } from './mutations';
@@ -12,7 +13,7 @@ import type { PendingMutation } from './overlay';
 export interface ProjectDetailData {
   project: Project;
   steps: Step[];
-  materials: unknown[];
+  materials: Material[];
   serverTime: number;
 }
 
@@ -116,6 +117,18 @@ function overlayDetail(data: ProjectDetailData, kind: ProjectMutationKind, vars:
       const { step } = applyStepWrite(existing, { projectId: v.projectId, id: v.stepId }, stepWrite(v.changes, v.at), v.by, v.at);
       if (!step) return data;
       return { ...data, steps: sorted(existing ? data.steps.map(row => (row.id === v.stepId ? step : row)) : [...data.steps, step]) };
+    }
+    case 'putMaterial': {
+      const v = vars as Vars<'putMaterial'>;
+      const existing = data.materials.find(row => row.id === v.lineId);
+      const { material } = applyMaterialWrite(existing, { projectId: v.projectId, id: v.lineId }, { text: { value: v.text, at: v.at } }, v.by, v.at);
+      if (!material) return data;
+      return { ...data, materials: existing ? data.materials.map(row => (row.id === v.lineId ? material : row)) : [...data.materials, material] };
+    }
+    case 'deleteMaterial': {
+      const v = vars as Vars<'deleteMaterial'>;
+      const { material } = applyMaterialDelete(data.materials.find(row => row.id === v.lineId), v.by, v.at);
+      return material ? { ...data, materials: data.materials.filter(row => row.id !== v.lineId) } : data;
     }
     case 'deleteStep': return changeStep((vars as Vars<'deleteStep'>).stepId, () => undefined);
     case 'takeStep': return changeStep((vars as Vars<'takeStep'>).stepId, step => taken(step, (vars as Vars<'takeStep'>).by, (vars as Vars<'takeStep'>).at));

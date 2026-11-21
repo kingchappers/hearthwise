@@ -32,6 +32,14 @@ export const COPY = {
   moveDown: 'Move down',
   deletedProject: 'This project was deleted. You can bring it back from Deleted.',
   gone: 'That was deleted.',
+  materials: 'Materials',
+  addMaterials: 'Add materials',
+  addMaterialsHint: 'One line for each item, like 6 lengths of 47x100 timber, 2.4m.',
+  addToList: 'Add to the shopping list',
+  onTheList: 'On the list',
+  alreadyOnList: 'Already on the list',
+  clearedFromList: 'Added earlier, and since cleared',
+  limitMaterials: 'This project has reached 60 materials.',
 } as const;
 
 export const heldBy = (name: string): string => `${name} is on this`;

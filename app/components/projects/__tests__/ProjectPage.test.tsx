@@ -29,6 +29,7 @@ function actions(): ProjectActions {
   return {
     me: ME, createProject: vi.fn(), editProject: vi.fn(), deleteProject: vi.fn(), restoreProject: vi.fn(), takeProject: vi.fn(), releaseProject: vi.fn(),
     addSteps: vi.fn(), editStep: vi.fn(), deleteStep: vi.fn(), undoDeleteStep: vi.fn(), takeStep: vi.fn(), releaseStep: vi.fn(),
+    addMaterials: vi.fn(), editMaterial: vi.fn(), deleteMaterial: vi.fn(), undoDeleteMaterial: vi.fn(), copyToList: vi.fn(),
   };
 }
 
@@ -187,7 +188,7 @@ describe('the project list', () => {
 
   it('shows steps done, who is on it, and puts a finished project under "Finished"', () => {
     render2([
-      { ...project({ takenBy: THEM, takenAt: NOW }), counts: { steps: 8, done: 3 } },
+      { ...project({ takenBy: THEM, takenAt: NOW }), counts: { steps: 8, done: 3, materials: 0 } },
       project({ id: 'p2', title: 'Fix the fence', status: 'finished' }),
     ]);
     expect(screen.getByText('3 of 8 steps done')).toBeInTheDocument();

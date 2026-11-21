@@ -9,10 +9,13 @@ import { COPY, holderLine, lastChangedBy, nameOf } from '~/lib/projectText';
 import type { MemberSummary } from '~/lib/household';
 import { LetThemKnow } from '../shared/LetThemKnow';
 import { AddSteps } from './AddSteps';
+import { MaterialsSection } from './MaterialsSection';
 import { EditProjectSheet } from './EditProjectSheet';
 import { NoticeBar } from './NoticeBar';
 import { StepRow } from './StepRow';
 import { StepSheet } from './StepSheet';
+
+const NO_LIST: ReadonlyMap<string, 'onList' | 'cleared'> = new Map();
 
 export interface ProjectPageProps {
   data: ProjectDetailData;
@@ -21,14 +24,16 @@ export interface ProjectPageProps {
   now: number;
   unsavedIds: ReadonlySet<string>;
   notices: ProjectNotice[];
+  // Where each material's shopping item stands, so a material can say "On the list".
+  listState?: ReadonlyMap<string, 'onList' | 'cleared'>;
   actions: ProjectActions;
   onBack: () => void;
 }
 
 // One project: its title, the steps in order, and what can be done with them. Either person can add, edit, reorder, tick and take; there
 // is no lock and nothing waits for approval.
-export function ProjectPage({ data, me, members, now, unsavedIds, notices, actions, onBack }: ProjectPageProps) {
-  const { project, steps } = data;
+export function ProjectPage({ data, me, members, now, unsavedIds, notices, listState = NO_LIST, actions, onBack }: ProjectPageProps) {
+  const { project, steps, materials } = data;
   const [editing, setEditing] = useState<Step | undefined>(undefined);
   const [editingProject, setEditingProject] = useState(false);
   const [noRoom, setNoRoom] = useState(false);
@@ -86,6 +91,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, actio
               </List>
             )}
           <AddSteps projectId={project.id} steps={steps} actions={actions} />
+          <MaterialsSection projectId={project.id} materials={materials} unsavedIds={unsavedIds} listState={listState} actions={actions} />
           <Button variant="default" style={{ minHeight: 44 }} onClick={() => { actions.deleteProject(project.id); onBack(); }}>Delete project</Button>
         </>
       )}

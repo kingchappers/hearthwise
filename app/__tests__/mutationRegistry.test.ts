@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { calendarMutationKeys, itemMutationKeys, mealMutationKeys, moneyMutationKeys, projectMutationKeys, registerMutations } from '~/lib/mutations';
 import { applyPendingProjectDetail, applyPendingProjectsList } from '~/lib/projectOverlay';
+import { idsOf } from '~/lib/projects';
 import { applyPendingCalendar } from '~/lib/calendarOverlay';
 import { applyPendingItems } from '~/lib/itemOverlay';
 import { applyPendingMoney } from '~/lib/moneyOverlay';
@@ -191,6 +192,10 @@ describe('the project mutations', () => {
     deleteStep: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', stepId: 's1' } },
     takeStep: { detail: { project, steps: [step] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', stepId: 's1' } },
     releaseStep: { detail: { project, steps: [held] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', stepId: 's1' } },
+    putMaterial: { detail: { project, steps: [], materials: [] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', lineId: 'm1', text: 'Timber' } },
+    deleteMaterial: { detail: { project, steps: [], materials: [{ id: 'm1', projectId: 'p1', text: 'Timber', fieldTimes: { text: 1 }, createdBy: 'o', createdAt: 1, updatedAt: 1, updatedBy: 'o' }] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', lineId: 'm1' } },
+    // The copy changes the shopping list on the server, not the project on screen; its pending state is the section's "Not saved yet".
+    materialsToList: { detail: { project, steps: [] }, list: { projects: [project], deleted: [] }, vars: { projectId: 'p1', lineIds: ['m1'] } },
   };
 
   it.each(Object.entries(projectMutationKeys))('%s has an overlay that changes the data it is about', (kind, key) => {
@@ -200,6 +205,12 @@ describe('the project mutations', () => {
     const listStart = { serverTime: 0, ...list } as never;
     const changed = JSON.stringify(applyPendingProjectDetail(detailStart, pending)) !== JSON.stringify(detailStart)
       || JSON.stringify(applyPendingProjectsList(listStart, pending)) !== JSON.stringify(listStart);
+    // The copy to the shopping list adds no shopping lines optimistically: they appear when the write lands. Its lines show "Not saved yet".
+    if (kind === 'materialsToList') {
+      expect(changed).toBe(false);
+      expect(idsOf(pending[0].variables)).toEqual(expect.arrayContaining(['p1', 'm1']));
+      return;
+    }
     expect(changed).toBe(true);
   });
 });

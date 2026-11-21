@@ -25,6 +25,7 @@ export function deletedEntries(
 export function deletedProjectGroup(projects: ListedProject[]): { project: ListedProject; comesBack: string }[] {
   return newestFirst(projects).map(project => {
     const steps = project.counts?.steps ?? 0;
-    return { project, comesBack: `${steps} ${steps === 1 ? 'step' : 'steps'}` };
+    const materials = project.counts?.materials ?? 0;
+    return { project, comesBack: `${steps} ${steps === 1 ? 'step' : 'steps'}, ${materials} ${materials === 1 ? 'material' : 'materials'}` };
   });
 }
