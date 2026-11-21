@@ -139,6 +139,18 @@ describe('PATCH /api/hh/members/me', () => {
     expect(after.json.members[0].displayName).toBe('Samuel');
   });
 
+  it('saves a calendar colour for the caller alone, and shows it to the other member', async () => {
+    const res = await call('auth0|u1', 'PATCH', '/api/hh/members/me', { colour: 'honey' });
+    expect(res.status).toBe(200);
+    expect(res.json.me.colour).toBe('honey');
+    const after = await call('auth0|u1', 'GET', '/api/hh');
+    expect(after.json.members.find((member: { userId: string }) => member.userId === 'auth0|u1').colour).toBe('honey');
+  });
+
+  it('rejects a colour outside the palette', async () => {
+    expect(await call('auth0|u1', 'PATCH', '/api/hh/members/me', { colour: 'red' })).toEqual({ status: 400, json: { error: 'invalid', field: 'colour' } });
+  });
+
   it.each([
     ['an hour of 24', { settings: { digest: { hour: 24 } } }, 'settings.digest.hour'],
     ['an unknown default view', { settings: { defaultView: 'grid' } }, 'settings.defaultView'],

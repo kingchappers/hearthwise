@@ -32,7 +32,7 @@ export interface CalendarState {
   // The server's list with nothing laid over it.
   serverEvents: EventOrBusy[];
   me: string;
-  members: Pick<MemberSummary, 'userId' | 'displayName'>[];
+  members: Pick<MemberSummary, 'userId' | 'displayName' | 'colour'>[];
   timezone: string;
   today: string;
   // How many calendar writes are waiting to be saved, and which events they are about.

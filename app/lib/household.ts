@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProtectedApi } from '~/hooks/useProtectedApi';
 import { ApiError } from './apiError';
 import type { HouseholdMeta, Member } from '../../src/household/types';
-import type { MemberSettingsPatch } from '../../src/shared/household';
+import type { MarkColour, MemberSettingsPatch } from '../../src/shared/household';
 
 // The other member as the household list shows them: no settings, those are theirs.
-export type MemberSummary = Pick<Member, 'userId' | 'displayName' | 'joinedAt'>;
+export type MemberSummary = Pick<Member, 'userId' | 'displayName' | 'joinedAt' | 'colour'>;
 
 export interface HouseholdData {
   household: HouseholdMeta;
@@ -118,7 +118,7 @@ export function useUpdateMe() {
   const { request } = useProtectedApi();
   const refresh = useRefreshHousehold();
   return useMutation({
-    mutationFn: async (patch: { displayName?: string; settings?: MemberSettingsPatch }) =>
+    mutationFn: async (patch: { displayName?: string; colour?: MarkColour; settings?: MemberSettingsPatch }) =>
       await request('/api/hh/members/me', write('PATCH', patch)) as { me: Member },
     onSuccess: refresh,
   });

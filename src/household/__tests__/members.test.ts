@@ -25,6 +25,16 @@ describe('updateOwnMember', () => {
     expect(member).toMatchObject({ userId: 'auth0|u1', displayName: 'Samuel', settings: DEFAULT_SETTINGS });
   });
 
+  it('keeps no colour until one is chosen, then keeps the choice with the rest of the member', async () => {
+    expect(ctx.member.colour).toBeUndefined();
+    const chosen = await updateOwnMember(store, ctx, { colour: 'sage' });
+    expect(chosen.colour).toBe('sage');
+    expect(chosen).toMatchObject({ displayName: 'Sam', settings: DEFAULT_SETTINGS });
+    const again = (await loadContext(store, 'auth0|u1'))!;
+    expect(again.member.colour).toBe('sage');
+    expect(again.members.find(member => member.userId === 'auth0|u2')?.colour).toBeUndefined();
+  });
+
   it('changes one setting and keeps the rest, including the switch beside an hour', async () => {
     await updateOwnMember(store, ctx, { settings: { digest: { on: true } } });
     const after = await updateOwnMember(store, (await loadContext(store, 'auth0|u1'))!, { settings: { digest: { hour: 21 } } });

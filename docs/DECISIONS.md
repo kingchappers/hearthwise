@@ -346,3 +346,15 @@ The server half of step 6 is recorded in the step's commits; these rows are the 
 | The offline case reads a saved imported window | Three cases in the spike (`e2e/offline/`): a cold launch with no signal shows a saved window and says an unread one is not saved; a failed refresh keeps the window; sign-out clears it | The spike does not use app code, so these prove the saving rule, not the screens |
 | Not stated | `yarn test:e2e` here needs `PLAYWRIGHT_CHROMIUM_EXECUTABLE` set, because the installed Playwright wants a browser build that is not downloaded | Run with the cached Chrome for Testing |
 
+### Calendar cards and person colours (2026-11-21)
+
+Not in the phase 4 design: a change asked for after the first real use.
+
+| Spec says | Built | Why |
+|---|---|---|
+| Items listed with the person named in words | Each item is its own card with a coloured left edge and an initial badge for the person it belongs to; the name stays in the text | Items run together in a plain list; the author asked for them to be clearly separate and for people to be told apart by more than a name |
+| Colour is never the only sign (brand) | The first member's badge is round and the second's square, the name is always written, and the badges are hidden from screen readers because the name is in the text | Colour alone fails for some people |
+| Not stated | A person chooses their own colour from terracotta, yellow or green (`colour` on the member, `PATCH /api/hh/members/me`), shown to both people. Unchosen colours follow the place (first terracotta, second yellow) and step aside if the other person chose it | A colour the other person sees must be shared, so it is not a per-device preference; the choices are the brand's shades with checked contrast (white on terracotta and green, Ink on yellow) |
+| Not stated | Members are ordered by user id, so the same person has the same place and shape on both phones | Not the viewer, which would swap them |
+| Not stated | Two people may choose the same colour | The shape and the name still tell them apart |
+

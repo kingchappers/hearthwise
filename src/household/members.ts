@@ -1,4 +1,4 @@
-import type { MemberSettings, MemberSettingsPatch } from '../shared/household';
+import type { MarkColour, MemberSettings, MemberSettingsPatch } from '../shared/household';
 import { ConditionFailedError } from '../store';
 import type { Store } from '../store';
 import { hhPk, membershipKey, memberSk, metaKey } from './keys';
@@ -19,10 +19,11 @@ function mergeSettings(current: MemberSettings, patch: MemberSettingsPatch): Mem
 export async function updateOwnMember(
   store: Store,
   ctx: HouseholdContext,
-  patch: { displayName?: string; settings?: MemberSettingsPatch },
+  patch: { displayName?: string; colour?: MarkColour; settings?: MemberSettingsPatch },
 ): Promise<Member> {
   const fields: Record<string, unknown> = {};
   if (patch.displayName !== undefined) fields.displayName = patch.displayName;
+  if (patch.colour !== undefined) fields.colour = patch.colour;
   if (patch.settings !== undefined) fields.settings = mergeSettings(ctx.member.settings, patch.settings);
 
   const updated = await store.patch({ PK: hhPk(ctx.householdId), SK: memberSk(ctx.userId) }, fields, { mustExist: true });
