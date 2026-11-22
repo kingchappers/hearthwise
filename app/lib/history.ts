@@ -13,5 +13,8 @@ export function useTaskHistory(taskId: string) {
   return useQuery({
     queryKey: ['task-history', taskId],
     queryFn: async () => await request(`/api/hh/tasks/${taskId}/history`) as TaskHistoryData,
+    // The page is open to see what happened: the other person's Done should show without a reload.
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 }

@@ -13,8 +13,18 @@ export interface ProposalBannerProps {
   onWithdraw: (proposal: Proposal) => void;
 }
 
-function describe(change: Change, title: string, roster: NamedMember[], viewerId: string): string {
+// Whether the change only hands the task to the other person. Said by the person who asked, that is "take": "give X to Alex" read as
+// Alex giving it to Alex.
+function isTake(change: Change, viewerId: string, mine: boolean): boolean {
+  if (!mine || change.kind !== 'edit') return false;
+  const { assignee, dueOn, repeat } = change.set;
+  return assignee !== undefined && assignee !== 'either' && assignee !== 'both' && assignee !== viewerId && dueOn === undefined && repeat === undefined;
+}
+
+// What the change asks for, said from the viewer's side.
+function describe(change: Change, title: string, roster: NamedMember[], viewerId: string, mine: boolean): string {
   const quoted = `"${title}"`;
+  if (isTake(change, viewerId, mine)) return `take ${quoted}`;
   if (change.kind === 'swap') return `swap ${quoted}`;
   if (change.kind === 'delete') return `delete ${quoted}`;
   if (change.kind === 'restore') return `restore ${quoted}`;
@@ -43,8 +53,8 @@ export function ProposalBanner({ proposals, tasks, roster, viewerId, onAccept, o
   return (
     <Stack gap="xs">
       {proposals.map(proposal => {
-        const what = describe(proposal.change, titleOf(proposal.taskId), roster, viewerId);
         const mine = proposal.fromUserId === viewerId;
+        const what = describe(proposal.change, titleOf(proposal.taskId), roster, viewerId, mine);
 
         if (proposal.status === 'pending' && !mine) {
           return (
@@ -61,9 +71,9 @@ export function ProposalBanner({ proposals, tasks, roster, viewerId, onAccept, o
         }
         if (proposal.status === 'pending') {
           return (
-            <Alert key={proposal.id} color="honey" title="Waiting for them">
+            <Alert key={proposal.id} color="honey" title={`Waiting for ${otherName(proposal)}`}>
               <Stack gap="xs">
-                <Text>{`You asked ${otherName(proposal)} to ${what}`}</Text>
+                <Text>{`You asked ${otherName(proposal)} to ${what}.`}</Text>
                 <Group><Button variant="default" onClick={() => onWithdraw(proposal)}>Withdraw</Button></Group>
               </Stack>
             </Alert>
@@ -76,6 +86,13 @@ export function ProposalBanner({ proposals, tasks, roster, viewerId, onAccept, o
               <Text size="sm">{`You asked ${otherName(proposal)} to ${what}`}</Text>
             </Alert>
           );
+        }
+        if (isTake(proposal.change, viewerId, mine) && (proposal.status === 'accepted' || proposal.status === 'declined')) {
+          const quoted = `"${titleOf(proposal.taskId)}"`;
+          const text = proposal.status === 'accepted'
+            ? `${otherName(proposal)} said yes to taking ${quoted}. It is now theirs.`
+            : `${otherName(proposal)} said no to taking ${quoted}. It is still on your list.`;
+          return <Alert key={proposal.id} color="honey"><Text>{text}</Text></Alert>;
         }
         const result = proposal.status === 'withdrawn' ? 'You withdrew' : `${otherName(proposal)} ${RESOLVED[proposal.status]}`;
         return <Alert key={proposal.id} color="honey"><Text>{`${result}: ${what}`}</Text></Alert>;

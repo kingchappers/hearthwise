@@ -597,7 +597,8 @@ export function registerMutations(
       const run = RUNNERS[kind as MutationKind] as Runner<MutationKind>;
       return run(variables, send, taskId => data.tasks.find(task => task.id === taskId));
     },
-    invalidate: () => [TASKS_KEY],
+    // The task page's history is read on its own, so it is refreshed with the list.
+    invalidate: () => [TASKS_KEY, ['task-history']],
     onError: (kind, error, variables: MutationVars[MutationKind]) => {
       const message = describeFailure(error);
       if (!message) return;

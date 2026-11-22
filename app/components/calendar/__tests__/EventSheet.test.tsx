@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expectNoViolations } from '~/test-utils/accessibility';
 
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import { EventSheet } from '../EventSheet';
 import type { EventSheetProps } from '../EventSheet';
@@ -94,12 +94,12 @@ describe('EventSheet: adding', () => {
 
   it('CUJ 4: a private event says what the other person sees, holds it to the maker, and has no Let them know', async () => {
     renderSheet();
-    expect(screen.getByLabelText('Let Alex know')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tell Alex when I save a change')).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText('Who is it for?'), ALEX);
     await userEvent.click(screen.getByRole('switch', { name: /^Private/ }));
     expect(screen.getByText('Only you can see the details. Alex sees that you are busy.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Who is it for?')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Let Alex know')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Tell Alex when I save a change')).not.toBeInTheDocument();
     expect(screen.getByText('Nothing is sent to Alex about a private event.')).toBeInTheDocument();
     await type('Title', 'Counselling');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
