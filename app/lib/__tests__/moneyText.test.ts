@@ -20,6 +20,11 @@ describe('totalText', () => {
 
   it('says All square at zero', () => {
     expect(totalText({ direction: 'square', pence: 0 }, 'Sam', 'Alex')).toBe('All square');
+    expect(totalText({ direction: 'square', pence: 0 }, 'Sam', 'Alex', 0)).toBe('All square');
+    expect(totalText({ direction: 'square', pence: 0 }, 'Sam', 'Alex', 1)).toBe('All square so far (1 entry waiting)');
+    expect(totalText({ direction: 'square', pence: 0 }, 'Sam', 'Alex', 3)).toBe('All square so far (3 entries waiting)');
+    // A total that is not square needs no qualification.
+    expect(totalText({ direction: 'toMe', pence: 3000 }, 'Sam', 'Alex', 2)).toBe('£30.00 to settle, from Alex to Sam');
   });
 });
 
@@ -71,9 +76,9 @@ describe('stateLabel', () => {
     expect(stateLabel(entry({ status: 'waiting', proposedBy: ALEX }), people)).toBe('Waiting for you');
   });
 
-  it('says the other person wants to check a declined entry, and waits for them when it is theirs', () => {
+  it('says the other person wants to check a declined entry, and tells the person who asked that they asked', () => {
     expect(stateLabel(entry({ status: 'declined' }), people)).toBe('Alex wants to check this one');
-    expect(stateLabel(entry({ status: 'declined', proposedBy: ALEX }), people)).toBe('Waiting for Alex');
+    expect(stateLabel(entry({ status: 'declined', proposedBy: ALEX }), people)).toBe('You asked Alex to check this');
   });
 
   it('says a change or a delete is waiting, with the old and the new amount', () => {
