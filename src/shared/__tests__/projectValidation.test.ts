@@ -168,3 +168,13 @@ describe('parseAddMaterials', () => {
     expect(parseAddMaterials({ ...body, ...env })).toEqual({ ok: false, field });
   });
 });
+
+describe('a step\'s energy tag', () => {
+  it('is accepted as a size with its time, or null to clear, and nothing else', () => {
+    const body = env;
+    expect(parseStepPut({ ...body, energy: 'small', energyAt: AT }).ok).toBe(true);
+    expect(parseStepPut({ ...body, energy: null, energyAt: AT }).ok).toBe(true);
+    expect(parseStepPut({ ...body, energy: 'huge', energyAt: AT }).ok).toBe(false);
+    expect(parseStepPut({ ...body, energy: 'small' }).ok).toBe(false);
+  });
+});

@@ -86,7 +86,7 @@ export function useTaskActions(): TaskActions {
 
   function runStep(step: SaveStep): void {
     if (step.kind === 'edit') {
-      edit.mutate({ ...common(), taskId: step.taskId, title: step.title, notes: step.notes, checklist: step.checklist });
+      edit.mutate({ ...common(), taskId: step.taskId, title: step.title, notes: step.notes, energy: step.energy, checklist: step.checklist });
     } else if (step.kind === 'schedule') {
       schedule.mutate({ ...common(), taskId: step.taskId, assignee: step.assignee, repeat: step.repeat, dueOn: step.dueOn });
     } else {

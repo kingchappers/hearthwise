@@ -1,3 +1,5 @@
+import { EnergyPicker } from '~/components/shared/EnergyPicker';
+import type { Energy } from '../../../src/shared/energy';
 import { useState } from 'react';
 import { useDraftText } from '~/lib/textDrafts';
 import { Alert, Button, Group, NativeSelect, Stack, Text, Textarea, TextInput } from '@mantine/core';
@@ -31,6 +33,7 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
   const draftKey = task ? `task:${task.id}` : 'newtask';
   const [title, setTitle, clearTitle] = useDraftText(me.userId, `${draftKey}:title`, task?.title ?? '');
   const [notes, setNotes, clearNotes] = useDraftText(me.userId, `${draftKey}:notes`, task?.notes ?? '');
+  const [energy, setEnergy] = useState<Energy | undefined>(task?.energy);
   const [assignee, setAssignee] = useState(task?.assignee ?? 'either');
   const [repeat, setRepeat] = useState<Repeat>(task?.repeat ?? { type: 'none' });
   const [dueOn, setDueOn] = useState(task?.dueOn ?? '');
@@ -45,6 +48,7 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
     if (!task) return diff;
     if (title.trim() !== task.title) diff.title = title.trim();
     if (notes !== (task.notes ?? '')) diff.notes = notes;
+    if (energy !== task.energy) diff.energy = energy ?? 'none';
     if (assignee !== task.assignee) diff.assignee = assignee;
     if (JSON.stringify(repeat) !== JSON.stringify(task.repeat)) diff.repeat = repeat;
     if (dueOn !== '' && (dueOn !== task.dueOn || diff.repeat !== undefined)) diff.dueOn = dueOn;
@@ -78,6 +82,7 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
         id: crypto.randomUUID(),
         title: title.trim(),
         ...(notes.trim() === '' ? {} : { notes }),
+        ...(energy === undefined ? {} : { energy }),
         assignee,
         repeat,
         ...(dueOn === '' ? {} : { dueOn }),
@@ -94,6 +99,7 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
       <Stack>
         <TextInput label="Title" value={title} onChange={event => setTitle(event.currentTarget.value)} maxLength={MAX_TITLE} autoComplete="off" />
         <Textarea label="Notes" value={notes} onChange={event => setNotes(event.currentTarget.value)} maxLength={MAX_NOTES} autosize minRows={2} />
+        <EnergyPicker value={energy} onChange={setEnergy} />
         <NativeSelect
           label="Who is it for?"
           value={assignee}

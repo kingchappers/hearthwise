@@ -19,10 +19,11 @@ export interface TaskListProps {
   viewerId: string;
   onComplete: (task: Task) => void;
   relative?: boolean;
+  littleEnergy?: boolean;
 }
 
-export function TaskList({ tasks, today, roster, viewerId, onComplete, relative = false }: TaskListProps) {
-  const groups = groupTasks(tasks, today);
+export function TaskList({ tasks, today, roster, viewerId, onComplete, relative = false, littleEnergy = false }: TaskListProps) {
+  const groups = groupTasks(tasks, today, littleEnergy);
   if (GROUPS.every(({ group }) => groups[group].length === 0)) {
     return (
       <Stack>

@@ -60,3 +60,15 @@ describe('planSave', () => {
     expect(planSave(task(), { assignee: ME, dueOn: '2026-11-13' }, caller)).toEqual({ steps: [], needsAsk: false });
   });
 });
+
+describe('planSave: the energy tag', () => {
+  it('applies a size directly, even on the other member\'s task, and sends "none" to take it off', () => {
+    expect(planSave(task({ assignee: THEM }), { energy: 'small' }, caller)).toEqual({ steps: [{ kind: 'edit', taskId: 't1', energy: 'small' }], needsAsk: false });
+    expect(planSave(task({ energy: 'big' }), { energy: 'none' }, caller).steps).toEqual([{ kind: 'edit', taskId: 't1', energy: 'none' }]);
+  });
+
+  it('does nothing for a size that is already set, or for none when there is none', () => {
+    expect(planSave(task({ energy: 'big' }), { energy: 'big' }, caller).steps).toEqual([]);
+    expect(planSave(task(), { energy: 'none' }, caller).steps).toEqual([]);
+  });
+});

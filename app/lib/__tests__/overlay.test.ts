@@ -96,3 +96,17 @@ describe('applyPending', () => {
     expect(result.tasks).toHaveLength(1);
   });
 });
+
+describe('the energy tag in pending writes', () => {
+  it('shows a size set by a pending edit, the newest write winning, and "none" takes it off', () => {
+    const sized = one(after('edit', { taskId: 't1', energy: 'small', at: 100 }));
+    expect(sized.energy).toBe('small');
+    expect(one(after('edit', { taskId: 't1', energy: 'big', at: 50 }, data([base({ energy: 'small', fieldTimes: { energy: 80 } })]))).energy).toBe('small');
+    expect(one(after('edit', { taskId: 't1', energy: 'none', at: 200 }, data([base({ energy: 'small', fieldTimes: { energy: 80 } })]))).energy).toBeUndefined();
+  });
+
+  it('keeps the size a new task was made with', () => {
+    const made = after('create', { task: { id: 't9', title: 'New', energy: 'big', assignee: 'either', repeat: { type: 'none' } } });
+    expect(one(made, 't9').energy).toBe('big');
+  });
+});

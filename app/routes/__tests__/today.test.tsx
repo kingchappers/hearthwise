@@ -58,8 +58,37 @@ beforeEach(() => {
   state.plan = { status: 'ready', days: [], today: TODAY, recipes: [], recipesCheckedAt: undefined, refetch: vi.fn() };
   state.planActions = { set: vi.fn(), clear: vi.fn() };
   state.sources = sourcesOf([]);
+  localStorage.clear();
   state.settings = {};
   state.projects = { ...state.projects, projects: [] };
+});
+
+describe('Today: little energy', () => {
+  it('is off to begin with, and turns on with one tap to put the small things first in the list', async () => {
+    state.tasks.tasks = [task({ id: 'b', title: 'Big job', energy: 'big', dueOn: TODAY }), task({ id: 's', title: 'Small job', energy: 'small', dueOn: TODAY })];
+    renderToday();
+    const switchEl = screen.getByRole('switch', { name: /Little energy today/ });
+    expect(switchEl).not.toBeChecked();
+    expect(screen.getAllByRole('link').map(link => link.textContent).filter(text => /job/.test(text ?? ''))).toEqual(['Big job', 'Small job']);
+    await userEvent.click(switchEl);
+    expect(switchEl).toBeChecked();
+    expect(screen.getAllByRole('link').map(link => link.textContent).filter(text => /job/.test(text ?? ''))).toEqual(['Small job', 'Big job']);
+  });
+
+  it('says the size on a task that has one', () => {
+    state.tasks.tasks = [task({ title: 'Sort the post', energy: 'small' })];
+    renderToday();
+    expect(screen.getByText(/Small job/)).toBeInTheDocument();
+  });
+
+  it('shows the small thing first in Show one task when it is on', async () => {
+    state.defaultView = 'next';
+    state.tasks.tasks = [task({ id: 'b', title: 'Big one', energy: 'big', dueOn: TODAY }), task({ id: 's', title: 'Small one', energy: 'small', dueOn: TODAY })];
+    renderToday();
+    await userEvent.click(screen.getByRole('switch', { name: /Little energy today/ }));
+    expect(screen.getByText('Small one')).toBeInTheDocument();
+    expect(screen.queryByText('Big one')).not.toBeInTheDocument();
+  });
 });
 
 describe('Today: Coming up', () => {

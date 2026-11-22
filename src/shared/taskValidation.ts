@@ -1,3 +1,4 @@
+import { isEnergy, type Energy } from './energy';
 import type { Change, ChecklistStep, CreateTaskInput, PatchTaskInput, ProposalInput } from '../tasks/types';
 import { isRealDate } from './schedule';
 import type { Repeat, Weekday } from './schedule';
@@ -22,6 +23,9 @@ export function parseUuid(value: unknown, field: string): Parsed<string> {
 }
 
 export const parseTaskTitle = (value: unknown): Parsed<string> => trimmedText(value, 120, 'title');
+
+export const parseEnergy = (value: unknown): Parsed<Energy> => (isEnergy(value) ? good(value) : bad('energy'));
+const parseEnergyOrNone = (value: unknown): Parsed<Energy | 'none'> => (value === 'none' ? good('none' as const) : parseEnergy(value));
 
 export function parseNotes(value: unknown): Parsed<string> {
   return typeof value === 'string' && Array.from(value).length <= MAX_NOTES ? good(value) : bad('notes');
@@ -122,7 +126,7 @@ export function parseEnvelope(body: Record<string, unknown>): Parsed<Envelope> {
 }
 
 export function parseCreateTask(body: Record<string, unknown>): Parsed<CreateTaskInput> {
-  const extra = unknownKey(body, ['id', 'title', 'notes', 'assignee', 'repeat', 'dueOn', 'checklist', ...ENVELOPE_KEYS], '');
+  const extra = unknownKey(body, ['id', 'title', 'notes', 'energy', 'assignee', 'repeat', 'dueOn', 'checklist', ...ENVELOPE_KEYS], '');
   if (extra) return bad(extra);
   const id = parseUuid(body.id, 'id');
   if (!id.ok) return id;
@@ -138,6 +142,11 @@ export function parseCreateTask(body: Record<string, unknown>): Parsed<CreateTas
     const notes = parseNotes(body.notes);
     if (!notes.ok) return notes;
     input.notes = notes.value;
+  }
+  if (body.energy !== undefined) {
+    const energy = parseEnergy(body.energy);
+    if (!energy.ok) return energy;
+    input.energy = energy.value;
   }
   if (body.repeat !== undefined) {
     const repeat = parseRepeat(body.repeat);
@@ -182,7 +191,7 @@ function parseTicks(value: unknown): Parsed<NonNullable<PatchTaskInput['ticks']>
 }
 
 export function parsePatchTask(body: Record<string, unknown>): Parsed<PatchTaskInput> {
-  const extra = unknownKey(body, ['title', 'titleAt', 'notes', 'notesAt', 'checklist', 'checklistAt', 'ticks', 'assignee', 'repeat', 'dueOn', 'baseRuleVersion', 'baseCycleSeq', ...ENVELOPE_KEYS], '');
+  const extra = unknownKey(body, ['title', 'titleAt', 'notes', 'notesAt', 'energy', 'energyAt', 'checklist', 'checklistAt', 'ticks', 'assignee', 'repeat', 'dueOn', 'baseRuleVersion', 'baseCycleSeq', ...ENVELOPE_KEYS], '');
   if (extra) return bad(extra);
   const envelope = parseEnvelope(body);
   if (!envelope.ok) return envelope;
@@ -197,6 +206,9 @@ export function parsePatchTask(body: Record<string, unknown>): Parsed<PatchTaskI
   const checklist = parseStamped(body, 'checklist', parseChecklist);
   if (!checklist.ok) return checklist;
   if (checklist.value) input.checklist = checklist.value;
+  const energy = parseStamped(body, 'energy', parseEnergyOrNone);
+  if (!energy.ok) return energy;
+  if (energy.value) input.energy = energy.value;
 
   if ('ticks' in body) {
     const ticks = parseTicks(body.ticks);
@@ -237,7 +249,7 @@ export function parsePatchTask(body: Record<string, unknown>): Parsed<PatchTaskI
     input.dueOn = { value: dueOn.value, baseRuleVersion: baseRule.value, baseCycleSeq: baseCycle.value };
   }
 
-  const changes = ['title', 'notes', 'checklist', 'ticks', 'assignee', 'repeat', 'dueOn'] as const;
+  const changes = ['title', 'notes', 'energy', 'checklist', 'ticks', 'assignee', 'repeat', 'dueOn'] as const;
   return changes.some(key => input[key] !== undefined) ? good(input) : bad('body');
 }
 

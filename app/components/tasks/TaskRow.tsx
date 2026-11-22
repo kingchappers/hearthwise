@@ -1,5 +1,6 @@
 import { Anchor, Group, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router';
+import { ENERGY_LABELS } from '../../../src/shared/energy';
 import type { Task } from '../../../src/tasks/types';
 import { effectiveAssignee } from '~/lib/tasks';
 import { assigneeLabel, dueLabel } from '~/lib/taskText';
@@ -24,7 +25,7 @@ export function TaskRow({ task, today, roster, viewerId, onComplete, relative = 
       <Group justify="space-between" wrap="nowrap" gap="sm" py={6}>
         <Stack gap={2} miw={0}>
           <Anchor component={Link} to={`/tasks/${task.id}`} fw={600} style={{ overflowWrap: 'anywhere' }}>{task.title}</Anchor>
-          <Text size="sm">{[assigneeLabel(task, roster, viewerId), due].filter(Boolean).join(' · ')}</Text>
+          <Text size="sm">{[assigneeLabel(task, roster, viewerId), due, task.energy === undefined ? undefined : `${ENERGY_LABELS[task.energy]} job`].filter(Boolean).join(' · ')}</Text>
         </Stack>
         <DidThisToday task={task} own={owner === viewerId || owner === 'either' || owner === 'both'} onClick={() => onComplete(task)} />
       </Group>
