@@ -66,7 +66,7 @@ export function InviteLink() {
 
   return (
     <Stack>
-      <Text size="sm">Share the link with your partner. It works once and expires in 7 days.</Text>
+      <Text size="sm">Share the link with the other person. It works once and expires in 7 days. You will see it only once, so copy it before you leave this page.</Text>
       <Group>
         <Button onClick={() => void makeLink()} loading={create.isPending}>Create invite link</Button>
       </Group>
@@ -85,7 +85,7 @@ export function InviteLink() {
         <Stack gap="xs">
           {invites.map(invite => (
             <Group key={invite.hash} justify="space-between" wrap="wrap">
-              <Text size="sm">{`Open invite, expires ${new Date(invite.expiresAt * 1000).toLocaleDateString()}`}</Text>
+              <Text size="sm">{`Link already shown. Revoke it to make a new one. Expires ${new Date(invite.expiresAt * 1000).toLocaleDateString()}`}</Text>
               <Button variant="default" onClick={() => void revokeInvite(invite.hash)}>Revoke</Button>
             </Group>
           ))}

@@ -80,7 +80,7 @@ describe('local auth store', () => {
   });
 
   it.each([
-    [410, { error: 'invite_expired' }, 'This invite has expired. Ask your partner for a new link.'],
+    [410, { error: 'invite_expired' }, 'This invite has expired. Ask them for a new link.'],
     [409, { error: 'email_taken' }, 'That email already has an account. Try signing in instead.'],
     [409, { error: 'household_full' }, 'This household already has two people.'],
   ])('explains a %i %o in plain words', async (status, body, message) => {

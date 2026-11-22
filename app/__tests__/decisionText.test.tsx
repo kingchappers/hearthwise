@@ -94,8 +94,8 @@ describe('settings', () => {
 describe('welcome', () => {
   it('shows the invite prompt and the household hints at a readable size', () => {
     renderIn(<Welcome />);
-    expectReadable(screen.getByText('Waiting for an invite? Open the link your partner sent you.'));
-    expectReadable(screen.getByText('How you will appear to your partner.'));
+    expectReadable(screen.getByText('Open the link the other person sent you, or paste it here.'));
+    expectReadable(screen.getByText('How the other person sees you.'));
     expectReadable(screen.getByText('Used for dates and reminders. It is set from this device.'));
   });
 });
@@ -103,15 +103,15 @@ describe('welcome', () => {
 describe('join', () => {
   it('says what is happening at a readable size', () => {
     renderIn(<Join />);
-    expectReadable(screen.getByText("This invite link doesn't look right. Ask your partner for a new link."));
+    expectReadable(screen.getByText("This invite link doesn't look right. Ask them for a new link."));
   });
 });
 
 describe('members in settings', () => {
   it('shows the invite and member text at a readable size', () => {
     renderIn(<Settings />);
-    expectReadable(screen.getByText('Share the link with your partner. It works once and expires in 7 days.'));
-    expectReadable(screen.getByText('How you will appear to your partner.'));
+    expectReadable(screen.getByText('Share the link with the other person. It works once and expires in 7 days. You will see it only once, so copy it before you leave this page.'));
+    expectReadable(screen.getByText('How the other person sees you.'));
   });
 });
 

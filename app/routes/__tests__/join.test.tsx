@@ -57,10 +57,22 @@ describe('Join in Auth0 mode', () => {
     expect(window.localStorage.getItem('hearthwise-invite')).toContain(TOKEN);
   });
 
-  it('starts sign-in when signed out', async () => {
+  it('says what will happen, then starts sign-in only when asked', async () => {
     renderJoin();
-    await waitFor(() => expect(auth.login).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/Sign in, or make an account, and you will come back here/)).toBeInTheDocument();
+    expect(screen.getByText('This invite is kept on this device for an hour.')).toBeInTheDocument();
+    expect(auth.login).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to sign in' }));
+    expect(auth.login).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument();
+  });
+
+  it('says so, and lets the person try again, when sign-in does not open', async () => {
+    auth.login.mockRejectedValueOnce(new Error('blocked'));
+    renderJoin();
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to sign in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in did not open. Try again.');
+    expect(screen.getByRole('button', { name: 'Continue to sign in' })).toBeEnabled();
   });
 
   it('keeps using the stored token after sign-in brings the person back without a hash', async () => {
@@ -87,7 +99,7 @@ describe('Join in Auth0 mode', () => {
     const user = userEvent.setup();
     renderJoin();
     await user.click(await screen.findByRole('button', { name: 'Join household' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('This invite has expired. Ask your partner for a new link.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('This invite has expired. Ask them for a new link.');
     expect(window.localStorage.getItem('hearthwise-invite')).toBeNull();
   });
 
@@ -97,7 +109,7 @@ describe('Join in Auth0 mode', () => {
     const user = userEvent.setup();
     renderJoin();
     await user.click(await screen.findByRole('button', { name: 'Join household' }));
-    expect(await screen.findByText("Move to your partner's household? Your current household is empty and will be removed.")).toBeInTheDocument();
+    expect(await screen.findByText("Move to the other person's household? Your current household is empty and will be removed. If you stay, this invite is thrown away.")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Move to their household' }));
     expect(accept).toHaveBeenLastCalledWith({ token: TOKEN, displayName: 'Bea', confirmMove: true });
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/));
@@ -117,7 +129,7 @@ describe('Join in Auth0 mode', () => {
   it('says so, and offers no join, when the address has no usable token', () => {
     auth.isAuthenticated = true;
     renderJoin('/join#short');
-    expect(screen.getByRole('alert')).toHaveTextContent("This invite link doesn't look right. Ask your partner for a new link.");
+    expect(screen.getByRole('alert')).toHaveTextContent("This invite link doesn't look right. Ask them for a new link.");
     expect(screen.queryByRole('button', { name: 'Join household' })).not.toBeInTheDocument();
   });
 });
@@ -158,8 +170,8 @@ describe('Join in local mode', () => {
     expect(window.localStorage.getItem('hearthwise-invite')).toBeNull();
   });
 
-  it('clears the token when sign-up fails too, and shows the reason', async () => {
-    signup.mockRejectedValue(new Error('This invite has expired. Ask your partner for a new link.'));
+  it('keeps the token when sign-up fails, so a reload does not lose the invite, and shows the reason', async () => {
+    signup.mockRejectedValue(new Error('This invite has expired. Ask them for a new link.'));
     const user = userEvent.setup();
     renderJoin();
     await user.type(screen.getByLabelText('Email'), 'bea@example.com');
@@ -167,6 +179,6 @@ describe('Join in local mode', () => {
     await user.type(screen.getByLabelText('Password'), 'a long enough password');
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('This invite has expired');
-    expect(window.localStorage.getItem('hearthwise-invite')).toBeNull();
+    expect(window.localStorage.getItem('hearthwise-invite')).toContain(TOKEN);
   });
 });

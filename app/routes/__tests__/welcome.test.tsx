@@ -36,7 +36,7 @@ describe('Welcome', () => {
 
   it('leads with the invite prompt, before the create form', () => {
     renderWelcome();
-    const prompt = screen.getByText('Waiting for an invite? Open the link your partner sent you.');
+    const prompt = screen.getByRole('heading', { name: 'Join with an invite' });
     const form = screen.getByRole('heading', { name: 'Create a household' });
     expect(prompt.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
