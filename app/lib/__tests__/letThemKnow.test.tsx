@@ -18,6 +18,32 @@ describe('Let them know', () => {
     expect(notifyFields()).toEqual({ notify: true });
   });
 
+  it('is used up by the save it was ticked for, so the next save does not message the other person', () => {
+    const { result } = renderHook(() => useLetThemKnow());
+    act(() => result.current.set(true));
+    let used: ReturnType<typeof notifyFields> = {};
+    act(() => { used = notifyFields(); });
+    expect(used).toEqual({ notify: true });
+    expect(letThemKnowOn()).toBe(false);
+    expect(result.current.on).toBe(false);
+    expect(notifyFields()).toEqual({});
+  });
+
+  it('says it told them after a save that carried the tick, until it is ticked again or the page changes', () => {
+    const view = renderHook(() => useLetThemKnow());
+    const { result } = view;
+    expect(result.current.told).toBe(false);
+    act(() => result.current.set(true));
+    act(() => { notifyFields(); });
+    expect(result.current.told).toBe(true);
+    act(() => result.current.set(true));
+    expect(result.current.told).toBe(false);
+    act(() => { notifyFields(); });
+    expect(result.current.told).toBe(true);
+    view.unmount();
+    expect(renderHook(() => useLetThemKnow()).result.current.told).toBe(false);
+  });
+
   it('is shared by every box on the page, and goes off again when the last one leaves', () => {
     const page = renderHook(() => useLetThemKnow());
     const sheet = renderHook(() => useLetThemKnow());

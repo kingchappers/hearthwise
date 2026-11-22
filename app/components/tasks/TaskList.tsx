@@ -18,11 +18,13 @@ export interface TaskListProps {
   roster: NamedMember[];
   viewerId: string;
   onComplete: (task: Task) => void;
+  // Tasks the viewer has asked the other person to take, by task id, with that person's name.
+  askedOf?: ReadonlyMap<string, string>;
   relative?: boolean;
   littleEnergy?: boolean;
 }
 
-export function TaskList({ tasks, today, roster, viewerId, onComplete, relative = false, littleEnergy = false }: TaskListProps) {
+export function TaskList({ tasks, today, roster, viewerId, onComplete, askedOf, relative = false, littleEnergy = false }: TaskListProps) {
   const groups = groupTasks(tasks, today, littleEnergy);
   if (GROUPS.every(({ group }) => groups[group].length === 0)) {
     return (
@@ -39,7 +41,7 @@ export function TaskList({ tasks, today, roster, viewerId, onComplete, relative 
           <Title order={2} size="h5" mb={4}>{title}</Title>
           <ul style={{ margin: 0, padding: 0 }}>
             {groups[group].map(task => (
-              <TaskRow key={task.id} task={task} today={today} roster={roster} viewerId={viewerId} onComplete={onComplete} relative={relative} />
+              <TaskRow key={task.id} task={task} today={today} roster={roster} viewerId={viewerId} onComplete={onComplete} askedOf={askedOf?.get(task.id)} relative={relative} />
             ))}
           </ul>
         </section>
