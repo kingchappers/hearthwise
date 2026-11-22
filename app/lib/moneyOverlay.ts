@@ -35,7 +35,7 @@ const OVERLAYS: { [K in MoneyMutationKind]: Overlay<K> } = {
     ...(v.on === undefined ? {} : { on: { value: v.on, at: v.at } }),
   }, v.by, v.at)),
 
-  moneyRespond: (data, v) => change(data, v.entryId, entry => respondToEntry(entry, v.response, v.version, v.by, v.at)),
+  moneyRespond: (data, v) => change(data, v.entryId, entry => respondToEntry(entry, v.response, v.version, v.by, v.at, v.because)),
 
   moneyChange: (data, v) => change(data, v.entryId, entry => askChange(entry, {
     id: v.mutationId, version: v.version, ...(v.money === undefined ? {} : { money: v.money }), ...(v.delete === undefined ? {} : { delete: true as const }),

@@ -100,15 +100,26 @@ export function parseMoneyPut(body: Record<string, unknown>): Parsed<MoneyPutInp
   return envelopeOf<MoneyPutInput>(body, rest);
 }
 
+// The longest reason a person can leave when asking the other to check an entry.
+export const MAX_BECAUSE = 200;
+
 const parseResponse = (value: unknown): Parsed<'agree' | 'decline'> => (value === 'agree' || value === 'decline' ? good(value) : bad('response'));
 
 export function parseRespond(body: Record<string, unknown>): Parsed<RespondInput> {
-  const extra = unknownKey(body, ['response', 'version', ...ENVELOPE_KEYS], '');
+  const extra = unknownKey(body, ['response', 'version', 'because', ...ENVELOPE_KEYS], '');
   if (extra) return bad(extra);
   const response = parseResponse(body.response);
   if (!response.ok) return response;
   if (!isWhole(body.version, 1, Number.MAX_SAFE_INTEGER)) return bad('version');
-  return envelopeOf<RespondInput>(body, { response: response.value, version: body.version });
+  const rest: Omit<RespondInput, 'mutationId' | 'clientAt'> = { response: response.value, version: body.version };
+  if (body.because !== undefined) {
+    // A reason goes with asking to check, never with agreeing.
+    if (response.value !== 'decline') return bad('because');
+    const because = trimmedText(body.because, MAX_BECAUSE, 'because');
+    if (!because.ok) return because;
+    rest.because = because.value;
+  }
+  return envelopeOf<RespondInput>(body, rest);
 }
 
 export function parseChange(body: Record<string, unknown>): Parsed<ChangeInput> {

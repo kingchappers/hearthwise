@@ -43,6 +43,7 @@ function applyFields(step: Step, write: StepWrite, userId: string, serverNow: nu
       if (step.state === 'done') {
         delete step.takenBy;
         delete step.takenAt;
+        delete step.takenNote;
         step.doneBy = userId;
         step.doneAt = at;
       } else {

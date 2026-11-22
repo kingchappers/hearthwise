@@ -91,6 +91,7 @@ Run these on two real phones, one for each person, with phase 5 in place. Design
 - [ ] Energy: give a task and a project step a size (Small, Medium, Big) and see "Small job" / "Small step" beside it; on Today turn on "Little energy today" and check the small things come first in the list and in Show one task, that the other person's phone is not affected, and that it is off again the next morning.
 - [ ] Planned-day reminder: in Settings turn on "Planned-day reminder", plan a project for tomorrow, and check one push arrives at the chosen hour saying "A project is planned tomorrow" without the project's name, and another the morning of; the other person, who left it off, gets nothing.
 - [ ] Do in this order: in Edit project turn on "Do the steps in this order", and check "Next" marks the first step not done and moves as steps are ticked, while every step can still be ticked or taken out of order; turn it off and the mark goes.
+- [ ] "Because...": take a project step with "Take it, and say why" and check the other person sees "Because: ..." under it, and that it goes when the step is given back or done; ask the other person to check a waiting money entry with "Say why" and check they see it on the entry, and that no push or log carries the words.
 - [ ] The month-later check (the success measure): after a month, each person opens the plan instead of asking the other what is next, and neither starts a step the other has. Ask both people. If not, note what is missing.
 
 ## Reading and touch

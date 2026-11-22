@@ -36,6 +36,7 @@ export function toEntry(raw: StoreItem): MoneyEntry {
   if (typeof raw.loanId === 'string') entry.loanId = raw.loanId;
   if (typeof raw.agreedAt === 'number') entry.agreedAt = raw.agreedAt;
   if (typeof raw.agreedBy === 'string') entry.agreedBy = raw.agreedBy;
+  if (raw.status === 'declined' && typeof raw.declinedBecause === 'string') entry.declinedBecause = raw.declinedBecause;
   if (raw.pendingChange !== undefined) entry.pendingChange = structuredClone(raw.pendingChange as MoneyEntry['pendingChange']);
   if (typeof raw.deletedAt === 'number') entry.deletedAt = raw.deletedAt;
   if (typeof raw.deletedBy === 'string') entry.deletedBy = raw.deletedBy;
@@ -180,7 +181,7 @@ export function putMoney(store: Store, ctx: HouseholdContext, id: string, input:
 export function respondMoney(store: Store, ctx: HouseholdContext, id: string, input: RespondInput, nowMs: number = Date.now()): Promise<WriteOutcome<{ entry: MoneyEntry }>> {
   return writeEntry(store, ctx, id, input.mutationId, nowMs, raw => {
     const found = requireRaw(raw);
-    return preparedFrom(ctx.householdId, found, respondToEntry(toEntry(found), input.response, input.version, ctx.userId, nowMs));
+    return preparedFrom(ctx.householdId, found, respondToEntry(toEntry(found), input.response, input.version, ctx.userId, nowMs, input.because));
   });
 }
 

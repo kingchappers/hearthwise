@@ -53,6 +53,7 @@ function setTimed(entry: MoneyEntry, edit: { description?: { value: string; at: 
 function putInWaiting(entry: MoneyEntry, userId: string, now: number): void {
   entry.proposedBy = userId;
   delete entry.agreedBy;
+  delete entry.declinedBecause;
   if (entry.sharePence === 0) {
     entry.status = 'agreed';
     entry.agreedAt = now;
@@ -119,7 +120,7 @@ export function editEntry(existing: MoneyEntry, edit: EditEntryInput, userId: st
   return done(entry);
 }
 
-export function respondToEntry(existing: MoneyEntry, response: 'agree' | 'decline', version: number, userId: string, now: number): Applied {
+export function respondToEntry(existing: MoneyEntry, response: 'agree' | 'decline', version: number, userId: string, now: number, because?: string): Applied {
   if (existing.deletedAt !== undefined) return refuse('gone', 410);
   if (existing.status !== 'waiting' || existing.version !== version) return changedSince(existing);
   if (existing.proposedBy === userId) return refuse('forbidden', 403);
@@ -131,6 +132,7 @@ export function respondToEntry(existing: MoneyEntry, response: 'agree' | 'declin
     entry.agreedBy = userId;
   } else {
     entry.status = 'declined';
+    if (because !== undefined) entry.declinedBecause = because;
   }
   entry.updatedAt = forward(existing, now);
   entry.updatedBy = userId;

@@ -150,7 +150,7 @@ export interface MoneyMutationVars {
   moneyAdd: Common & { entry: NewMoneyEntry };
   // The money group goes with the version it was based on; the description and date are sent only when they changed.
   moneyEdit: Common & { entryId: string; money?: MoneyChange; baseVersion?: number; description?: string; on?: string };
-  moneyRespond: Common & { entryId: string; response: 'agree' | 'decline'; version: number };
+  moneyRespond: Common & { entryId: string; response: 'agree' | 'decline'; version: number; because?: string };
   // The request is named by this write's own mutation id, which is what the other person answers.
   moneyChange: Common & { entryId: string; version: number; money?: MoneyChange; delete?: true };
   moneyChangeRespond: Common & { entryId: string; response: 'agree' | 'decline'; requestId: string };
@@ -197,7 +197,8 @@ export interface ProjectMutationVars {
   releaseProject: Common & { projectId: string };
   putStep: Common & { projectId: string; stepId: string; changes: StepChanges };
   deleteStep: Common & { projectId: string; stepId: string };
-  takeStep: Common & { projectId: string; stepId: string };
+  // `because` is an optional short reason the other person reads under the step.
+  takeStep: Common & { projectId: string; stepId: string; because?: string };
   releaseStep: Common & { projectId: string; stepId: string };
   // A material line is its text; `at` is the time it was written.
   putMaterial: Common & { projectId: string; lineId: string; text: string };
@@ -336,7 +337,7 @@ const MONEY_RUNNERS: { [K in MoneyMutationKind]: (vars: MoneyMutationVars[K], re
     ...(v.description === undefined ? {} : { description: v.description, descriptionAt: v.at }),
     ...(v.on === undefined ? {} : { on: v.on, onAt: v.at }),
   }),
-  moneyRespond: (v, request) => send(request, 'POST', `${moneyPath(v.entryId)}/respond`, { mutationId: v.mutationId, clientAt: v.at, response: v.response, version: v.version }),
+  moneyRespond: (v, request) => send(request, 'POST', `${moneyPath(v.entryId)}/respond`, { mutationId: v.mutationId, clientAt: v.at, response: v.response, version: v.version, ...(v.because === undefined ? {} : { because: v.because }) }),
   moneyChange: (v, request) => send(request, 'POST', `${moneyPath(v.entryId)}/change`, {
     mutationId: v.mutationId, clientAt: v.at, version: v.version, ...(v.money === undefined ? {} : { money: v.money }), ...(v.delete === undefined ? {} : { delete: true }),
   }),
@@ -416,7 +417,7 @@ const PROJECT_RUNNERS: { [K in ProjectMutationKind]: (vars: ProjectMutationVars[
   releaseProject: (v, request) => send(request, 'POST', `${projectPath(v.projectId)}/release`, plain(v)),
   putStep: (v, request) => send(request, 'PUT', stepPath(v.projectId, v.stepId), { ...plain(v), ...stamped(v.changes, v.at) }),
   deleteStep: (v, request) => send(request, 'DELETE', stepPath(v.projectId, v.stepId), plain(v)),
-  takeStep: (v, request) => send(request, 'POST', `${stepPath(v.projectId, v.stepId)}/take`, plain(v)),
+  takeStep: (v, request) => send(request, 'POST', `${stepPath(v.projectId, v.stepId)}/take`, { ...plain(v), ...(v.because === undefined ? {} : { because: v.because }) }),
   releaseStep: (v, request) => send(request, 'POST', `${stepPath(v.projectId, v.stepId)}/release`, plain(v)),
   putMaterial: (v, request) => send(request, 'PUT', `${projectPath(v.projectId)}/materials/${v.lineId}`, { ...plain(v), text: v.text, textAt: v.at }),
   deleteMaterial: (v, request) => send(request, 'DELETE', `${projectPath(v.projectId)}/materials/${v.lineId}`, plain(v)),

@@ -60,6 +60,8 @@ export interface Step extends Tombstone {
   position: string;
   takenBy?: string;
   takenAt?: number;
+  // A short reason left when taking the step, for the other person to read. Goes when the hold does.
+  takenNote?: string;
   doneBy?: string;
   doneAt?: number;
   fieldTimes: StepFieldTimes;

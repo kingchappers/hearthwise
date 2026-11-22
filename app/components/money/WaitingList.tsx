@@ -2,6 +2,7 @@ import { Button, Group, Title } from '@mantine/core';
 import type { MoneyEntry } from '../../../src/money/types';
 import type { MoneyActions } from '~/hooks/useMoneyActions';
 import type { People } from '~/lib/moneyText';
+import { AskWithReason } from './AskWithReason';
 import { EntryRow } from './EntryRow';
 
 export interface WaitingListProps {
@@ -37,6 +38,7 @@ export function WaitingList({ title, mode, entries, people, unsavedIds, canWrite
           >
             {entry.pendingChange ? 'Keep as it is' : `Ask ${people.otherName} to check`}
           </Button>
+          {!entry.pendingChange && <AskWithReason otherName={people.otherName} name={name} disabled={off} onAsk={because => actions.respond(entry, 'decline', because)} />}
         </Group>
       );
     }

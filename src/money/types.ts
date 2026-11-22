@@ -45,6 +45,8 @@ export interface MoneyEntry extends MoneyUnit {
   agreedAt?: number;
   // Left out when the entry needed no agreement.
   agreedBy?: string;
+  // A short reason left when asking the other person to check an entry, shown to them. Goes when the entry is put in waiting again.
+  declinedBecause?: string;
   pendingChange?: PendingChange;
   updatedAt: number;
   updatedBy: string;
@@ -71,6 +73,8 @@ export interface MoneyPutInput {
 export interface RespondInput {
   response: 'agree' | 'decline';
   version: number;
+  // Only with 'decline'.
+  because?: string;
   mutationId: string;
 }
 
