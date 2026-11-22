@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({ money: undefined as unknown, actions: undefine
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/money', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/money')>()), useMoney: () => state.money }));
 vi.mock('~/hooks/useMoneyActions', () => ({ useMoneyActions: () => state.actions, useChangeNotices: vi.fn() }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 vi.mock('~/lib/household', () => ({
   useHousehold: () => ({ status: 'ready', refetch: vi.fn(), data: { household: { timezone: 'UTC' }, members: [{ userId: 'u-sam', displayName: 'Sam' }, { userId: 'u-alex', displayName: 'Alex' }], me: { userId: 'u-sam', displayName: 'Sam', settings: {} } } }),
 }));
@@ -64,7 +64,8 @@ describe('the Money page', () => {
     const loan = entry({ kind: 'loan', amountPence: 5000, sharePence: 5000, description: 'Rent shortfall', status: 'waiting', agreedBy: undefined, agreedAt: undefined, version: 1 });
     show([loan]);
     renderPage();
-    expect(screen.getByText('All square')).toBeInTheDocument();
+    // Only agreed entries count, so it says how many are still waiting rather than claim nothing is owed.
+    expect(screen.getByText('All square so far (1 entry waiting)')).toBeInTheDocument();
     const waiting = screen.getByRole('heading', { level: 2, name: 'Waiting for Alex' }).closest('section') as HTMLElement;
     expect(within(waiting).getByText('Rent shortfall')).toBeInTheDocument();
     expect(within(waiting).getByText('Waiting for Alex', { selector: 'p' })).toBeInTheDocument();
@@ -191,7 +192,7 @@ describe('the Money page', () => {
   it('has the Let them know box, sound headings and no violations', async () => {
     show([waitingForMe(), entry({ status: 'declined' }), entry({ kind: 'loan', amountPence: 5000, sharePence: 5000 }), entry(), entry({ pendingChange: { id: 'r', by: SAM, at: 1, delete: true } })]);
     const { container } = renderPage();
-    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();
     expectSoundHeadings(container);
     await expectNoViolations(container);
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');

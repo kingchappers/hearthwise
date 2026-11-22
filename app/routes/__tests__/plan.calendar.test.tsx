@@ -14,7 +14,7 @@ vi.mock('~/lib/calendar', () => ({ useTimelineSources: () => state.sources }));
 vi.mock('~/hooks/useCalendarActions', () => ({ useCalendarActions: () => state.actions }));
 vi.mock('~/hooks/useFeedActions', () => ({ useFeedActions: () => ({ add: vi.fn(), replace: vi.fn(), edit: vi.fn(), refresh: vi.fn(), remove: vi.fn() }) }));
 vi.mock('~/lib/useOnline', () => ({ useOnline: () => state.online }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import CalendarPage, { meta } from '../plan.calendar';
 
@@ -154,7 +154,7 @@ describe('the Calendar page', () => {
 
   it('has the Let them know tick, and no small buttons', () => {
     renderPage();
-    expect(screen.getByLabelText('Let Alex know')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tell Alex when I save a change')).toBeInTheDocument();
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
   });
 });
