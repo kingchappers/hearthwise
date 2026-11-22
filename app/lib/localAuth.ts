@@ -37,7 +37,7 @@ function postJson(path: string, body: unknown): Promise<Response> {
 
 // Plain words for the codes the server sends; anything else shows the server's own message, then its error text.
 const ERROR_MESSAGES: Record<string, string> = {
-  invite_expired: 'This invite has expired. Ask your partner for a new link.',
+  invite_expired: 'This invite has expired. Ask them for a new link.',
   email_taken: 'That email already has an account. Try signing in instead.',
   household_full: 'This household already has two people.',
 };

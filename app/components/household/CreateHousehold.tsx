@@ -49,7 +49,7 @@ export function CreateHousehold({ defaultDisplayName }: { defaultDisplayName: st
     <form onSubmit={submit}>
       <Stack>
         <TextInput label="Household name" value={name} onChange={e => setName(e.currentTarget.value)} required withAsterisk={false} maxLength={MAX_NAME} autoComplete="off" />
-        <TextInput label="Your name" description="How you will appear to your partner." value={displayName} onChange={e => setDisplayName(e.currentTarget.value)} required withAsterisk={false} maxLength={MAX_DISPLAY_NAME} autoComplete="name" />
+        <TextInput label="Your name" description="How the other person sees you." value={displayName} onChange={e => setDisplayName(e.currentTarget.value)} required withAsterisk={false} maxLength={MAX_DISPLAY_NAME} autoComplete="name" />
         <NativeSelect
           label="Time zone"
           description="Used for dates and reminders. It is set from this device."

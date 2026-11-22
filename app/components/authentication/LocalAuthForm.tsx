@@ -74,7 +74,7 @@ export function LocalAuthForm({ mode, onLogin, onSetup, onSignup }: Props) {
         {creating && (
           <TextInput
             label="Your name"
-            description="How your partner sees you"
+            description="How the other person sees you"
             value={displayName}
             onChange={e => setDisplayName(e.currentTarget.value)}
             required

@@ -13,7 +13,7 @@ import type { Route } from './+types/join';
 export const meta: Route.MetaFunction = () => [{ title: pageTitle('Join your household') }];
 
 const MAX_DISPLAY_NAME = 40;
-const EXPIRED = 'This invite has expired. Ask your partner for a new link.';
+const EXPIRED = 'This invite has expired. Ask them for a new link.';
 
 type Outcome =
   | { kind: 'none' }
@@ -57,7 +57,7 @@ function AcceptInvite({ token, defaultName }: { token: string; defaultName: stri
   if (outcome.kind === 'confirmMove') {
     return (
       <Stack>
-        <Text>Move to your partner's household? Your current household is empty and will be removed.</Text>
+        <Text>Move to the other person's household? Your current household is empty and will be removed. If you stay, this invite is thrown away.</Text>
         <Group>
           <Button onClick={() => void join(true)} loading={accept.isPending}>Move to their household</Button>
           <Button variant="default" onClick={() => { clearInviteToken(); navigate('/', { replace: true }); }}>Stay where I am</Button>
@@ -71,7 +71,7 @@ function AcceptInvite({ token, defaultName }: { token: string; defaultName: stri
       <Text>You've been invited to share a household.</Text>
       <TextInput
         label="Your name"
-        description="How you will appear to your partner."
+        description="How the other person sees you."
         value={displayName}
         onChange={e => setDisplayName(e.currentTarget.value)}
         maxLength={MAX_DISPLAY_NAME}
@@ -89,13 +89,11 @@ function LocalSignup({ token }: { token: string }) {
   const { login } = useAuth();
 
   async function signup(input: { email: string; password: string; displayName: string }): Promise<void> {
-    try {
-      await signupWithInvite({ token, ...input });
-      navigate('/', { replace: true });
-    } finally {
-      // Success or failure, the stored copy is done with. The page keeps the token for a retry (a typo in the email).
-      clearInviteToken();
-    }
+    // The stored copy goes only when the invite is used. A failed try (a typo, a short password) keeps it, so a reload or a trip to
+    // the password manager does not lose the invite.
+    await signupWithInvite({ token, ...input });
+    clearInviteToken();
+    navigate('/', { replace: true });
   }
 
   return (
@@ -111,17 +109,26 @@ function LocalSignup({ token }: { token: string }) {
 
 function StartSignIn() {
   const { login } = useAuth();
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void Promise.resolve(login()).catch((error: unknown) => console.error('Join: could not start sign-in', error));
-  }, [login]);
+  const [starting, setStarting] = useState(false);
+  const [problem, setProblem] = useState(false);
+  async function start(): Promise<void> {
+    setStarting(true);
+    setProblem(false);
+    try {
+      await login();
+    } catch (error) {
+      console.error('Join: could not start sign-in', error);
+      setProblem(true);
+      setStarting(false);
+    }
+  }
   return (
-    <Group role="status">
-      <Loader size="sm" />
-      <Text>Taking you to sign in…</Text>
-    </Group>
+    <Stack>
+      <Text>You've been invited to share a household. Sign in, or make an account, and you will come back here to finish joining.</Text>
+      <Text size="sm">This invite is kept on this device for an hour.</Text>
+      {problem && <Alert color="honey" role="alert">Sign-in did not open. Try again.</Alert>}
+      <Group><Button onClick={() => void start()} loading={starting}>Continue to sign in</Button></Group>
+    </Stack>
   );
 }
 
@@ -141,7 +148,7 @@ function JoinContent() {
 
   let body: React.ReactNode;
   if (!token) {
-    body = <Alert color="honey" role="alert">This invite link doesn't look right. Ask your partner for a new link.</Alert>;
+    body = <Alert color="honey" role="alert">This invite link doesn't look right. Ask them for a new link.</Alert>;
   } else if (auth.isLoading) {
     body = <Group role="status"><Loader size="sm" /><Text>Checking your invite…</Text></Group>;
   } else if (auth.isAuthenticated) {

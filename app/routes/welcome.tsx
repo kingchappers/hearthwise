@@ -1,5 +1,6 @@
 import { Stack, Text, Title } from '@mantine/core';
 import { CreateHousehold } from '~/components/household/CreateHousehold';
+import { PasteInvite } from '~/components/household/PasteInvite';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { useAuth } from '~/lib/auth';
 import { pageTitle } from '~/lib/pageTitle';
@@ -12,8 +13,11 @@ function WelcomeContent() {
   return (
     <Stack maw={480}>
       <Title order={1} size="h3">Welcome</Title>
-      <Text>Waiting for an invite? Open the link your partner sent you.</Text>
+      <Title order={2} size="h4">Join with an invite</Title>
+      <Text>Open the link the other person sent you, or paste it here.</Text>
+      <PasteInvite />
       <Title order={2} size="h4">Create a household</Title>
+      <Text>Only one of you does this. The other person joins with an invite.</Text>
       <CreateHousehold defaultDisplayName={user?.name ?? user?.nickname ?? ''} />
     </Stack>
   );

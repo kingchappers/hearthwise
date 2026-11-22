@@ -30,7 +30,7 @@ function OwnName({ current }: { current: string }) {
         <TextInput
           w="100%"
           label="Your name"
-          description="How you will appear to your partner."
+          description="How the other person sees you."
           value={name}
           onChange={e => setName(e.currentTarget.value)}
           maxLength={MAX_DISPLAY_NAME}

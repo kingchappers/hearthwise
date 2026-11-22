@@ -69,7 +69,7 @@ describe('InviteLink', () => {
     invites.data = [{ hash: 'b'.repeat(64), createdBy: 'auth0|ann', expiresAt: 2_000_000_000 }];
     const user = setupUser();
     renderInvite();
-    expect(screen.getByText(/Open invite, expires/)).toBeInTheDocument();
+    expect(screen.getByText(/Link already shown. Revoke it to make a new one/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Revoke' }));
     expect(revoke).toHaveBeenCalledWith('b'.repeat(64));
   });
