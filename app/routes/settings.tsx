@@ -4,6 +4,8 @@ import { DefaultLayout } from '~/components/layout/DefaultLayout';
 import { InviteLink } from '~/components/household/InviteLink';
 import { Members } from '~/components/household/Members';
 import { CalendarColour } from '~/components/settings/CalendarColour';
+import { RelativeTimes } from '~/components/settings/RelativeTimes';
+import { TodaySettings } from '~/components/settings/TodaySettings';
 import { DefaultView } from '~/components/settings/DefaultView';
 import { PushCheck } from '~/components/settings/PushCheck';
 import { QuietHours } from '~/components/settings/QuietHours';
@@ -71,6 +73,7 @@ function SettingsContent() {
               data={APPEARANCE_OPTIONS}
             />
           </Input.Wrapper>
+          <RelativeTimes />
           <Switch
             label="Reduce motion"
             description="Stops sliding and fading when sheets, menus and messages open. The app already follows your device's setting; this switch turns it on for the app only."
@@ -110,7 +113,10 @@ function SettingsContent() {
 
       <Card withBorder>
         <Title order={2} size="h4" mb="sm">Your view</Title>
-        <DefaultView />
+        <Stack gap="md">
+          <DefaultView />
+          <TodaySettings />
+        </Stack>
       </Card>
 
       <Card withBorder>

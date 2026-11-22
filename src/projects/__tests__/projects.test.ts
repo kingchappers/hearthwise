@@ -75,7 +75,7 @@ describe('getProjectsList', () => {
     await w.store.patch({ PK: `HH#${w.householdId}`, SK: `PSTEP#${id}#${a}` }, { state: 'done' });
     const list = await getProjectsList(w.store, w.ctx1, { counts: true }, NOW);
     expect(list.projects).toHaveLength(1);
-    expect(list.projects[0]).toMatchObject({ id, counts: { steps: 2, done: 1, materials: 0 } });
+    expect(list.projects[0]).toMatchObject({ id, counts: { steps: 2, done: 1, materials: 0, held: {} } });
     const light = await getProjectsList(w.store, w.ctx1, { counts: false }, NOW);
     expect('counts' in light.projects[0]).toBe(false);
   });
@@ -85,7 +85,21 @@ describe('getProjectsList', () => {
     const s = await newStep(id, 'Clear', 'i');
     await w.store.patch({ PK: `HH#${w.householdId}`, SK: `PSTEP#${id}#${s}` }, { deletedAt: NOW });
     const list = await getProjectsList(w.store, w.ctx1, { counts: true }, NOW);
-    expect(list.projects[0].counts).toEqual({ steps: 0, done: 0, materials: 0 });
+    expect(list.projects[0].counts).toEqual({ steps: 0, done: 0, materials: 0, held: {} });
+  });
+
+  it('counts the steps not done that each person holds, and not done ones or ones nobody holds', async () => {
+    const { id } = await newProject();
+    const a = await newStep(id, 'A', 'i');
+    const b = await newStep(id, 'B', 'j');
+    const c = await newStep(id, 'C', 'k');
+    await newStep(id, 'D', 'l');
+    const at = (stepId: string) => ({ PK: `HH#${w.householdId}`, SK: `PSTEP#${id}#${stepId}` });
+    await w.store.patch(at(a), { takenBy: 'auth0|u2', takenAt: 1 });
+    await w.store.patch(at(b), { takenBy: 'auth0|u2', takenAt: 1 });
+    await w.store.patch(at(c), { takenBy: 'auth0|u2', takenAt: 1, state: 'done' });
+    const counts = (await getProjectsList(w.store, w.ctx1, { counts: true }, NOW)).projects[0].counts;
+    expect(counts).toMatchObject({ steps: 4, done: 1, held: { 'auth0|u2': 2 } });
   });
 
   it('counts live materials too, and not deleted ones', async () => {

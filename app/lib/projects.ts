@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Project } from '../../src/projects/types';
+import { dayInZone } from '../../src/shared/schedule';
 import { useProtectedApi } from '~/hooks/useProtectedApi';
 import { useEffect } from 'react';
 import { useHousehold } from './household';
@@ -18,7 +19,7 @@ export type { ProjectDetailData };
 
 const POLL_MS = 10_000;
 
-export type StepCounts = { steps: number; done: number; materials: number };
+export type StepCounts = { steps: number; done: number; materials: number; held: Record<string, number> };
 export type ListedProject = Project & { counts?: StepCounts };
 
 export interface ProjectsListData {
@@ -28,6 +29,11 @@ export interface ProjectsListData {
 }
 
 const NONE: ListedProject[] = [];
+
+function relativeFromOf(data: { household: { timezone: string }; me: { settings?: { relativeTimes?: boolean } } } | undefined): string | undefined {
+  if (data?.me.settings?.relativeTimes !== true) return undefined;
+  return dayInZone(Date.now(), data.household.timezone);
+}
 
 function usePendingProjects(): PendingMutation[] {
   const pending = useMutationState<PendingMutation>({
@@ -43,6 +49,8 @@ export interface ProjectsState {
   deleted: ListedProject[];
   me: string;
   members: MemberSummary[];
+  // Today's date in the household's zone when the person asked for "in 2 days" beside dates; otherwise undefined.
+  relativeFrom: string | undefined;
   // Ids that have a write waiting in the queue, shown as "Not saved yet".
   unsavedIds: ReadonlySet<string>;
   dataUpdatedAt: number | undefined;
@@ -50,7 +58,7 @@ export interface ProjectsState {
 
 // The household's projects as the person sees them: the server's list with every pending write laid over it, polled every 10 seconds
 // while the app is visible. `counts: false` is the light read for Today and the calendar: it reads no step at all.
-export function useProjects(options: { counts?: boolean } = {}): ProjectsState {
+export function useProjects(options: { counts?: boolean; enabled?: boolean } = {}): ProjectsState {
   const counts = options.counts ?? true;
   const { request } = useProtectedApi();
   const client = useQueryClient();
@@ -66,6 +74,7 @@ export function useProjects(options: { counts?: boolean } = {}): ProjectsState {
       // A response that started before a write settled may not include it: keep what is on screen.
       return currentSettledCount() !== startedAt && previous ? previous : fresh;
     },
+    enabled: options.enabled ?? true,
     refetchInterval: POLL_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
@@ -79,6 +88,7 @@ export function useProjects(options: { counts?: boolean } = {}): ProjectsState {
     deleted: data?.deleted ?? NONE,
     me: household.data?.me.userId ?? '',
     members: household.data?.members ?? [],
+    relativeFrom: relativeFromOf(household.data),
     unsavedIds,
     dataUpdatedAt: query.dataUpdatedAt || undefined,
   };
@@ -96,6 +106,7 @@ export interface ProjectState {
   data: ProjectDetailData | undefined;
   me: string;
   members: MemberSummary[];
+  relativeFrom: string | undefined;
   unsavedIds: ReadonlySet<string>;
   dataUpdatedAt: number | undefined;
 }
@@ -140,6 +151,7 @@ export function useProject(id: string): ProjectState {
     data,
     me: household.data?.me.userId ?? '',
     members: household.data?.members ?? [],
+    relativeFrom: relativeFromOf(household.data),
     unsavedIds,
     dataUpdatedAt: query.dataUpdatedAt || undefined,
   };

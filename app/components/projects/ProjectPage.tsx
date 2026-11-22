@@ -3,6 +3,7 @@ import { Button, Group, List, Stack, Text, Title } from '@mantine/core';
 import type { Step } from '../../../src/projects/types';
 import type { ProjectActions } from '~/hooks/useProjectActions';
 import { positionFor } from '~/lib/projectForm';
+import { withRelative } from '~/lib/relativeTime';
 import type { ProjectDetailData } from '~/lib/projectOverlay';
 import type { ProjectNotice } from '~/lib/projectNotices';
 import { COPY, holderLine, lastChangedBy, nameOf, plannedText, stepsDone } from '~/lib/projectText';
@@ -27,13 +28,15 @@ export interface ProjectPageProps {
   notices: ProjectNotice[];
   // Where each material's shopping item stands, so a material can say "On the list".
   listState?: ReadonlyMap<string, 'onList' | 'cleared'>;
+  // Today's date, when the person asked for "in 2 days" beside dates.
+  relativeFrom?: string;
   actions: ProjectActions;
   onBack: () => void;
 }
 
 // One project: its title, the steps in order, and what can be done with them. Either person can add, edit, reorder, tick and take; there
 // is no lock and nothing waits for approval.
-export function ProjectPage({ data, me, members, now, unsavedIds, notices, listState = NO_LIST, actions, onBack }: ProjectPageProps) {
+export function ProjectPage({ data, me, members, now, unsavedIds, notices, listState = NO_LIST, relativeFrom, actions, onBack }: ProjectPageProps) {
   const { project, steps, materials } = data;
   const [editing, setEditing] = useState<Step | undefined>(undefined);
   const [editingProject, setEditingProject] = useState(false);
@@ -69,7 +72,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
 
       {!deleted && (
         <>
-          {project.plannedOn !== undefined && <Text>{plannedText({ plannedOn: project.plannedOn, plannedEndOn: project.plannedEndOn })}</Text>}
+          {project.plannedOn !== undefined && <Text>{withRelative(plannedText({ plannedOn: project.plannedOn, plannedEndOn: project.plannedEndOn }), project.plannedOn, relativeFrom ?? '', relativeFrom !== undefined)}</Text>}
           {holder && <Text>{holder}</Text>}
           <Group gap="xs">
             {iHold

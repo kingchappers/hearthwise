@@ -14,11 +14,13 @@ export interface TaskRowProps {
   onComplete: (task: Task) => void;
   // The other person's name, when the viewer has asked them to take this task and they have not answered yet.
   askedOf?: string;
+  // Adds how far away a coming date is ("in 2 days"), when the person asked for that.
+  relative?: boolean;
 }
 
-export function TaskRow({ task, today, roster, viewerId, onComplete, askedOf }: TaskRowProps) {
+export function TaskRow({ task, today, roster, viewerId, onComplete, askedOf, relative = false }: TaskRowProps) {
   const owner = effectiveAssignee(task, { members: roster });
-  const due = dueLabel(task, today);
+  const due = dueLabel(task, today, relative);
   return (
     <li style={{ listStyle: 'none' }}>
       <Group justify="space-between" wrap="nowrap" gap="sm" py={6}>

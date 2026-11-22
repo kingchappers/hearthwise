@@ -103,3 +103,15 @@ describe('removeMember', () => {
     expect((await loadContext(store, 'auth0|u3'))?.householdId).toBe(other.householdId);
   });
 });
+
+describe('the Today, time and planned-day settings', () => {
+  it('start as on, on, off and off, and a change to one leaves the others', async () => {
+    const ctx = (await loadContext(store, 'auth0|u1'))!;
+    expect(ctx.member.settings).toMatchObject({ todayComingUp: true, todayProjects: true, relativeTimes: false, plannedDay: { on: false, hour: 8 } });
+    await updateOwnMember(store, ctx, { settings: { relativeTimes: true, plannedDay: { on: true } } });
+    const after = (await loadContext(store, 'auth0|u1'))!.member.settings;
+    expect(after).toMatchObject({ todayComingUp: true, todayProjects: true, relativeTimes: true, plannedDay: { on: true, hour: 8 } });
+    await updateOwnMember(store, (await loadContext(store, 'auth0|u1'))!, { settings: { todayProjects: false, plannedDay: { hour: 6 } } });
+    expect((await loadContext(store, 'auth0|u1'))!.member.settings).toMatchObject({ todayProjects: false, relativeTimes: true, plannedDay: { on: true, hour: 6 } });
+  });
+});

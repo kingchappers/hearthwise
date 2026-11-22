@@ -28,6 +28,8 @@ export interface StepCounts {
   steps: number;
   done: number;
   materials: number;
+  // Steps not done that someone holds, by who: how many of a project's steps each person has taken.
+  held: Record<string, number>;
 }
 
 export type ListedProject = Project & { counts?: StepCounts };
@@ -72,15 +74,16 @@ export async function putProject(
   throw new TaskError('conflict', 409);
 }
 
-// Live steps, done steps and live materials for each project. Only the sort key, the state and `deletedAt` are read, never any text.
+// Live steps, done steps, live materials and who holds the steps not done, for each project. Only the sort key, the state, `deletedAt` and
+// `takenBy` are read, never any text.
 async function stepCounts(store: Store, householdId: string): Promise<Map<string, StepCounts>> {
   const [steps, materials]: Item[][] = await Promise.all([
-    store.query(hhPk(householdId), { skPrefix: STEP_PREFIX, attributes: ['SK', 'state', 'deletedAt'] }),
+    store.query(hhPk(householdId), { skPrefix: STEP_PREFIX, attributes: ['SK', 'state', 'deletedAt', 'takenBy'] }),
     store.query(hhPk(householdId), { skPrefix: MATERIAL_PREFIX, attributes: ['SK', 'deletedAt'] }),
   ]);
   const counts = new Map<string, StepCounts>();
   const entry = (projectId: string): StepCounts => {
-    const found = counts.get(projectId) ?? { steps: 0, done: 0, materials: 0 };
+    const found = counts.get(projectId) ?? { steps: 0, done: 0, materials: 0, held: {} };
     counts.set(projectId, found);
     return found;
   };
@@ -89,6 +92,7 @@ async function stepCounts(store: Store, householdId: string): Promise<Map<string
     const found = entry(row.SK.slice(STEP_PREFIX.length).split('#')[0]);
     found.steps += 1;
     if (row.state === 'done') found.done += 1;
+    else if (typeof row.takenBy === 'string') found.held[row.takenBy] = (found.held[row.takenBy] ?? 0) + 1;
   }
   for (const row of materials) {
     if (row.deletedAt === undefined) entry(row.SK.slice(MATERIAL_PREFIX.length).split('#')[0]).materials += 1;
@@ -110,7 +114,7 @@ export async function getProjectsList(
   if (!options.counts) return { projects: live, deleted, serverTime: nowMs };
 
   const counts = await stepCounts(store, ctx.householdId);
-  const withCounts = (project: Project): ListedProject => ({ ...project, counts: counts.get(project.id) ?? { steps: 0, done: 0, materials: 0 } });
+  const withCounts = (project: Project): ListedProject => ({ ...project, counts: counts.get(project.id) ?? { steps: 0, done: 0, materials: 0, held: {} } });
   return {
     projects: live.map(project => (project.status === 'active' ? withCounts(project) : project)),
     deleted: deleted.map(withCounts),

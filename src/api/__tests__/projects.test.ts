@@ -91,7 +91,7 @@ describe('projects', () => {
     expect(res).toMatchObject({ status: 200, json: { outcome: 'created', project: { title: 'Decking' } } });
     const theirs = await call(U2, 'GET', P);
     expect(theirs.json.projects.map((p: { id: string }) => p.id)).toEqual([id]);
-    expect(theirs.json.projects[0].counts).toEqual({ steps: 0, done: 0, materials: 0 });
+    expect(theirs.json.projects[0].counts).toEqual({ steps: 0, done: 0, materials: 0, held: {} });
   });
 
   it('leaves the counts out when asked for the light read', async () => {

@@ -12,6 +12,10 @@ function mergeSettings(current: MemberSettings, patch: MemberSettingsPatch): Mem
     dueNudges: { ...current.dueNudges, ...patch.dueNudges },
     quietHours: patch.quietHours === undefined ? current.quietHours : patch.quietHours,
     defaultView: patch.defaultView ?? current.defaultView,
+    todayComingUp: patch.todayComingUp ?? current.todayComingUp,
+    todayProjects: patch.todayProjects ?? current.todayProjects,
+    relativeTimes: patch.relativeTimes ?? current.relativeTimes,
+    plannedDay: { ...current.plannedDay, ...patch.plannedDay },
   };
 }
 

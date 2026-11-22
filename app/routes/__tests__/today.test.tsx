@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { MemoryRouter } from 'react-router';
@@ -14,7 +14,10 @@ const state = vi.hoisted(() => ({
   planActions: { set: vi.fn(), clear: vi.fn() },
   actions: undefined as unknown,
   sources: undefined as unknown,
+  projects: { status: 'ready', projects: [] as object[], deleted: [], me: 'u1', members: [{ userId: 'u1', displayName: 'Sam', joinedAt: '' }, { userId: 'u2', displayName: 'Alex', joinedAt: '' }], unsavedIds: new Set<string>() },
+  settings: {} as Record<string, unknown>,
 }));
+vi.mock('~/lib/projects', () => ({ useProjects: () => state.projects }));
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
 vi.mock('~/lib/household', () => ({
@@ -22,7 +25,7 @@ vi.mock('~/lib/household', () => ({
     status: 'ready', refetch: vi.fn(),
     data: { household: { name: 'Home', timezone: 'Europe/London', createdBy: 'u1', createdAt: '', memberCount: 2 },
       members: [{ userId: 'u1', displayName: 'Sam', joinedAt: '' }, { userId: 'u2', displayName: 'Alex', joinedAt: '' }],
-      me: { userId: 'u1', displayName: 'Sam', joinedAt: '', settings: { defaultView: state.defaultView } } },
+      me: { userId: 'u1', displayName: 'Sam', joinedAt: '', settings: { defaultView: state.defaultView, ...state.settings } } },
   }),
 }));
 vi.mock('~/lib/calendar', () => ({ useTimelineSources: () => state.sources }));
@@ -55,6 +58,59 @@ beforeEach(() => {
   state.plan = { status: 'ready', days: [], today: TODAY, recipes: [], recipesCheckedAt: undefined, refetch: vi.fn() };
   state.planActions = { set: vi.fn(), clear: vi.fn() };
   state.sources = sourcesOf([]);
+  state.settings = {};
+  state.projects = { ...state.projects, projects: [] };
+});
+
+describe('Today: Coming up', () => {
+  it('lists the next calendar things after today, with the day and time, and each opens the calendar', () => {
+    state.sources = sourcesOf([calendarEvent({ startOn: '2026-11-14', title: 'Dentist', startTime: '10:30' })]);
+    renderToday();
+    const section = screen.getByRole('heading', { level: 2, name: 'Coming up' }).closest('section') as HTMLElement;
+    expect(section).toHaveTextContent('Sat 14 Nov, 10:30');
+    expect(section).toHaveTextContent('Dentist');
+    expect(within(section).getByRole('link', { name: /Dentist/ })).toHaveAttribute('href', '/plan/calendar');
+  });
+
+  it('is not there at all when there is nothing coming up', () => {
+    renderToday();
+    expect(screen.queryByRole('heading', { name: 'Coming up' })).not.toBeInTheDocument();
+  });
+
+  it('says how many steps the other person has taken in a project, and links to it', () => {
+    state.projects = { ...state.projects, projects: [{ id: 'p1', title: 'Take down the decking', status: 'active', fieldTimes: {}, counts: { steps: 5, done: 0, materials: 0, held: { u2: 2 } } }] };
+    renderToday();
+    expect(screen.getByRole('link', { name: 'Alex has 2 steps in Take down the decking' })).toHaveAttribute('href', '/plan/projects/p1');
+  });
+
+  it('adds how far away a day is only when the person asked for it, keeping the exact date', () => {
+    state.sources = sourcesOf([calendarEvent({ startOn: '2026-11-15', title: 'Dentist' })]);
+    state.settings = { relativeTimes: true };
+    renderToday();
+    expect(screen.getByText('Sun 15 Nov (in 2 days), 10:30')).toBeInTheDocument();
+  });
+
+  it('is left out when Coming up is turned off in Settings, and the project line when projects are', () => {
+    state.sources = sourcesOf([calendarEvent({ startOn: '2026-11-14' })]);
+    state.projects = { ...state.projects, projects: [{ id: 'p1', title: 'Decking', status: 'active', fieldTimes: {}, counts: { steps: 5, done: 0, materials: 0, held: { u2: 1 } } }] };
+    state.settings = { todayComingUp: false };
+    renderToday();
+    expect(screen.queryByText(/Dentist/)).not.toBeInTheDocument();
+    expect(screen.getByText('Alex has 1 step in Decking')).toBeInTheDocument();
+    cleanup();
+    state.settings = { todayProjects: false };
+    renderToday();
+    expect(screen.getByText(/Dentist/)).toBeInTheDocument();
+    expect(screen.queryByText(/Alex has 1 step/)).not.toBeInTheDocument();
+  });
+
+  it('adds how far away a task\'s date is when asked, and leaves a task due today alone', () => {
+    state.settings = { relativeTimes: true };
+    state.tasks.tasks = [task({ title: 'Bins', dueOn: '2026-11-16' }), task({ id: 'x2', title: 'Post', dueOn: TODAY })];
+    renderToday();
+    expect(screen.getByText(/Mon 16 Nov \(in 3 days\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Due today/)).toBeInTheDocument();
+  });
 });
 
 describe('Today', () => {
