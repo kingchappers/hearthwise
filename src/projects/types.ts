@@ -1,3 +1,4 @@
+import type { Energy } from '../shared/energy';
 export type ProjectStatus = 'active' | 'finished';
 export type StepState = 'todo' | 'done';
 export type ProjectOutcome = 'created' | 'applied' | 'noop' | 'gone';
@@ -15,6 +16,7 @@ export interface ProjectFieldTimes {
 export interface StepFieldTimes {
   text?: number;
   note?: number;
+  energy?: number;
   state?: number;
   position?: number;
 }
@@ -50,6 +52,7 @@ export interface Step extends Tombstone {
   projectId: string;
   text: string;
   note?: string;
+  energy?: Energy;
   state: StepState;
   position: string;
   takenBy?: string;
@@ -88,6 +91,7 @@ export interface ProjectWrite {
 export interface StepWrite {
   text?: Stamped<string>;
   note?: Stamped<string | null>;
+  energy?: Stamped<Energy | null>;
   state?: Stamped<StepState>;
   position?: Stamped<string>;
 }

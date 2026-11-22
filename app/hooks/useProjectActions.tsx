@@ -55,7 +55,7 @@ export function useProjectActions(): ProjectActions {
   const toast = (message: React.ReactNode): void => { notifications.show({ id: crypto.randomUUID(), autoClose: 8000, message }); };
   const undoDeleteStep = (projectId: string, step: Step): void => putStep.mutate({
     ...plain(), projectId, stepId: crypto.randomUUID(),
-    changes: { text: step.text, position: step.position, ...(step.note === undefined ? {} : { note: step.note }) },
+    changes: { text: step.text, position: step.position, ...(step.note === undefined ? {} : { note: step.note }), ...(step.energy === undefined ? {} : { energy: step.energy }) },
   });
 
   return {

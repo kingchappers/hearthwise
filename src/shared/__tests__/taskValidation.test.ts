@@ -233,3 +233,18 @@ describe('the other request bodies', () => {
     expect(parseRestoreBody({ entries: [{ kind: 'task', id: uuid(1), deletedAt: 5 }], mutationId: MUT })).toEqual(bad('entries[0].deletedAt'));
   });
 });
+
+describe('the energy tag', () => {
+  it.each(['small', 'medium', 'big'])('is accepted on create as %s, and nothing else is', size => {
+    expect(parseCreateTask({ id: uuid(1), title: 'T', assignee: 'either', mutationId: MUT, energy: size }).ok).toBe(true);
+    expect(parseCreateTask({ id: uuid(1), title: 'T', assignee: 'either', mutationId: MUT, energy: 'none' })).toEqual(bad('energy'));
+    expect(parseCreateTask({ id: uuid(1), title: 'T', assignee: 'either', mutationId: MUT, energy: 'huge' })).toEqual(bad('energy'));
+  });
+
+  it('is accepted on a patch with its time, and "none" takes it off', () => {
+    expect(parsePatchTask({ mutationId: MUT, energy: 'big', energyAt: EDGE })).toEqual(ok({ mutationId: MUT, energy: { value: 'big', at: EDGE } }));
+    expect(parsePatchTask({ mutationId: MUT, energy: 'none', energyAt: EDGE })).toEqual(ok({ mutationId: MUT, energy: { value: 'none', at: EDGE } }));
+    expect(parsePatchTask({ mutationId: MUT, energy: 'big' }).ok).toBe(false);
+    expect(parsePatchTask({ mutationId: MUT, energy: 3, energyAt: EDGE })).toEqual(bad('energy'));
+  });
+});

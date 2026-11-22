@@ -282,3 +282,32 @@ describe('listTasks', () => {
     expect((await listTasks(store, ctx1, NOW)).tasks).toEqual([]);
   });
 });
+
+describe('the energy tag', () => {
+  it('is stored on create and comes back, and a task without one has none', async () => {
+    const tagged = await create({ energy: 'small' });
+    expect(tagged.energy).toBe('small');
+    expect(tagged.fieldTimes.energy).toBe(NOW);
+    expect((await create()).energy).toBeUndefined();
+  });
+
+  it('is changed by the newest write, and an older one does not undo it', async () => {
+    const task = await create({ energy: 'small' });
+    await patch(task.id, { energy: { value: 'big', at: NOW + 1000 } }, ctx1, NOW + 2000);
+    await patch(task.id, { energy: { value: 'medium', at: NOW + 500 } }, ctx1, NOW + 3000);
+    expect((await raw(task.id)).energy).toBe('big');
+  });
+
+  it('is taken off by "none", leaving no attribute behind', async () => {
+    const task = await create({ energy: 'big' });
+    await patch(task.id, { energy: { value: 'none', at: NOW + 1000 } }, ctx1, NOW + 2000);
+    expect('energy' in (await raw(task.id))).toBe(false);
+  });
+
+  it('can be set by either person without asking, and is not noted as an edit of the other person\'s words', async () => {
+    const task = await create({ assignee: U1 }, ctx1).catch(() => undefined);
+    const mine = task ?? (await create());
+    const outcome = await patch(mine.id, { energy: { value: 'small', at: NOW + 1000 } }, ctx2, NOW + 2000);
+    expect(outcome.result.task.energy).toBe('small');
+  });
+});

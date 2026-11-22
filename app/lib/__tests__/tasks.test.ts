@@ -114,3 +114,26 @@ describe('nextThing', () => {
     expect(next([task({ dueOn: '2026-11-12', deletedAt: 1 }), task({ repeat: { type: 'none' }, status: 'done' })])).toBeUndefined();
   });
 });
+
+describe('little energy', () => {
+  const TODAY = '2026-11-13';
+  it('offers the small things first, then unsized, then big, and leaves the order alone when it is off', () => {
+    const big = task({ title: 'A big', energy: 'big', dueOn: TODAY });
+    const none = task({ title: 'B none', dueOn: TODAY });
+    const small = task({ title: 'C small', energy: 'small', dueOn: '2026-11-14' });
+    const all = [big, none, small];
+    expect(nextThing(all, VIEWER, TODAY, { members: MEMBERS }, [], true)?.id).toBe(small.id);
+    expect(nextThing(all, VIEWER, TODAY, { members: MEMBERS }, [small.id], true)?.id).toBe(none.id);
+    expect(nextThing(all, VIEWER, TODAY, { members: MEMBERS })?.id).toBe(big.id);
+  });
+
+  it('puts the small things first within each group of the list, and still groups by date', () => {
+    const big = task({ title: 'A', energy: 'big', dueOn: TODAY });
+    const small = task({ title: 'B', energy: 'small', dueOn: TODAY });
+    const later = task({ title: 'C', energy: 'small', dueOn: '2026-12-20' });
+    const groups = groupTasks([big, small, later], TODAY, true);
+    expect(ids(groups.today)).toEqual([small.id, big.id]);
+    expect(ids(groups.later)).toEqual([later.id]);
+    expect(ids(groupTasks([big, small], TODAY, false).today)).toEqual([big.id, small.id]);
+  });
+});

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Group, Loader, Stack, Title } from '@mantine/core';
+import { Button, Group, Loader, Stack, Switch, Title } from '@mantine/core';
 import { ComingUp } from '~/components/calendar/ComingUp';
 import { NowAndNext } from '~/components/calendar/NowAndNext';
 import { EasyPicks } from '~/components/meals/EasyPicks';
@@ -17,6 +17,7 @@ import { usePlanActions } from '~/hooks/usePlanActions';
 import { useTaskActions } from '~/hooks/useTaskActions';
 import { useTimelineSources } from '~/lib/calendar';
 import { comingUp, projectLines } from '~/lib/comingUp';
+import { useLittleEnergy } from '~/lib/littleEnergy';
 import { useProjects } from '~/lib/projects';
 import { useHousehold } from '~/lib/household';
 import { pageTitle } from '~/lib/pageTitle';
@@ -49,11 +50,12 @@ function TodayContent() {
   const showComing = household.data?.me.settings.todayComingUp !== false;
   const showProjects = household.data?.me.settings.todayProjects !== false;
   const projects = useProjects({ counts: true, enabled: showProjects });
+  const [littleEnergy, setLittleEnergy] = useLittleEnergy(household.data?.me.userId ?? '', tasks.today);
 
   if (tasks.status === 'loading') return <Group justify="center" py="xl" role="status" aria-label="Loading your tasks"><Loader /></Group>;
   if (tasks.status === 'error') return <LoadError thing="tasks" onRetry={tasks.refetch} />;
 
-  const next = nextThing(tasks.tasks, actions.me.userId, tasks.today, { members: actions.members }, skipped);
+  const next = nextThing(tasks.tasks, actions.me.userId, tasks.today, { members: actions.members }, skipped, littleEnergy);
   return (
     <Stack maw={640}>
       <Title order={1} size="h3">Today</Title>
@@ -77,6 +79,12 @@ function TodayContent() {
           {view === 'list' ? 'Show one task' : 'Show all tasks'}
         </Button>
       </Group>
+      <Switch
+        label="Little energy today"
+        description="Shows the small things first. It clears itself tomorrow."
+        checked={littleEnergy}
+        onChange={event => setLittleEnergy(event.currentTarget.checked)}
+      />
       <PushPrompt />
       <LetThemKnow />
       <ProposalBanner
@@ -89,7 +97,7 @@ function TodayContent() {
         onWithdraw={actions.withdraw}
       />
       {view === 'list' ? (
-        <TaskList tasks={tasks.tasks} today={tasks.today} roster={actions.members} viewerId={actions.me.userId} onComplete={actions.complete} askedOf={pendingAsks(tasks.proposals, actions.me.userId, actions.members)} relative={household.data?.me.settings.relativeTimes === true} />
+        <TaskList tasks={tasks.tasks} today={tasks.today} roster={actions.members} viewerId={actions.me.userId} onComplete={actions.complete} askedOf={pendingAsks(tasks.proposals, actions.me.userId, actions.members)} relative={household.data?.me.settings.relativeTimes === true} littleEnergy={littleEnergy} />
       ) : (
         <NextThing
           task={next}

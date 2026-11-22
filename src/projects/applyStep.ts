@@ -1,3 +1,4 @@
+import type { Energy } from '../shared/energy';
 import { clampTime, THIRTY_DAYS_SECONDS } from '../tasks/record';
 import type { ProjectOutcome, Step, StepFieldTimes, StepState, StepWrite } from './types';
 
@@ -9,10 +10,10 @@ export interface StepApplied {
   stale: string[];
 }
 
-const FIELDS: (keyof StepWrite & keyof StepFieldTimes)[] = ['text', 'note', 'state', 'position'];
+const FIELDS: (keyof StepWrite & keyof StepFieldTimes)[] = ['text', 'note', 'energy', 'state', 'position'];
 
 function storedValue(step: Step, field: keyof StepWrite): unknown {
-  return field === 'note' ? step.note ?? null : step[field];
+  return field === 'note' || field === 'energy' ? step[field] ?? null : step[field];
 }
 
 // Writes the fields of `write` onto `step` that are newer than what it holds. Done clears the hold and records who and when;
@@ -32,6 +33,9 @@ function applyFields(step: Step, write: StepWrite, userId: string, serverNow: nu
     if (field === 'note') {
       if (value === null) delete step.note;
       else step.note = value as string;
+    } else if (field === 'energy') {
+      if (value === null) delete step.energy;
+      else step.energy = value as Energy;
     } else if (field === 'text') step.text = value as string;
     else if (field === 'position') step.position = value as string;
     else {

@@ -17,7 +17,10 @@ export function comingSunday(today: string): string {
 const isOpen = (task: Task): boolean => task.deletedAt === undefined && task.status === 'open';
 const byDateThenTitle = (a: Task, b: Task): number => (a.dueOn ?? '').localeCompare(b.dueOn ?? '') || a.title.localeCompare(b.title);
 
-export function groupTasks(tasks: Task[], today: string): Record<Group, Task[]> {
+// On a day of little energy the small things come first within each group, then the ones with no size, then the big ones.
+const energyRank = (task: Task): number => (task.energy === 'small' ? 0 : task.energy === 'big' ? 2 : 1);
+
+export function groupTasks(tasks: Task[], today: string, littleEnergy = false): Record<Group, Task[]> {
   const sunday = comingSunday(today);
   const groups: Record<Group, Task[]> = { today: [], week: [], later: [], whenever: [] };
   for (const task of tasks.filter(isOpen)) {
@@ -26,14 +29,14 @@ export function groupTasks(tasks: Task[], today: string): Record<Group, Task[]> 
     else if (task.dueOn <= sunday) groups.week.push(task);
     else groups.later.push(task);
   }
-  for (const group of Object.values(groups)) group.sort(byDateThenTitle);
+  for (const group of Object.values(groups)) group.sort((a, b) => (littleEnergy ? energyRank(a) - energyRank(b) : 0) || byDateThenTitle(a, b));
   return groups;
 }
 
 // The one task to offer next: what is due, then an undated to-do, then the soonest dated one. The viewer's own comes before an either
 // or both task of the same day. Tasks set aside with "Show a different task" are skipped, for this session only.
-export function nextThing(tasks: Task[], viewerId: string, today: string, roster: Roster, skipped: string[] = []): Task | undefined {
-  return nextThings(tasks, viewerId, today, roster, skipped)[0];
+export function nextThing(tasks: Task[], viewerId: string, today: string, roster: Roster, skipped: string[] = [], littleEnergy = false): Task | undefined {
+  return nextThings(tasks, viewerId, today, roster, skipped, littleEnergy)[0];
 }
 
 // How many tasks "Show one task" can offer in all (those set aside this visit included), so the card can say "Task 2 of 5".
@@ -41,10 +44,10 @@ export function offerableCount(tasks: Task[], viewerId: string, roster: Roster):
   return tasks.filter(task => isOpen(task) && [viewerId, 'either', 'both'].includes(effectiveAssignee(task, roster))).length;
 }
 
-function nextThings(tasks: Task[], viewerId: string, today: string, roster: Roster, skipped: string[]): Task[] {
+function nextThings(tasks: Task[], viewerId: string, today: string, roster: Roster, skipped: string[], littleEnergy: boolean): Task[] {
   const mine = (task: Task): boolean => effectiveAssignee(task, roster) === viewerId;
   const candidates = tasks.filter(task => isOpen(task) && !skipped.includes(task.id) && [viewerId, 'either', 'both'].includes(effectiveAssignee(task, roster)));
   const rank = (task: Task): number => (task.dueOn === undefined ? 1 : task.dueOn <= today ? 0 : 2);
-  candidates.sort((a, b) => rank(a) - rank(b) || (a.dueOn ?? '').localeCompare(b.dueOn ?? '') || Number(mine(b)) - Number(mine(a)) || a.title.localeCompare(b.title));
+  candidates.sort((a, b) => (littleEnergy ? energyRank(a) - energyRank(b) : 0) || rank(a) - rank(b) || (a.dueOn ?? '').localeCompare(b.dueOn ?? '') || Number(mine(b)) - Number(mine(a)) || a.title.localeCompare(b.title));
   return candidates;
 }

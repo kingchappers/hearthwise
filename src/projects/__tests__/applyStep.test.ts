@@ -93,3 +93,22 @@ describe('applyStepDelete', () => {
     expect(applyStepDelete(undefined, U1, NOW).result).toBe('noop');
   });
 });
+
+describe('a step\'s energy tag', () => {
+  it('is set by a write, the newest wins, an older one is listed as stale, and null takes it off', () => {
+    const set = applyStepWrite(made(), ids, { energy: { value: 'small', at: 2000 } }, U2, NOW);
+    expect(set.step?.energy).toBe('small');
+    const stale = applyStepWrite(set.step, ids, { energy: { value: 'big', at: 1500 } }, U1, NOW);
+    expect(stale.result).toBe('noop');
+    expect(stale.stale).toEqual(['energy']);
+    const cleared = applyStepWrite(set.step, ids, { energy: { value: null, at: 3000 } }, U1, NOW);
+    expect('energy' in cleared.step!).toBe(false);
+  });
+
+  it('can be given when the step is made, and never touches a hold', () => {
+    const created = applyStepWrite(undefined, ids, { text: { value: 'Lift', at: 1000 }, position: { value: 'i', at: 1000 }, energy: { value: 'big', at: 1000 } }, U1, NOW);
+    expect(created.step?.energy).toBe('big');
+    const held = { ...created.step!, takenBy: U2, takenAt: 5 };
+    expect(applyStepWrite(held, ids, { energy: { value: 'small', at: 2000 } }, U1, NOW).step).toMatchObject({ takenBy: U2, energy: 'small' });
+  });
+});

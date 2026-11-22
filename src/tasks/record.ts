@@ -1,3 +1,4 @@
+import { isEnergy } from '../shared/energy';
 import type { Item } from '../store';
 import { TASK_PREFIX } from './keys';
 import type { ChecklistStep, Task } from './types';
@@ -27,6 +28,7 @@ export function toTask(item: Item): Task {
     updatedAt: Number(item.updatedAt),
   };
   if (typeof item.notes === 'string') task.notes = item.notes;
+  if (isEnergy(item.energy)) task.energy = item.energy;
   if (typeof item.overrideAssignee === 'string') task.overrideAssignee = item.overrideAssignee;
   if (typeof item.overrideCycle === 'number') task.overrideCycle = item.overrideCycle;
   if (typeof item.dueOn === 'string') task.dueOn = item.dueOn;

@@ -88,6 +88,7 @@ Run these on two real phones, one for each person, with phase 5 in place. Design
 - [ ] An older copy of the app (a phone that has not updated) restores a saved queue that holds project writes: note what happens. This is accepted, not tested: that phone may drop its whole saved queue.
 - [ ] The Plan switch ("Dinners | Calendar | Projects") at 360px wide with the largest text size: the three links wrap, nothing is cut off, and each is easy to hit with a thumb.
 - [ ] Today's "Coming up": add an event for tomorrow and see it on Today with its day and time; ask Alex to take a step in a project and see "Alex has 1 step in ..."; turn each off in Settings, Your view; turn on "Show how far away dates are" and check that "in 2 days" appears only beside dates still to come, with the exact date beside it.
+- [ ] Energy: give a task and a project step a size (Small, Medium, Big) and see "Small job" / "Small step" beside it; on Today turn on "Little energy today" and check the small things come first in the list and in Show one task, that the other person's phone is not affected, and that it is off again the next morning.
 - [ ] The month-later check (the success measure): after a month, each person opens the plan instead of asking the other what is next, and neither starts a step the other has. Ask both people. If not, note what is missing.
 
 ## Reading and touch

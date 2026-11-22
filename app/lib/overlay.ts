@@ -38,7 +38,7 @@ const OVERLAYS: { [K in MutationKind]: Overlay<K> } = {
   create: (data, v) => {
     if (data.tasks.some(task => task.id === v.task.id)) return data;
     const task: Task = {
-      ...v.task, fieldTimes: { title: v.at }, cycleSeq: 1, ruleVersion: 1, checklist: v.task.checklist ?? [], checklistState: {},
+      ...v.task, fieldTimes: { title: v.at, ...(v.task.energy === undefined ? {} : { energy: v.at }) }, cycleSeq: 1, ruleVersion: 1, checklist: v.task.checklist ?? [], checklistState: {},
       status: 'open', createdBy: v.by, updatedAt: v.at,
     };
     return { ...data, tasks: [...data.tasks, task] };
@@ -46,10 +46,11 @@ const OVERLAYS: { [K in MutationKind]: Overlay<K> } = {
 
   edit: (data, v) => changeTask(data, v.taskId, task => {
     const next = { ...task, fieldTimes: { ...task.fieldTimes } };
-    for (const field of ['title', 'notes', 'checklist'] as const) {
+    for (const field of ['title', 'notes', 'energy', 'checklist'] as const) {
       const value = v[field];
       if (value === undefined || v.at <= (task.fieldTimes[field] ?? 0)) continue;
-      (next as Record<string, unknown>)[field] = value;
+      if (value === 'none') delete (next as Record<string, unknown>)[field];
+      else (next as Record<string, unknown>)[field] = value;
       next.fieldTimes[field] = v.at;
     }
     return next;

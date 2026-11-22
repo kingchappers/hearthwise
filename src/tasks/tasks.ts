@@ -50,6 +50,7 @@ export async function createTask(store: Store, ctx: HouseholdContext, input: Cre
   const dueOn = input.dueOn ?? (input.repeat.type === 'none' ? undefined : firstOnOrAfter(input.repeat, today));
   const fieldTimes: Task['fieldTimes'] = { title: at };
   if (input.notes !== undefined) fieldTimes.notes = at;
+  if (input.energy !== undefined) fieldTimes.energy = at;
   if (input.checklist !== undefined) fieldTimes.checklist = at;
 
   const item: Item = {
@@ -67,6 +68,7 @@ export async function createTask(store: Store, ctx: HouseholdContext, input: Cre
     updatedAt: nowMs,
   };
   if (input.notes !== undefined) item.notes = input.notes;
+  if (input.energy !== undefined) item.energy = input.energy;
   if (dueOn !== undefined) item.dueOn = dueOn;
 
   try {
@@ -106,6 +108,16 @@ export function planPatch(task: Task, input: PatchTaskInput, nowMs: number, toda
     fieldTimes[field] = at;
     edited.push(field);
     timesChanged = true;
+  }
+  // The size is not words, so a change to it is never noted as an edit of the other person's task. 'none' takes it off.
+  if (input.energy) {
+    const at = clampTime(input.energy.at, nowMs);
+    if (at > (task.fieldTimes.energy ?? 0)) {
+      if (input.energy.value === 'none') remove.push('energy');
+      else set.energy = input.energy.value;
+      fieldTimes.energy = at;
+      timesChanged = true;
+    }
   }
   if (timesChanged) set.fieldTimes = fieldTimes;
 

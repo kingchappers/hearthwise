@@ -1,3 +1,4 @@
+import type { Energy } from '../shared/energy';
 import type { Repeat } from '../shared/schedule';
 
 export interface ChecklistStep {
@@ -15,6 +16,7 @@ export interface CreateTaskInput {
   id: string;
   title: string;
   notes?: string;
+  energy?: Energy;
   assignee: string;
   repeat: Repeat;
   dueOn?: string;
@@ -27,6 +29,8 @@ export interface CreateTaskInput {
 export interface PatchTaskInput {
   title?: { value: string; at: number };
   notes?: { value: string; at: number };
+  // 'none' takes the size off.
+  energy?: { value: Energy | 'none'; at: number };
   checklist?: { value: ChecklistStep[]; at: number };
   ticks?: TickInput;
   assignee?: { value: string; baseRuleVersion: number };
@@ -59,8 +63,10 @@ export interface Task {
   id: string;
   title: string;
   notes?: string;
-  // The client time each of title, notes and checklist was last set (ms), so an older edit never overwrites a newer one.
-  fieldTimes: { title?: number; notes?: number; checklist?: number };
+  // How big it feels to do. Optional, and the person's own guess.
+  energy?: Energy;
+  // The client time each of title, notes, checklist and energy was last set (ms), so an older edit never overwrites a newer one.
+  fieldTimes: { title?: number; notes?: number; checklist?: number; energy?: number };
   // A member's user id, 'either' or 'both'.
   assignee: string;
   overrideAssignee?: string;

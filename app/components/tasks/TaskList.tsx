@@ -21,10 +21,11 @@ export interface TaskListProps {
   // Tasks the viewer has asked the other person to take, by task id, with that person's name.
   askedOf?: ReadonlyMap<string, string>;
   relative?: boolean;
+  littleEnergy?: boolean;
 }
 
-export function TaskList({ tasks, today, roster, viewerId, onComplete, askedOf, relative = false }: TaskListProps) {
-  const groups = groupTasks(tasks, today);
+export function TaskList({ tasks, today, roster, viewerId, onComplete, askedOf, relative = false, littleEnergy = false }: TaskListProps) {
+  const groups = groupTasks(tasks, today, littleEnergy);
   if (GROUPS.every(({ group }) => groups[group].length === 0)) {
     return (
       <Stack>

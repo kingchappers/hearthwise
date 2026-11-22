@@ -1,3 +1,4 @@
+import { ENERGY_LABELS } from '../../../src/shared/energy';
 import { Button, Checkbox, Group, Stack, Text } from '@mantine/core';
 import type { Step } from '../../../src/projects/types';
 import { holderOf } from '../../../src/shared/projectRules';
@@ -52,6 +53,7 @@ export function StepRow({ step, projectId, members, me, now, unsaved, first, las
             {step.text}
           </Text>
           {statusText !== '' && <Text size="sm">{statusText}</Text>}
+          {step.energy && <Text size="sm">{ENERGY_LABELS[step.energy]} step</Text>}
           {step.note && <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{step.note}</Text>}
           <HolderMark record={step} members={members} me={me} now={now} />
         </Stack>

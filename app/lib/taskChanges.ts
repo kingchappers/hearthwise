@@ -1,5 +1,6 @@
 // Turns what a person changed on the task sheet into the mutations to run. Title, notes and checklist always apply directly. A change
 // to who has a task, or when, applies directly on one's own task and is asked (a proposal) on the other member's.
+import type { Energy } from '../../src/shared/energy';
 import type { Repeat } from '../../src/shared/schedule';
 import { needsProposal } from '../../src/tasks/ownership';
 import type { Caller } from '../../src/tasks/ownership';
@@ -8,6 +9,8 @@ import type { Change, ChecklistStep, Task } from '../../src/tasks/types';
 export interface TaskChanges {
   title?: string;
   notes?: string;
+  // 'none' takes the size off.
+  energy?: Energy | 'none';
   checklist?: ChecklistStep[];
   assignee?: string;
   repeat?: Repeat;
@@ -16,7 +19,7 @@ export interface TaskChanges {
 }
 
 export type SaveStep =
-  | { kind: 'edit'; taskId: string; title?: string; notes?: string; checklist?: ChecklistStep[] }
+  | { kind: 'edit'; taskId: string; title?: string; notes?: string; energy?: Energy | 'none'; checklist?: ChecklistStep[] }
   | { kind: 'schedule'; taskId: string; assignee?: string; repeat?: Repeat; dueOn?: string }
   | { kind: 'propose'; id: string; taskId: string; change: Change; baseRuleVersionHint: number; baseCycleSeqHint: number };
 
@@ -33,8 +36,9 @@ export function planSave(task: Task, changes: TaskChanges, caller: Caller): Save
   const edit: Extract<SaveStep, { kind: 'edit' }> = { kind: 'edit', taskId: task.id };
   if (changes.title !== undefined && changes.title !== task.title) edit.title = changes.title;
   if (changes.notes !== undefined && changes.notes !== (task.notes ?? '')) edit.notes = changes.notes;
+  if (changes.energy !== undefined && changes.energy !== (task.energy ?? 'none')) edit.energy = changes.energy;
   if (changes.checklist !== undefined && !same(changes.checklist, task.checklist)) edit.checklist = changes.checklist;
-  if (edit.title !== undefined || edit.notes !== undefined || edit.checklist !== undefined) steps.push(edit);
+  if (edit.title !== undefined || edit.notes !== undefined || edit.energy !== undefined || edit.checklist !== undefined) steps.push(edit);
 
   const direct: TaskChanges = {};
   const ask: TaskChanges = {};

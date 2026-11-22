@@ -1,3 +1,4 @@
+import { isEnergy } from './energy';
 import type { MaterialWrite, PlannedValue, ProjectStatus, ProjectWrite, Stamped, StepState, StepWrite } from '../projects/types';
 import { MAX_PENCE } from './money';
 import { ID_PATTERN, MAX_POSITION, POSITION_ALPHABET } from './projectRules';
@@ -14,7 +15,7 @@ export const MAX_MATERIAL_TEXT = 120;
 export const MAX_ADD_MATERIALS = 60;
 
 const PROJECT_FIELD_KEYS = ['title', 'notes', 'status'];
-const STEP_FIELD_KEYS = ['text', 'note', 'state', 'position'];
+const STEP_FIELD_KEYS = ['text', 'note', 'energy', 'state', 'position'];
 
 export const parseId = (value: unknown, field: string): Parsed<string> => (typeof value === 'string' && ID_PATTERN.test(value) ? good(value) : bad(field));
 
@@ -104,6 +105,7 @@ export function parseStepPut(body: Record<string, unknown>): Put<StepWrite> {
   return parseWrite<StepWrite>(body, STEP_FIELD_KEYS, {
     text: value => trimmedText(value, MAX_STEP_TEXT, 'text'),
     note: optionalText(MAX_STEP_NOTE, 'note'),
+    energy: value => (value === null || isEnergy(value) ? good(value) : bad('energy')),
     state: oneOf<StepState>(['todo', 'done'], 'state'),
     position: parsePosition,
   });

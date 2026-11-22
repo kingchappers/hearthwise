@@ -1,6 +1,7 @@
 // Every household mutation is registered here, once, with the query client: its key, its function and the scope that makes household
 // writes run one at a time, in order. Components use `useMutation({ mutationKey })` and nothing else, so step 5 can persist and replay
 // them from this one place. A household write defined anywhere else would be lost on a reload.
+import type { Energy } from '../../src/shared/energy';
 import { MutationObserver, useMutation } from '@tanstack/react-query';
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import type { EventKind, People, Reminder, Schedule } from '../../src/calendar/types';
@@ -60,6 +61,7 @@ export interface NewTask {
   id: string;
   title: string;
   notes?: string;
+  energy?: Energy;
   assignee: string;
   repeat: Repeat;
   dueOn?: string;
@@ -68,7 +70,7 @@ export interface NewTask {
 
 export interface MutationVars {
   create: Common & { task: NewTask };
-  edit: Common & { taskId: string; title?: string; notes?: string; checklist?: ChecklistStep[] };
+  edit: Common & { taskId: string; title?: string; notes?: string; energy?: Energy | 'none'; checklist?: ChecklistStep[] };
   // `dueOn` together with `repeat` is the suggested date for the new rule.
   schedule: Common & { taskId: string; assignee?: string; repeat?: Repeat; dueOn?: string };
   delete: Common & { taskId: string };
@@ -184,7 +186,7 @@ export interface CalendarMutationVars {
 export interface PlannedChange { plannedOn: string | null; plannedEndOn?: string | null }
 // A cost figure is whole pence from 1, or `null` to clear it. Each has its own time.
 export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus; planned?: PlannedChange; estimatePence?: number | null; spentPence?: number | null }
-export interface StepChanges { text?: string; note?: string | null; state?: StepState; position?: string }
+export interface StepChanges { text?: string; note?: string | null; energy?: Energy | null; state?: StepState; position?: string }
 
 export interface ProjectMutationVars {
   putProject: Common & { projectId: string; changes: ProjectChanges };
@@ -232,7 +234,7 @@ const RUNNERS: { [K in MutationKind]: Runner<K> } = {
 
   edit: (v, request) => {
     const body: Record<string, unknown> = { mutationId: v.mutationId, clientAt: v.at };
-    for (const field of ['title', 'notes', 'checklist'] as const) {
+    for (const field of ['title', 'notes', 'energy', 'checklist'] as const) {
       if (v[field] === undefined) continue;
       body[field] = v[field];
       body[`${field}At`] = v.at;
