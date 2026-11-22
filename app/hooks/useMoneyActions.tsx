@@ -21,7 +21,8 @@ export interface MoneyActions {
   add(input: NewMoneyInput): void;
   // A waiting or declined entry takes any of these. An agreed entry takes only the description and date: its money changes through askChange.
   edit(entry: MoneyEntry, changes: { money?: MoneyChange; description?: string; on?: string }): void;
-  respond(entry: MoneyEntry, response: 'agree' | 'decline'): void;
+  // `because` is an optional short reason, only with 'decline'.
+  respond(entry: MoneyEntry, response: 'agree' | 'decline', because?: string): void;
   askChange(entry: MoneyEntry, change: { money: MoneyChange } | { delete: true }): void;
   respondChange(entry: MoneyEntry, response: 'agree' | 'decline'): void;
   withdrawChange(entry: MoneyEntry): void;
@@ -60,7 +61,7 @@ export function useMoneyActions(): MoneyActions {
       });
     },
 
-    respond: (entry, response) => respond.mutate({ ...common(), entryId: entry.id, response, version: entry.version }),
+    respond: (entry, response, because) => respond.mutate({ ...common(), entryId: entry.id, response, version: entry.version, ...(because === undefined ? {} : { because }) }),
 
     askChange: (entry, asked) => change.mutate({ ...common(), entryId: entry.id, version: entry.version, ...asked }),
 

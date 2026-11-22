@@ -50,11 +50,13 @@ async function find(store: Store, ctx: HouseholdContext, target: HoldTarget): Pr
 }
 
 export async function takeRecord(
-  store: Store, ctx: HouseholdContext, target: HoldTarget, input: { mutationId: string }, nowMs: number = Date.now(),
+  store: Store, ctx: HouseholdContext, target: HoldTarget, input: { mutationId: string; because?: string }, nowMs: number = Date.now(),
 ): Promise<WriteOutcome<HoldAnswer>> {
   const replayed = await replayOf<HoldAnswer>(store, ctx.householdId, input.mutationId);
   if (replayed) return replayed;
   const key = keyOf(ctx.householdId, target);
+  // Only a step carries a reason, and only the take that makes the hold.
+  const note = target.kind === 'step' && input.because !== undefined ? { takenNote: input.because } : {};
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const found = await find(store, ctx, target);
@@ -69,14 +71,17 @@ export async function takeRecord(
     // Free, or held by someone who has left: the update applies only while the hold is still what was read.
     const op: TxOp = {
       update: key,
-      set: { takenBy: ctx.userId, takenAt: nowMs },
+      set: { takenBy: ctx.userId, takenAt: nowMs, ...note },
+      // A hold left by someone who has gone takes its old reason with it.
+      ...(raw.takenBy !== undefined && input.because === undefined ? { remove: ['takenNote'] } : {}),
       ifMissing: raw.takenBy === undefined ? ['takenBy', 'deletedAt'] : ['deletedAt'],
       ifEquals: {
         ...(raw.takenBy === undefined ? {} : { takenBy: raw.takenBy }),
         ...(target.kind === 'step' ? { state: 'todo' } : {}),
       },
     };
-    const taken = recordOf(target, { ...raw, takenBy: ctx.userId, takenAt: nowMs });
+    const { takenNote: _old, ...rest } = raw;
+    const taken = recordOf(target, { ...rest, takenBy: ctx.userId, takenAt: nowMs, ...note });
     try {
       return await answer(store, ctx, target, input.mutationId, nowMs, [op], { ...taken, outcome: 'taken' });
     } catch (error) {
@@ -101,8 +106,8 @@ export async function releaseRecord(
     // Either person may release, including a hold left by someone who has gone. A release of nothing is `not_held`.
     if (raw.takenBy === undefined) return answer(store, ctx, target, input.mutationId, nowMs, [], { ...recordOf(target, raw), outcome: 'not_held' });
 
-    const op: TxOp = { update: key, remove: ['takenBy', 'takenAt'], ifEquals: { takenBy: raw.takenBy }, ifMissing: ['deletedAt'] };
-    const { takenBy: _by, takenAt: _at, ...free } = raw;
+    const op: TxOp = { update: key, remove: ['takenBy', 'takenAt', 'takenNote'], ifEquals: { takenBy: raw.takenBy }, ifMissing: ['deletedAt'] };
+    const { takenBy: _by, takenAt: _at, takenNote: _note, ...free } = raw;
     try {
       return await answer(store, ctx, target, input.mutationId, nowMs, [op], { ...recordOf(target, free as Item), outcome: 'released' });
     } catch (error) {

@@ -153,3 +153,16 @@ describe('parseChangeRespond, parseChangeWithdraw and parseMoneyDelete', () => {
     expect(fieldOf(parseMoneyDelete({}))).toBe('mutationId');
   });
 });
+
+describe('a reason when asking to check', () => {
+  const MUT2 = '00000000-0000-4000-8000-000000000001';
+  it('is accepted, trimmed, with a decline only', () => {
+    expect(parseRespond({ response: 'decline', version: 1, because: '  Looks high ', mutationId: MUT2 })).toMatchObject({ ok: true, value: { because: 'Looks high' } });
+    expect(parseRespond({ response: 'agree', version: 1, because: 'x', mutationId: MUT2 }).ok).toBe(false);
+  });
+
+  it('refuses an empty or over-long reason', () => {
+    expect(parseRespond({ response: 'decline', version: 1, because: '  ', mutationId: MUT2 }).ok).toBe(false);
+    expect(parseRespond({ response: 'decline', version: 1, because: 'x'.repeat(201), mutationId: MUT2 }).ok).toBe(false);
+  });
+});

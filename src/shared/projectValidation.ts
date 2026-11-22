@@ -112,7 +112,21 @@ export function parseStepPut(body: Record<string, unknown>): Put<StepWrite> {
   });
 }
 
-// A take, a release and a delete carry the envelope and nothing else.
+// The longest "Because..." a person can leave when taking a step.
+export const MAX_TAKE_BECAUSE = 200;
+
+// A take of a step may carry a short reason the other person sees under it. A release is the same body, and ignores it.
+export function parseHoldBody(body: Record<string, unknown>): Parsed<{ mutationId: string; because?: string }> {
+  const extra = unknownKey(body, ['because', ...ENVELOPE_KEYS], '');
+  if (extra) return bad(extra);
+  const envelope = parseEnvelope(body);
+  if (!envelope.ok) return envelope;
+  if (body.because === undefined) return good({ mutationId: envelope.value.mutationId });
+  const because = trimmedText(body.because, MAX_TAKE_BECAUSE, 'because');
+  return because.ok ? good({ mutationId: envelope.value.mutationId, because: because.value }) : because;
+}
+
+// A delete carries the envelope and nothing else.
 export function parseTakeBody(body: Record<string, unknown>): Parsed<{ mutationId: string }> {
   const extra = unknownKey(body, ENVELOPE_KEYS, '');
   if (extra) return bad(extra);

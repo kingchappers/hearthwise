@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { cleanup, within, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MoneyEntry } from '../../../../src/money/types';
 import { loanLines } from '~/lib/money';
@@ -79,7 +79,7 @@ describe('EntryDetail: the buttons that apply', () => {
   it('offers Agree and Ask them to check on a waiting entry from the other person', async () => {
     const waiting = waitingForMe();
     const { actions } = renderDetail(waiting);
-    expect(buttons()).toEqual(['Agree', 'Ask Alex to check']);
+    expect(buttons()).toEqual(['Agree', 'Ask Alex to check', 'Say why']);
     await userEvent.click(screen.getByRole('button', { name: 'Agree' }));
     expect(actions.respond).toHaveBeenCalledWith(waiting, 'agree');
     await userEvent.click(screen.getByRole('button', { name: 'Ask Alex to check' }));
@@ -163,5 +163,28 @@ describe('EntryDetail: the buttons that apply', () => {
   it('turns Restore off while a change to the entry is not saved yet', () => {
     renderDetail(entry({ deletedAt: AT, deletedBy: SAM }), { notSaved: true });
     expect(screen.getByRole('button', { name: 'Restore' })).toBeDisabled();
+  });
+});
+
+describe('EntryDetail: a reason when asking to check', () => {
+  it('asks with a trimmed reason through Say why', async () => {
+    const waiting = waitingForMe();
+    const { actions } = renderDetail(waiting);
+    await userEvent.click(screen.getByRole('button', { name: /say why/i }));
+    await userEvent.type(screen.getByLabelText('Because (optional)'), '  The amount looks high ');
+    const form = screen.getByLabelText('Because (optional)').closest('form') as HTMLElement;
+    await userEvent.click(within(form).getByRole('button', { name: 'Ask Alex to check' }));
+    expect(actions.respond).toHaveBeenCalledWith(waiting, 'decline', 'The amount looks high');
+  });
+
+  it('shows the reason to the person who asked for the entry, and cancel asks nothing', async () => {
+    const declined = { ...waitingForMe(), status: 'declined' as const, declinedBecause: 'The amount looks high' };
+    renderDetail(declined);
+    expect(screen.getByText('Because: The amount looks high')).toBeInTheDocument();
+    cleanup();
+    const { actions } = renderDetail(waitingForMe());
+    await userEvent.click(screen.getByRole('button', { name: /say why/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(actions.respond).not.toHaveBeenCalled();
   });
 });

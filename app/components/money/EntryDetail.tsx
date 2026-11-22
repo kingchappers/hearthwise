@@ -1,3 +1,4 @@
+import { AskWithReason } from './AskWithReason';
 import { Button, Group, Stack, Text, Title } from '@mantine/core';
 import type { MoneyEntry } from '../../../src/money/types';
 import type { MoneyActions } from '~/hooks/useMoneyActions';
@@ -48,6 +49,7 @@ export function EntryDetail({ entry, people, notSaved, canWrite, loan, actions, 
         <>
           {action('Agree', () => actions.respond(entry, 'agree'), true)}
           {action(`Ask ${otherName} to check`, () => actions.respond(entry, 'decline'))}
+          <AskWithReason otherName={otherName} name={entry.description} disabled={!canWrite || notSaved} onAsk={because => actions.respond(entry, 'decline', because)} />
         </>
       );
     }
@@ -68,6 +70,7 @@ export function EntryDetail({ entry, people, notSaved, canWrite, loan, actions, 
     <Stack maw={640}>
       <Title order={1} size="h3" style={{ overflowWrap: 'anywhere' }}>{entry.description}</Title>
       {state && <Text fw={600}>{state}</Text>}
+      {entry.declinedBecause && <Text>{`Because: ${entry.declinedBecause}`}</Text>}
       {notSaved && <Text size="sm">Not saved yet</Text>}
       {loan && <Text fw={600}>{loanText(loan.progress, loan.loan.amountPence, loan.paidBack)}</Text>}
 

@@ -11,7 +11,7 @@ import { deleteStep, putStep } from '../projects/steps';
 import * as events from '../push/events';
 import type { ProjectChange } from '../push/events';
 import type { NotifyEvent } from '../push/notifyOther';
-import { parseAddMaterials, parseMaterialPut, parseProjectPut, parseStepPut, parseTakeBody } from '../shared/projectValidation';
+import { parseAddMaterials, parseMaterialPut, parseProjectPut, parseHoldBody, parseStepPut, parseTakeBody } from '../shared/projectValidation';
 import { getStore } from '../store';
 import { invalid, noStore, ok, parseJsonObject } from './http';
 import { notifyAfter } from './notify';
@@ -113,7 +113,7 @@ function holdRoute(act: typeof takeRecord): TaskHandler {
   return async (event, ctx, params) => {
     const body = parseJsonObject(event);
     if (!body) return invalid('body');
-    const input = parseTakeBody(body);
+    const input = parseHoldBody(body);
     if (!input.ok) return invalid(input.field);
     const target: HoldTarget = params.sid === undefined ? { kind: 'project', id: params.id } : { kind: 'step', projectId: params.id, id: params.sid };
     const outcome = await act(getStore(), ctx, target, input.value);

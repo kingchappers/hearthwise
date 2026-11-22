@@ -391,3 +391,27 @@ describe('a lost race', () => {
     await expect(respond(entry.id, 'agree', 1)).rejects.toMatchObject({ code: 'conflict', status: 409 });
   });
 });
+
+describe('a reason when asking to check', () => {
+  const decline = (id: string, version: number, because?: string) =>
+    respondMoney(store, ctx2, id, { response: 'decline', version, mutationId: uuid(), ...(because === undefined ? {} : { because }) }, NOW + 1000);
+
+  it('is kept with the declined entry and comes back with it', async () => {
+    const entry = await make();
+    const result = (await decline(entry.id, 1, 'The amount looks high')).result.entry;
+    expect(result.declinedBecause).toBe('The amount looks high');
+    expect((await raw(entry.id)).declinedBecause).toBe('The amount looks high');
+    expect((await listMoney(store, ctx1, NOW + 2000)).entries[0].declinedBecause).toBe('The amount looks high');
+  });
+
+  it('is not there when none was given, and goes when the entry is changed and put back to waiting', async () => {
+    const plain = await make();
+    expect((await decline(plain.id, 1)).result.entry.declinedBecause).toBeUndefined();
+    const entry = await make();
+    const declined = (await decline(entry.id, 1, 'Too high')).result.entry;
+    const edited = await put(entry.id, { money: unit('expense', { amountPence: 5000, sharePence: 2500 }), baseVersion: declined.version, mutationId: uuid() }, ctx1, NOW + 2000);
+    expect(edited.result.entry.status).toBe('waiting');
+    expect(edited.result.entry.declinedBecause).toBeUndefined();
+    expect('declinedBecause' in (await raw(entry.id))).toBe(false);
+  });
+});

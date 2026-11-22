@@ -29,6 +29,7 @@ export function EntryRow({ entry, people, notSaved, children, compact = false }:
         {!compact && <Text size="sm">{amountLine(entry, people)}</Text>}
         {!compact && share && <Text size="sm">{share}</Text>}
         {state && <Text size="sm" fw={600}>{state}</Text>}
+        {entry.declinedBecause && <Text size="sm">{`Because: ${entry.declinedBecause}`}</Text>}
         {notSaved && <Text size="sm">Not saved yet</Text>}
         {children}
       </Stack>

@@ -47,6 +47,39 @@ function page(data: Partial<ProjectDetailData> = {}, extra: { notices?: ProjectN
   );
 }
 
+describe('the project page: a reason when taking a step', () => {
+  it('takes with one tap and no reason as before', async () => {
+    page({ steps: [step('a', 'i')] });
+    await userEvent.click(screen.getByRole('button', { name: 'Take this step: Step a' }));
+    expect(a.takeStep).toHaveBeenCalledWith('p1', 'a');
+  });
+
+  it('offers a field for a short reason, and sends it trimmed with the take', async () => {
+    page({ steps: [step('a', 'i')] });
+    await userEvent.click(screen.getByRole('button', { name: 'Take it, and say why: Step a' }));
+    await userEvent.type(screen.getByLabelText('Because (optional)'), '  I have the drill ');
+    await userEvent.click(screen.getByRole('button', { name: 'Take this step' }));
+    expect(a.takeStep).toHaveBeenCalledWith('p1', 'a', 'I have the drill');
+    expect(screen.queryByLabelText('Because (optional)')).not.toBeInTheDocument();
+  });
+
+  it('takes with no reason when the field is left empty, and cancel takes nothing', async () => {
+    page({ steps: [step('a', 'i')] });
+    await userEvent.click(screen.getByRole('button', { name: 'Take it, and say why: Step a' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(a.takeStep).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Take it, and say why: Step a' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Take this step' }));
+    expect(a.takeStep).toHaveBeenCalledWith('p1', 'a', undefined);
+  });
+
+  it('shows the reason to the other person under the step the other person has', () => {
+    page({ steps: [step('a', 'i', { takenBy: THEM, takenAt: NOW, takenNote: 'I have the drill' })] });
+    expect(screen.getByText('Because: I have the drill')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /say why/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('the project page: do in this order', () => {
   it('marks the first step not done as Next, and moves the mark as steps are done', () => {
     page({ project: project({ ordered: true }), steps: [step('a', 'i', { state: 'done' }), step('b', 'j'), step('c', 'k')] });

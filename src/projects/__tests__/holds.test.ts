@@ -149,3 +149,40 @@ describe('release', () => {
     await expect(release(w.ctx1, { kind: 'project', id: uuid() })).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe('a reason left when taking a step', () => {
+  const takeBecause = (who: World['ctx1'], because: string, target = step) => takeRecord(w.store, who, target, { mutationId: uuid(), because }, NOW);
+
+  it('is kept with the hold and comes back on the step', async () => {
+    const out = await takeBecause(w.ctx1, 'I have the drill');
+    expect(out.result.outcome).toBe('taken');
+    expect(out.result.step?.takenNote).toBe('I have the drill');
+    expect((await stored(step))?.takenNote).toBe('I have the drill');
+  });
+
+  it('goes when the step is given back, and a plain take after leaves none', async () => {
+    await takeBecause(w.ctx1, 'I have the drill');
+    await release(w.ctx1);
+    expect('takenNote' in (await stored(step))!).toBe(false);
+    await take(w.ctx2);
+    expect('takenNote' in (await stored(step))!).toBe(false);
+  });
+
+  it('does not replace the hold or the reason of the person who got there first', async () => {
+    await takeBecause(w.ctx1, 'Mine');
+    const second = await takeBecause(w.ctx2, 'No, mine');
+    expect(second.result.outcome).toBe('held_by_other');
+    expect((await stored(step))?.takenNote).toBe('Mine');
+  });
+
+  it('is never logged', async () => {
+    const log = vi.spyOn(console, 'log');
+    await takeBecause(w.ctx1, 'Private reason words');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('Private reason words');
+  });
+
+  it('is not stored on a project, which has no reasons', async () => {
+    await takeBecause(w.ctx1, 'Whole thing', project);
+    expect('takenNote' in (await stored(project))!).toBe(false);
+  });
+});

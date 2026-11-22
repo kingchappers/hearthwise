@@ -45,6 +45,7 @@ export function toStep(raw: Item): Step {
   };
   if (typeof raw.note === 'string') step.note = raw.note;
   if (isEnergy(raw.energy)) step.energy = raw.energy;
+  if (typeof raw.takenNote === 'string') step.takenNote = raw.takenNote;
   if (typeof raw.takenBy === 'string') step.takenBy = raw.takenBy;
   if (typeof raw.takenAt === 'number') step.takenAt = raw.takenAt;
   if (typeof raw.doneBy === 'string') step.doneBy = raw.doneBy;

@@ -34,10 +34,11 @@ function taken<T extends { takenBy?: string; takenAt?: number; state?: string }>
   if (record.state === 'done' || (record.takenBy !== undefined && record.takenBy !== by)) return record;
   return { ...record, takenBy: by, takenAt: at };
 }
-function released<T extends { takenBy?: string; takenAt?: number }>(record: T): T {
+function released<T extends { takenBy?: string; takenAt?: number; takenNote?: string }>(record: T): T {
   const copy = { ...record };
   delete copy.takenBy;
   delete copy.takenAt;
+  delete copy.takenNote;
   return copy;
 }
 
@@ -135,7 +136,13 @@ function overlayDetail(data: ProjectDetailData, kind: ProjectMutationKind, vars:
       return material ? { ...data, materials: data.materials.filter(row => row.id !== v.lineId) } : data;
     }
     case 'deleteStep': return changeStep((vars as Vars<'deleteStep'>).stepId, () => undefined);
-    case 'takeStep': return changeStep((vars as Vars<'takeStep'>).stepId, step => taken(step, (vars as Vars<'takeStep'>).by, (vars as Vars<'takeStep'>).at));
+    case 'takeStep': {
+      const v = vars as Vars<'takeStep'>;
+      return changeStep(v.stepId, step => {
+        const mine = taken(step, v.by, v.at);
+        return mine === step || v.because === undefined ? mine : { ...mine, takenNote: v.because };
+      });
+    }
     case 'releaseStep': return changeStep((vars as Vars<'releaseStep'>).stepId, released);
     default: return data;
   }

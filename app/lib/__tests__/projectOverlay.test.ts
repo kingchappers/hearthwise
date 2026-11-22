@@ -154,3 +154,19 @@ describe('the costs overlay', () => {
     expect(applyPendingProjectDetail(detail([], stored), [pending('putProject', { projectId: 'p1', changes: { spentPence: 1 } })]).project.spentPence).toBe(90000);
   });
 });
+
+describe('a reason left when taking a step, in pending writes', () => {
+  const pend = (kind: 'takeStep' | 'releaseStep', over: object = {}) => ({ mutationKey: projectMutationKeys[kind], variables: { mutationId: 'm', at: AT, by: ME, projectId: 'p1', stepId: 'a', ...over } });
+  const apply = (s: Step, ...writes: ReturnType<typeof pend>[]) => applyPendingProjectDetail(detail([s]), writes as never).steps[0];
+
+  it('shows the reason with the hold, and not when someone else already has the step', () => {
+    expect(apply(step('a', 'i'), pend('takeStep', { because: 'I have the drill' }))).toMatchObject({ takenBy: ME, takenNote: 'I have the drill' });
+    const theirs = step('a', 'i', { takenBy: THEM, takenAt: 1 });
+    expect(apply(theirs, pend('takeStep', { because: 'Mine' })).takenNote).toBeUndefined();
+  });
+
+  it('goes with a pending release', () => {
+    const held = step('a', 'i', { takenBy: ME, takenAt: 1, takenNote: 'Because' });
+    expect(apply(held, pend('releaseStep')).takenNote).toBeUndefined();
+  });
+});

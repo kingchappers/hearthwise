@@ -22,7 +22,7 @@ export interface ProjectActions {
   deleteStep(projectId: string, step: Step): void;
   // Undo of a delete is a new step with the same words under a new id: a held or done step comes back not started.
   undoDeleteStep(projectId: string, step: Step): void;
-  takeStep(projectId: string, stepId: string): void;
+  takeStep(projectId: string, stepId: string, because?: string): void;
   releaseStep(projectId: string, stepId: string): void;
   // Each pasted line is its own write; the tick goes with the first only.
   addMaterials(projectId: string, lines: string[]): void;
@@ -100,7 +100,7 @@ export function useProjectActions(): ProjectActions {
       );
     },
     undoDeleteStep,
-    takeStep: (projectId, stepId) => takeS.mutate({ ...common(), projectId, stepId }),
+    takeStep: (projectId, stepId, because) => takeS.mutate({ ...common(), projectId, stepId, ...(because === undefined ? {} : { because }) }),
     releaseStep: (projectId, stepId) => releaseS.mutate({ ...common(), projectId, stepId }),
     addMaterials: (projectId, lines) => lines.forEach((text, index) => {
       putMat.mutate({ ...(index === 0 ? common() : plain()), projectId, lineId: crypto.randomUUID(), text });

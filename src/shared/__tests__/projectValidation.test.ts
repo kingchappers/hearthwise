@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAddMaterials, parseMaterialPut, parseProjectPut, parseStepPut, parseTakeBody } from '../projectValidation';
+import { parseAddMaterials, parseHoldBody, parseMaterialPut, parseProjectPut, parseStepPut, parseTakeBody } from '../projectValidation';
 
 const MUT = '00000000-0000-4000-8000-000000000001';
 const AT = 1_790_000_000_000;
@@ -185,5 +185,19 @@ describe('the in-order flag', () => {
     expect(parseProjectPut({ ordered: false, orderedAt: AT, ...env }).ok).toBe(true);
     expect(parseProjectPut({ ordered: 'yes', orderedAt: AT, ...env }).ok).toBe(false);
     expect(parseProjectPut({ ordered: true, ...env }).ok).toBe(false);
+  });
+});
+
+describe('parseHoldBody', () => {
+  it('takes the envelope alone, or with a short reason that is trimmed', () => {
+    expect(parseHoldBody({ ...env })).toMatchObject({ ok: true, value: { mutationId: MUT } });
+    expect(parseHoldBody({ because: '  I have the drill ', ...env })).toMatchObject({ ok: true, value: { because: 'I have the drill' } });
+  });
+
+  it('refuses an empty or over-long reason and any other field', () => {
+    expect(parseHoldBody({ because: '   ', ...env }).ok).toBe(false);
+    expect(parseHoldBody({ because: 'x'.repeat(201), ...env }).ok).toBe(false);
+    expect(parseHoldBody({ because: 3, ...env }).ok).toBe(false);
+    expect(parseHoldBody({ note: 'x', ...env }).ok).toBe(false);
   });
 });

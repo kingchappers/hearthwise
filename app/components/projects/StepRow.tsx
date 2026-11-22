@@ -1,5 +1,7 @@
 import { ENERGY_LABELS } from '../../../src/shared/energy';
-import { Button, Checkbox, Group, Stack, Text } from '@mantine/core';
+import { useState } from 'react';
+import { Button, Checkbox, Group, Stack, Text, TextInput } from '@mantine/core';
+import { MAX_TAKE_BECAUSE } from '../../../src/shared/projectValidation';
 import type { Step } from '../../../src/projects/types';
 import { holderOf } from '../../../src/shared/projectRules';
 import type { ProjectActions } from '~/hooks/useProjectActions';
@@ -35,6 +37,8 @@ export interface StepRowProps {
 // One step: a tick, its words, its state in words ("Not started", "On it", "Done"), who is on it, and move and hold buttons. A done step
 // stays in place with a tick; it does not jump to the bottom.
 export function StepRow({ step, projectId, members, me, now, unsaved, first, last, actions, onMove, onOpen, notices = [], userId = me, number, reordering = false, isNext = false }: StepRowProps) {
+  const [explaining, setExplaining] = useState(false);
+  const [because, setBecause] = useState('');
   const status = stepStatus(step, members);
   const holder = holderOf(step, members);
   // A step someone has says who in one sentence ("Alex has this") below, so the state word is only for Not started and Done.
@@ -59,11 +63,31 @@ export function StepRow({ step, projectId, members, me, now, unsaved, first, las
           {step.energy && <Text size="sm">{ENERGY_LABELS[step.energy]} step</Text>}
           {step.note && <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{step.note}</Text>}
           <HolderMark record={step} members={members} me={me} now={now} />
+          {holder !== undefined && step.takenNote && <Text size="sm">{`Because: ${step.takenNote}`}</Text>}
         </Stack>
       </Group>
       <NoticeBar notices={notices} userId={userId} />
+      {explaining && step.state === 'todo' && holder === undefined && (
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            actions.takeStep(projectId, step.id, because.trim() === '' ? undefined : because.trim());
+            setExplaining(false);
+            setBecause('');
+          }}
+        >
+          <Stack gap="xs">
+            <TextInput label={COPY.becauseLabel} description={COPY.becauseHint} value={because} onChange={event => setBecause(event.currentTarget.value)} maxLength={MAX_TAKE_BECAUSE} data-autofocus />
+            <Group gap="xs">
+              <Button type="submit" size="xs" style={{ minHeight: 44 }}>{COPY.takeIt}</Button>
+              <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => { setExplaining(false); setBecause(''); }}>Cancel</Button>
+            </Group>
+          </Stack>
+        </form>
+      )}
       <Group gap="xs">
         {step.state === 'todo' && holder === undefined && <Button variant="default" size="xs" style={{ minHeight: 44 }} aria-label={`${COPY.takeIt}: ${step.text}`} onClick={() => actions.takeStep(projectId, step.id)}>{COPY.takeIt}</Button>}
+        {step.state === 'todo' && holder === undefined && !explaining && <Button variant="subtle" size="xs" style={{ minHeight: 44 }} aria-label={`${COPY.takeWithReason}: ${step.text}`} onClick={() => setExplaining(true)}>{COPY.takeWithReason}</Button>}
         {holder !== undefined && <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => actions.releaseStep(projectId, step.id)}>{COPY.freeIt}</Button>}
         {reordering && (
           <>
