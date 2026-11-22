@@ -33,7 +33,7 @@ export const COPY = {
   limitProjects: 'This household has reached 60 projects.',
   limitSteps: 'This project has reached 40 steps.',
   noRoom: "This step can't be moved there. Move another step instead.",
-  replaced: 'This was changed after you wrote it. Your wording is kept here.',
+  replaced: 'The other person changed this after you saved yours. Your words are kept here:',
   finish: 'Mark as finished',
   finished: 'Finished',
   bringBack: 'Reopen this project',

@@ -40,7 +40,7 @@ const CALENDAR_PHRASES = [
 const BANNED_PHASE_5 = /\b(over budget|overspent|overrun|behind schedule|stuck|stalled|blocked|abandoned|unfinished|undone|conflict|rejected|lost|claim|assign)\b/i;
 const PROJECT_PHRASES = [
   'Not started', 'On it', 'Done', "Take this step", 'Give this step back', 'Not saved yet', 'Not saved for offline yet', 'No projects yet. Add one when you start a bigger job.',
-  'This household has reached 60 projects.', 'This was changed after you wrote it. Your wording is kept here.', 'Mark as finished', 'Finished', 'Reopen this project',
+  'This household has reached 60 projects.', 'The other person changed this after you saved yours. Your words are kept here:', 'Mark as finished', 'Finished', 'Reopen this project',
   ' already has this', 'Last changed by ', 'On it for ',
   'Add to the shopping list', 'On the list', 'Already on the list', 'Added earlier, and since cleared',
   'Planned for ', 'No day planned', 'Add a cost', 'Not in Money. This is only for the project.', 'Spent so far ', 'Estimate ',
