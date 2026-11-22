@@ -1,4 +1,5 @@
-import { Group, NativeSelect, Stack, Switch } from '@mantine/core';
+import { useState } from 'react';
+import { Group, NativeSelect, Stack, Switch, Text } from '@mantine/core';
 import { useHousehold, useUpdateMe } from '~/lib/household';
 import { HOUR_OPTIONS } from './hours';
 
@@ -8,21 +9,24 @@ const DEFAULT_QUIET = { start: 22, end: 7 };
 export function QuietHours() {
   const household = useHousehold();
   const update = useUpdateMe();
+  const [failed, setFailed] = useState(false);
   const quiet = household.data?.me.settings.quietHours;
   if (!household.data) return null;
 
   const save = (quietHours: { start: number; end: number } | null): void => {
-    update.mutateAsync({ settings: { quietHours } }).catch((error: unknown) => console.error('QuietHours: could not save', error));
+    setFailed(false);
+    update.mutateAsync({ settings: { quietHours } }).catch((error: unknown) => { console.error('QuietHours: could not save', error); setFailed(true); });
   };
 
   return (
     <Stack gap="xs">
       <Switch
         label="Quiet hours"
-        description="Messages the other person sends you wait until quiet hours end. Your own reminders still arrive."
+        description="Messages the other person sends you wait until quiet hours end, then arrive within an hour. Your own reminders still arrive."
         checked={quiet !== null && quiet !== undefined}
         onChange={event => save(event.currentTarget.checked ? DEFAULT_QUIET : null)}
       />
+      {failed && <Text size="sm" role="alert">Could not save that. Try again.</Text>}
       {quiet && (
         <Group grow align="flex-end">
           <NativeSelect label="Quiet hours start" data={HOUR_OPTIONS} value={String(quiet.start)} onChange={event => save({ ...quiet, start: Number(event.currentTarget.value) })} />

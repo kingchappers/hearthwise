@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Code, Group, Stack, Text } from '@mantine/core';
 import { useCreateInvite, useInvites, useRevokeInvite } from '~/lib/household';
+import { tryAgainText } from '~/lib/tryAgain';
 
 const SHARE_TITLE = 'Join our Hearthwise household';
 
@@ -8,7 +9,7 @@ function failureMessage(error: unknown): string {
   const code = (error as { code?: string } | null)?.code;
   if (code === 'household_full') return 'Your household already has two people.';
   if (code === 'too_many_invites') return 'You have too many open invites. Revoke one first.';
-  return 'We could not make the link. Check your connection and try again.';
+  return tryAgainText('We could not make the link.', error);
 }
 
 // The link is shown only here, once, right after it is made: the server keeps a hash, never the link itself.
@@ -60,7 +61,7 @@ export function InviteLink() {
       await revoke.mutateAsync(hash);
     } catch (failure) {
       console.error('InviteLink: could not revoke an invite', failure);
-      setError('We could not revoke that invite. Check your connection and try again.');
+      setError(tryAgainText('We could not revoke that invite.', failure));
     }
   }
 

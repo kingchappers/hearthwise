@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NativeSelect, Stack, Switch, Text } from '@mantine/core';
 import { DEFAULT_SETTINGS } from '../../../src/shared/household';
 import { useHousehold, useUpdateMe } from '~/lib/household';
@@ -9,13 +10,15 @@ type Which = 'digest' | 'dueNudges' | 'plannedDay';
 export function Reminders() {
   const household = useHousehold();
   const update = useUpdateMe();
+  const [failed, setFailed] = useState(false);
   const me = household.data?.me;
   if (!me) return null;
   // A record saved before a setting existed has no value for it: the default stands in.
   const settings = { ...DEFAULT_SETTINGS, ...me.settings };
 
   const save = (which: Which, change: { on?: boolean; hour?: number }): void => {
-    update.mutateAsync({ settings: { [which]: change } }).catch((error: unknown) => console.error('Reminders: could not save', error));
+    setFailed(false);
+    update.mutateAsync({ settings: { [which]: change } }).catch((error: unknown) => { console.error('Reminders: could not save', error); setFailed(true); });
   };
 
   const block = (which: Which, switchLabel: string, description: string, timeLabel: string) => {
@@ -39,6 +42,7 @@ export function Reminders() {
       {block('digest', 'Daily summary', 'One message a day with what is due today, and anything still waiting.', 'Daily summary time')}
       {block('dueNudges', 'Due-day reminders', 'A message for each task of yours that is due today.', 'Due-day reminder time')}
       {block('plannedDay', 'Planned-day reminder', 'A message the day before and the morning of a project\'s planned day. It says how many are planned, never which.', 'Planned-day reminder time')}
+      {failed && <Text size="sm" role="alert">Could not save that. Try again.</Text>}
       <Text size="sm">Times are in your household's time zone.</Text>
     </Stack>
   );

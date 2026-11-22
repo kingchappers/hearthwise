@@ -37,7 +37,7 @@ export function PushPrompt() {
   if (!show) return null;
   return (
     <Alert color="honey" title="Want a nudge?">
-      <Text size="sm" mb="xs">Hearthwise can send a daily summary or tell you when the other person asks. It is all off until you turn it on.</Text>
+      <Text size="sm" mb="xs">Hearthwise can send a daily summary or tell you when the other person asks. It is all off until you turn it on. You can always find it in Settings.</Text>
       <Group>
         <Anchor component={Link} to="/settings#notifications" onClick={markSeen}>Notification settings</Anchor>
         <Button variant="default" onClick={() => { markSeen(); setShow(false); }}>Not now</Button>

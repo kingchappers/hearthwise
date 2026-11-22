@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, Group, Paper, Stack, Text, TextInput } from '@mantine/core';
 import { useRemoveMember, useUpdateMe } from '~/lib/household';
 import type { HouseholdData, MemberSummary } from '~/lib/household';
+import { tryAgainText } from '~/lib/tryAgain';
 
 const MAX_DISPLAY_NAME = 40;
 
@@ -20,7 +21,7 @@ function OwnName({ current }: { current: string }) {
       await update.mutateAsync({ displayName: trimmed });
     } catch (failure) {
       console.error('Members: could not save the display name', failure);
-      setError('We could not save your name. Check your connection and try again.');
+      setError(tryAgainText('We could not save your name.', failure));
     }
   }
 
@@ -55,7 +56,7 @@ function OtherMember({ member, canRemove }: { member: MemberSummary; canRemove: 
       setConfirming(false);
     } catch (failure) {
       console.error('Members: could not remove a member', failure);
-      setError('We could not remove them. Check your connection and try again.');
+      setError(tryAgainText('We could not remove them.', failure));
     }
   }
 
