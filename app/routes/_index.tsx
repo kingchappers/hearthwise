@@ -5,6 +5,7 @@ import { EasyPicks } from '~/components/meals/EasyPicks';
 import { Tonight } from '~/components/meals/Tonight';
 import { NextThing } from '~/components/tasks/NextThing';
 import { ProposalBanner } from '~/components/tasks/ProposalBanner';
+import { pendingAsks } from '~/lib/taskText';
 import { TaskList } from '~/components/tasks/TaskList';
 import { TaskSheet } from '~/components/tasks/TaskSheet';
 import { DefaultLayout } from '~/components/layout/DefaultLayout';
@@ -74,7 +75,7 @@ function TodayContent() {
         onWithdraw={actions.withdraw}
       />
       {view === 'list' ? (
-        <TaskList tasks={tasks.tasks} today={tasks.today} roster={actions.members} viewerId={actions.me.userId} onComplete={actions.complete} />
+        <TaskList tasks={tasks.tasks} today={tasks.today} roster={actions.members} viewerId={actions.me.userId} onComplete={actions.complete} askedOf={pendingAsks(tasks.proposals, actions.me.userId, actions.members)} />
       ) : (
         <NextThing
           task={next}
