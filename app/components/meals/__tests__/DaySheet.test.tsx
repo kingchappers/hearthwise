@@ -6,6 +6,8 @@ import { MemoryRouter } from 'react-router';
 import type { PlanDay, Recipe } from '../../../../src/meals/types';
 import { expectNoViolations } from '~/test-utils/accessibility';
 
+const show = vi.hoisted(() => vi.fn());
+vi.mock('@mantine/notifications', () => ({ notifications: { show, hide: vi.fn() } }));
 vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import { DaySheet } from '../DaySheet';
@@ -120,6 +122,18 @@ describe('DaySheet', () => {
     first.unmount();
     renderSheet();
     expect(screen.queryByRole('button', { name: 'Clear this day' })).not.toBeInTheDocument();
+  });
+
+  it('says what was cleared and puts it back when Undo is pressed', async () => {
+    const meal = { recipeId: 'Chilli', title: 'Chilli', servings: 4 };
+    renderSheet({ plan: plan(meal) });
+    show.mockClear();
+    onSet.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear this day' }));
+    const toast = render(<MantineProvider env="test">{show.mock.calls.at(-1)![0].message}</MantineProvider>);
+    expect(toast.getByText('Cleared Chilli.')).toBeInTheDocument();
+    await userEvent.click(toast.getByRole('button', { name: 'Undo' }));
+    expect(onSet).toHaveBeenCalledWith(DAY, meal);
   });
 
   it('says who last changed the day, by name', () => {

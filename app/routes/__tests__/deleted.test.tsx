@@ -232,7 +232,7 @@ describe('the Deleted page: projects', () => {
     expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
     expect(screen.getByText(/Comes back with 12 steps, 8 materials/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Restore: Take down the decking' }));
-    expect((state.projectActions as { restoreProject: ReturnType<typeof vi.fn> }).restoreProject).toHaveBeenCalledWith({ id: 'p1', deletedAt: project.deletedAt });
+    expect((state.projectActions as { restoreProject: ReturnType<typeof vi.fn> }).restoreProject).toHaveBeenCalledWith({ id: 'p1', deletedAt: project.deletedAt, title: 'Take down the decking' });
   });
 
   it('turns Restore off while a write for the project is waiting', () => {

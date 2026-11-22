@@ -6,6 +6,7 @@ import type { PlanDay, PlanMeal, Recipe } from '../../../src/meals/types';
 import { MAX_TITLE } from '../../../src/shared/mealValidation';
 import { recipeState } from '~/lib/plan';
 import { cookLink, dayHeading } from '~/lib/planText';
+import { useUndoToast } from '~/hooks/useUndoToast';
 import { sortRecipes } from '~/lib/recipes';
 import { ResponsiveSheet } from '../layout/ResponsiveSheet';
 import { LetThemKnow } from '../shared/LetThemKnow';
@@ -26,6 +27,7 @@ export interface DaySheetProps {
 const MAX_SERVINGS = 50;
 
 function Content({ day, plan, recipes, checkedAt, members, onClose, onSet, onClear }: DaySheetProps & { day: string }) {
+  const undoToast = useUndoToast();
   const [all, setAll] = useState(false);
   const [name, setName] = useState('');
   const meal = plan?.meal;
@@ -93,7 +95,21 @@ function Content({ day, plan, recipes, checkedAt, members, onClose, onSet, onCle
       </form>
 
       <LetThemKnow />
-      {meal && <Group><Button variant="default" onClick={() => { onClear(day); onClose(); }}>Clear this day</Button></Group>}
+      {meal && (
+        <Group>
+          <Button
+            variant="default"
+            onClick={() => {
+              const previous = meal;
+              onClear(day);
+              onClose();
+              undoToast(`Cleared ${previous.title}.`, 'Undo', () => onSet(day, previous));
+            }}
+          >
+            Clear this day
+          </Button>
+        </Group>
+      )}
       {author && <Text size="sm">{`Last changed by ${author}`}</Text>}
     </Stack>
   );

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
@@ -16,6 +16,33 @@ const queue = (id: string) => new MutationObserver(client, { mutationKey: ['hous
 beforeEach(() => {
   client = new QueryClient();
   clearDropped();
+});
+
+describe('PendingWritesBanner: offline', () => {
+  const setOnline = (value: boolean) => Object.defineProperty(window.navigator, 'onLine', { value, configurable: true });
+  afterEach(() => setOnline(true));
+
+  it('says it is offline and that changes are kept, as soon as there is no connection, with nothing waiting', () => {
+    setOnline(false);
+    renderBanner();
+    expect(screen.getByRole('status')).toHaveTextContent('Offline. Changes are kept on this phone and save when you are back.');
+  });
+
+  it('says it with the waiting count, in the same words the count always uses', async () => {
+    setOnline(false);
+    renderBanner();
+    act(() => { void queue('m1'); });
+    expect(await screen.findByText('1 change waiting to be saved')).toBeInTheDocument();
+    expect(screen.getByText(/^Offline\./)).toBeInTheDocument();
+  });
+
+  it('goes away when the connection returns', () => {
+    setOnline(false);
+    renderBanner();
+    expect(screen.getByText(/^Offline\./)).toBeInTheDocument();
+    act(() => { setOnline(true); window.dispatchEvent(new Event('online')); });
+    expect(screen.queryByText(/^Offline\./)).not.toBeInTheDocument();
+  });
 });
 
 describe('PendingWritesBanner', () => {

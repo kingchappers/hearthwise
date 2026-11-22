@@ -58,7 +58,7 @@ describe('Settings', () => {
 
   it('links to the Deleted page', () => {
     renderSettings();
-    expect(screen.getByRole('link', { name: 'See deleted tasks' })).toHaveAttribute('href', '/deleted');
+    expect(screen.getByRole('link', { name: 'See deleted things' })).toHaveAttribute('href', '/deleted');
   });
 
   it('says how long you stay signed in, and signs out from a button', async () => {

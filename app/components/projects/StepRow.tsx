@@ -4,7 +4,9 @@ import { holderOf } from '../../../src/shared/projectRules';
 import type { ProjectActions } from '~/hooks/useProjectActions';
 import type { MemberSummary } from '~/lib/household';
 import { COPY, STATUS_WORDS, stepStatus } from '~/lib/projectText';
+import type { ProjectNotice } from '~/lib/projectNotices';
 import { HolderMark } from './HolderMark';
+import { NoticeBar } from './NoticeBar';
 
 export interface StepRowProps {
   step: Step;
@@ -18,11 +20,14 @@ export interface StepRowProps {
   actions: Pick<ProjectActions, 'editStep' | 'takeStep' | 'releaseStep'>;
   onMove: (step: Step, direction: 'up' | 'down') => void;
   onOpen: (step: Step) => void;
+  // What happened to this person's last action on this step, shown here and not at the top of a long page.
+  notices?: ProjectNotice[];
+  userId?: string;
 }
 
 // One step: a tick, its words, its state in words ("Not started", "On it", "Done"), who is on it, and move and hold buttons. A done step
 // stays in place with a tick; it does not jump to the bottom.
-export function StepRow({ step, projectId, members, me, now, unsaved, first, last, actions, onMove, onOpen }: StepRowProps) {
+export function StepRow({ step, projectId, members, me, now, unsaved, first, last, actions, onMove, onOpen, notices = [], userId = me }: StepRowProps) {
   const status = stepStatus(step, members);
   const holder = holderOf(step, members);
   return (
@@ -41,6 +46,7 @@ export function StepRow({ step, projectId, members, me, now, unsaved, first, las
           <HolderMark record={step} members={members} me={me} now={now} />
         </Stack>
       </Group>
+      <NoticeBar notices={notices} userId={userId} />
       <Group gap="xs">
         {step.state === 'todo' && holder === undefined && <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => actions.takeStep(projectId, step.id)}>{COPY.takeIt}</Button>}
         {holder !== undefined && <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => actions.releaseStep(projectId, step.id)}>{COPY.freeIt}</Button>}

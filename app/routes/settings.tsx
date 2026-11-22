@@ -81,8 +81,8 @@ function SettingsContent() {
       <Card withBorder>
         <Title order={2} size="h4" mb="sm">Deleted</Title>
         <Stack gap="sm" align="flex-start">
-          <Text size="sm">Deleted tasks stay for 30 days, and can be restored.</Text>
-          <Anchor component={Link} to="/deleted">See deleted tasks</Anchor>
+          <Text size="sm">Deleted things stay for 30 days, and can be restored.</Text>
+          <Anchor component={Link} to="/deleted">See deleted things</Anchor>
         </Stack>
       </Card>
 

@@ -4,7 +4,9 @@ import type { Material } from '../../../src/projects/types';
 import type { ProjectActions } from '~/hooks/useProjectActions';
 import { splitLines } from '~/lib/projectForm';
 import { COPY } from '~/lib/projectText';
+import type { ProjectNotice } from '~/lib/projectNotices';
 import { MaterialRow } from './MaterialRow';
+import { NoticeBar } from './NoticeBar';
 
 export interface MaterialsSectionProps {
   projectId: string;
@@ -13,11 +15,14 @@ export interface MaterialsSectionProps {
   // Where each material's shopping item stands, by id, read from the list the app already has.
   listState: ReadonlyMap<string, 'onList' | 'cleared'>;
   actions: Pick<ProjectActions, 'addMaterials' | 'editMaterial' | 'deleteMaterial' | 'copyToList'>;
+  // What the last press of "Add to the shopping list" did, shown by that button.
+  notices?: ProjectNotice[];
+  userId?: string;
 }
 
 // Shown once there are lines or the person asks for it ("Add materials"). The copy to the shopping list is one press for every line:
 // the server skips any that are already there, so pressing it twice adds nothing.
-export function MaterialsSection({ projectId, materials, unsavedIds, listState, actions }: MaterialsSectionProps) {
+export function MaterialsSection({ projectId, materials, unsavedIds, listState, actions, notices = [], userId = '' }: MaterialsSectionProps) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   if (materials.length === 0 && !open) {
@@ -51,6 +56,7 @@ export function MaterialsSection({ projectId, materials, unsavedIds, listState, 
       {materials.length > 0 && (
         <>
           <Button style={{ minHeight: 44 }} disabled={toCopy.length === 0} onClick={() => actions.copyToList(projectId, toCopy.map(material => material.id))}>{COPY.addToList}</Button>
+          <NoticeBar notices={notices} userId={userId} />
           <Text size="sm">Lines already on the list are left as they are, so pressing this twice adds nothing.</Text>
         </>
       )}

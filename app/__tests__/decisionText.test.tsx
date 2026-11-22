@@ -118,7 +118,7 @@ describe('members in settings', () => {
 describe('tasks', () => {
   it('shows the Deleted hints and the empty states at a readable size', () => {
     const { unmount } = renderIn(<Settings />);
-    expectReadable(screen.getByText('Deleted tasks stay for 30 days, and can be restored.'));
+    expectReadable(screen.getByText('Deleted things stay for 30 days, and can be restored.'));
     unmount();
     renderIn(<Deleted />);
     expectReadable(screen.getByText('Deleted tasks, shopping items and recipes stay here for 30 days.'));

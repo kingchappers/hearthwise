@@ -72,9 +72,28 @@ describe('useProjectActions', () => {
     expect(show).toHaveBeenCalledTimes(1);
   });
 
-  it('restores with the deletion the person saw', () => {
+  it('restores with the deletion the person saw, and says where the project is', () => {
     const { result } = renderHook(() => useProjectActions());
-    result.current.restoreProject({ id: 'p1', deletedAt: 5 });
+    result.current.restoreProject({ id: 'p1', deletedAt: 5, title: 'Decking' });
     expect(calls[0]).toMatchObject({ kind: 'restoreProject', vars: { entries: [{ id: 'p1', deletedAt: 5 }] } });
+    expect(show.mock.calls.at(-1)![0].message).toBe('Restored: Decking. It is in Projects.');
+  });
+
+  it('says where a deleted project went, with its name, so it is not mistaken for lost', () => {
+    const { result } = renderHook(() => useProjectActions());
+    result.current.deleteProject({ id: 'p1', title: 'Take down the decking' });
+    expect(calls[0]).toMatchObject({ kind: 'deleteProject', vars: { projectId: 'p1' } });
+    expect(show.mock.calls.at(-1)![0].message).toBe('Deleted: Take down the decking. You can bring it back from Deleted for 30 days.');
+  });
+
+  it('says so when a project is marked finished and when it is brought back, and nothing for other edits', () => {
+    const { result } = renderHook(() => useProjectActions());
+    result.current.editProject('p1', { status: 'finished' });
+    expect(show.mock.calls.at(-1)![0].message).toBe('Marked as finished. You can bring it back any time.');
+    result.current.editProject('p1', { status: 'active' });
+    expect(show.mock.calls.at(-1)![0].message).toBe('Brought back. It is in your active projects.');
+    show.mockClear();
+    result.current.editProject('p1', { notes: 'x' });
+    expect(show).not.toHaveBeenCalled();
   });
 });

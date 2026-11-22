@@ -103,7 +103,18 @@ describe('the project notices', () => {
     expect(readNotices('u1')[0]).toMatchObject({ field: 'spent', text: '£1,250.00' });
   });
 
-  it('saves "{name} already has this" when a take was refused', () => {
+  it('names the step in the message when it is known, and says nothing was changed', () => {
+    client.setQueryData(['project', 'p1'], { project: { title: 'Decking' }, steps: [{ id: 's1', text: 'Check the joists' }] });
+    settle('takeStep', { projectId: 'p1', stepId: 's1' }, { outcome: 'held_by_other', step: { takenBy: 'u2' } });
+    expect(readNotices('u1')[0].text).toBe('Alex already has "Check the joists". Nothing was changed.');
+  });
+
+  it('says how many lines went to Shopping, and how many were already there', () => {
+    settle('materialsToList', { projectId: 'p1', lineIds: ['a', 'b', 'c'] }, { results: [{ id: 'a', status: 'created' }, { id: 'b', status: 'created' }, { id: 'c', status: 'already' }] });
+    expect(readNotices('u1')[0].text).toBe('Added 2 lines to Shopping. 1 was already there.');
+  });
+
+  it('saves "{name} already has this" when a take was refused and the step is not known', () => {
     settle('takeStep', { projectId: 'p1', stepId: 's1' }, { outcome: 'held_by_other', step: { takenBy: 'u2' } });
     expect(readNotices('u1')[0]).toMatchObject({ kind: 'taken', recordId: 's1', text: 'Alex already has this' });
   });
@@ -114,9 +125,9 @@ describe('the project notices', () => {
     expect(readNotices('u1').map(notice => notice.text)).toEqual(['Sam line', 'Already on the list']);
   });
 
-  it('says nothing when the copy created lines', () => {
+  it('says what the press did when it created lines, next to the button that was pressed', () => {
     settle('materialsToList', { projectId: 'p1', lineIds: ['m1'] }, { results: [{ id: 'm1', status: 'created' }] });
-    expect(readNotices('u1')).toEqual([]);
+    expect(readNotices('u1')[0]).toMatchObject({ field: 'list', text: 'Added 1 line to Shopping.' });
   });
 
   it('saves nothing for a write that was not replaced', () => {

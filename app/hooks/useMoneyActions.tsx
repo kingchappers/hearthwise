@@ -76,7 +76,7 @@ export function useMoneyActions(): MoneyActions {
 
     remove: entry => {
       del.mutate({ ...common(), entryId: entry.id });
-      toast(`Deleted: ${entry.description}`);
+      toast(`Deleted: ${entry.description}. You can bring it back from Deleted.`);
       navigate('/money');
     },
 
