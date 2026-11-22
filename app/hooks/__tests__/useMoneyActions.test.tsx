@@ -85,7 +85,7 @@ describe('useMoneyActions', () => {
     const { result } = renderHook(() => useMoneyActions());
     result.current.remove(entry({ status: 'waiting' }));
     expect(calls[0]).toMatchObject({ kind: 'moneyDelete', vars: { entryId: 'e1' } });
-    expect(show.mock.calls.at(-1)![0].message).toBe('Deleted: Weekly shop');
+    expect(show.mock.calls.at(-1)![0].message).toBe('Deleted: Weekly shop. You can bring it back from Deleted.');
     expect(navigate).toHaveBeenCalledWith('/money');
   });
 

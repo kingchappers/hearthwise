@@ -12,8 +12,8 @@ export interface ProjectActions {
   // The sheet makes `id` and `mutationId` once, when it opens, so a double tap is one project.
   createProject(input: { id: string; mutationId: string; title: string }): void;
   editProject(projectId: string, changes: ProjectChanges): void;
-  deleteProject(projectId: string): void;
-  restoreProject(project: { id: string; deletedAt: number }): void;
+  deleteProject(project: { id: string; title: string }): void;
+  restoreProject(project: { id: string; deletedAt: number; title?: string }): void;
   takeProject(projectId: string): void;
   releaseProject(projectId: string): void;
   // Each step is its own write; the "Let them know" tick goes with the first only, so one paste is one push.
@@ -62,10 +62,22 @@ export function useProjectActions(): ProjectActions {
     me,
     createProject: ({ id, mutationId, title }) => put.mutate({ ...common(), mutationId, projectId: id, changes: { title } }),
     editProject: (projectId, changes) => {
-      if (Object.keys(changes).length > 0) put.mutate({ ...common(), projectId, changes });
+      if (Object.keys(changes).length === 0) return;
+      put.mutate({ ...common(), projectId, changes });
+      // A change of state says so where it happened, not only by a button changing its label.
+      if (changes.status === 'finished') toast('Marked as finished. You can bring it back any time.');
+      else if (changes.status === 'active') toast('Brought back. It is in your active projects.');
     },
-    deleteProject: projectId => del.mutate({ ...common(), projectId }),
-    restoreProject: ({ id, deletedAt }) => restore.mutate({ ...plain(), entries: [{ id, deletedAt }] }),
+    // Where it went is said at once: a deleted project is in Deleted for 30 days. (An Undo here would need the server's deletion time,
+    // which is only known once the delete has landed, so the way back is Restore on the Deleted page.)
+    deleteProject: ({ id, title }) => {
+      del.mutate({ ...common(), projectId: id });
+      toast(`Deleted: ${title}. You can bring it back from Deleted for 30 days.`);
+    },
+    restoreProject: ({ id, deletedAt, title }) => {
+      restore.mutate({ ...plain(), entries: [{ id, deletedAt }] });
+      toast(title === undefined ? 'Restored. It is in Projects.' : `Restored: ${title}. It is in Projects.`);
+    },
     takeProject: projectId => takeP.mutate({ ...common(), projectId }),
     releaseProject: projectId => releaseP.mutate({ ...common(), projectId }),
     addSteps: (projectId, steps) => steps.forEach(({ text, position }, index) => {

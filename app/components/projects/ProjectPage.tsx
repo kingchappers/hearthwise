@@ -41,6 +41,11 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
   const holder = holderLine(project, members, me);
   const iHold = project.takenBy === me;
   const deleted = project.deletedAt !== undefined;
+  // A message is shown beside the thing it is about: a step's on its row, the Shopping copy's by its button, the rest at the top.
+  const stepIds = new Set(steps.map(step => step.id));
+  const stepNotices = (stepId: string): ProjectNotice[] => notices.filter(notice => notice.recordId === stepId);
+  const listNotices = notices.filter(notice => notice.field === 'list');
+  const topNotices = notices.filter(notice => notice.field !== 'list' && !stepIds.has(notice.recordId));
 
   const move = (step: Step, direction: 'up' | 'down') => {
     const position = positionFor(steps, { type: direction, id: step.id });
@@ -55,9 +60,10 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
         <Title order={1} size="h3">{project.title}</Title>
         <Button variant="subtle" style={{ minHeight: 44 }} onClick={onBack}>All projects</Button>
       </Group>
+      {project.status === 'finished' && !deleted && <Text fw={600}>{COPY.finished}</Text>}
       {unsavedIds.has(project.id) && <Text size="sm" role="status">{COPY.notSaved}</Text>}
       {deleted && <Text role="status">{COPY.deletedProject}</Text>}
-      <NoticeBar notices={notices} userId={me} />
+      <NoticeBar notices={topNotices} userId={me} />
 
       {!deleted && (
         <>
@@ -66,6 +72,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
           <Group gap="xs">
             {iHold
               ? <Button variant="default" style={{ minHeight: 44 }} onClick={() => actions.releaseProject(project.id)}>{COPY.freeProject}</Button>
+              : project.status === 'finished' ? null
               : project.takenBy === undefined || holder === undefined
                 ? <Button variant="default" style={{ minHeight: 44 }} aria-label={`${COPY.takeIt}: the whole project`} onClick={() => actions.takeProject(project.id)}>{COPY.takeIt}</Button>
                 : null}
@@ -88,14 +95,15 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
                   <StepRow
                     key={step.id} step={step} projectId={project.id} members={members} me={me} now={now} unsaved={unsavedIds.has(step.id)}
                     first={index === 0} last={index === steps.length - 1} actions={actions} onMove={move} onOpen={setEditing}
+                    notices={stepNotices(step.id)} userId={me}
                   />
                 ))}
               </List>
             )}
           <AddSteps projectId={project.id} steps={steps} actions={actions} />
           <CostsSection key={`${project.estimatePence}:${project.spentPence}`} project={project} members={members} actions={actions} />
-          <MaterialsSection projectId={project.id} materials={materials} unsavedIds={unsavedIds} listState={listState} actions={actions} />
-          <Button variant="default" style={{ minHeight: 44 }} onClick={() => { actions.deleteProject(project.id); onBack(); }}>Delete project</Button>
+          <MaterialsSection projectId={project.id} materials={materials} unsavedIds={unsavedIds} listState={listState} actions={actions} notices={listNotices} userId={me} />
+          <Button variant="default" style={{ minHeight: 44 }} onClick={() => { actions.deleteProject(project); onBack(); }}>Delete project</Button>
         </>
       )}
 

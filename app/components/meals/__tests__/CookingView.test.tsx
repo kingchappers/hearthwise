@@ -7,6 +7,8 @@ import { expectNoViolations, expectSoundHeadings } from '~/test-utils/accessibil
 
 const wake = vi.hoisted(() => vi.fn());
 vi.mock('~/lib/wakeLock', () => ({ useWakeLock: wake }));
+const show = vi.hoisted(() => vi.fn());
+vi.mock('@mantine/notifications', () => ({ notifications: { show, hide: vi.fn() } }));
 
 import { CookingView } from '../CookingView';
 import type { CookingViewProps } from '../CookingView';
@@ -106,6 +108,27 @@ describe('CookingView', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Start again' }));
     expect(within(stepList()).getByRole('checkbox', { name: 'Serve' })).not.toBeChecked();
     expect(screen.getByText('4 servings')).toBeInTheDocument();
+  });
+
+  it('says the ticks were cleared, and Undo puts the ticks and servings back', async () => {
+    renderView({ plannedServings: 4 });
+    await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
+    await userEvent.click(within(stepList()).getByRole('checkbox', { name: 'Serve' }));
+    show.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Start again' }));
+    expect(within(stepList()).getByRole('checkbox', { name: 'Serve' })).not.toBeChecked();
+    const toast = render(<MantineProvider env="test">{show.mock.calls.at(-1)![0].message}</MantineProvider>);
+    expect(toast.getByText('Started again. Your ticks are cleared.')).toBeInTheDocument();
+    await userEvent.click(toast.getByRole('button', { name: 'Undo' }));
+    expect(within(stepList()).getByRole('checkbox', { name: 'Serve' })).toBeChecked();
+    expect(screen.getByText('5 servings')).toBeInTheDocument();
+  });
+
+  it('says nothing about undoing when there was nothing to clear', async () => {
+    renderView({ plannedServings: 4 });
+    show.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Start again' }));
+    expect(show).not.toHaveBeenCalled();
   });
 
   it('is read-only when the recipe was deleted, with a Restore button', async () => {

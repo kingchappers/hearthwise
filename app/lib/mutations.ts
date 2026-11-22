@@ -23,10 +23,10 @@ import { MONEY_KEY, moneyMutationKeys } from './moneyKeys';
 import { moneyFailureText } from './moneyText';
 import type { MoneyMutationKind } from './moneyKeys';
 import { noteMutationSettled, TASKS_KEY } from './queries';
-import { PROJECT_KEY_PREFIX, PROJECTS_KEY, projectMutationKeys } from './projectKeys';
+import { PROJECT_KEY_PREFIX, PROJECTS_KEY, projectKey as projectDetailKey, projectMutationKeys } from './projectKeys';
 import type { ProjectMutationKind } from './projectKeys';
 import { addNotice } from './projectNotices';
-import { plannedText } from './projectText';
+import { alreadyHas, plannedText } from './projectText';
 import { formatPounds } from '../../src/shared/money';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
 import type { RecipeChanges } from './recipeFields';
@@ -533,11 +533,14 @@ function saveProjectNotices(client: QueryClient, kind: ProjectMutationKind, vari
   const { by, at } = variables;
   if (kind === 'materialsToList') {
     const results = (data as { results?: { status: string }[] }).results ?? [];
-    // Every line was already there: say so, so the press is not mistaken for doing nothing.
-    if (results.length > 0 && results.every(result => result.status === 'already')) {
-      const vars = variables as ProjectMutationVars['materialsToList'];
-      addNotice(by, { kind: 'taken', projectId: vars.projectId, recordId: vars.projectId, field: 'list', text: 'Already on the list', at });
-    }
+    // Say what the press did, next to the button: the lines appear on the Shopping tab, not here.
+    const vars = variables as ProjectMutationVars['materialsToList'];
+    const created = results.filter(result => result.status === 'created').length;
+    const already = results.filter(result => result.status === 'already').length;
+    const text = created > 0
+      ? `Added ${created} ${created === 1 ? 'line' : 'lines'} to Shopping.${already > 0 ? ` ${already} ${already === 1 ? 'was' : 'were'} already there.` : ''}`
+      : already > 0 ? 'Already on the list' : undefined;
+    if (text !== undefined) addNotice(by, { kind: 'taken', projectId: vars.projectId, recordId: vars.projectId, field: 'list', text, at });
     return;
   }
   if (kind === 'putMaterial' && answer.stale && answer.stale.length > 0) {
@@ -555,7 +558,10 @@ function saveProjectNotices(client: QueryClient, kind: ProjectMutationKind, vari
     const vars = variables as ProjectMutationVars['takeStep'];
     const holder = (answer.step ?? answer.project)?.takenBy;
     const recordId = kind === 'takeStep' ? vars.stepId : vars.projectId;
-    addNotice(by, { kind: 'taken', projectId: vars.projectId, recordId, text: `${memberName(client, holder)} already has this`, at });
+    // It names the step, since the message may be read away from the step that was tapped.
+    const detail = client.getQueryData<{ project?: { title: string }; steps?: { id: string; text: string }[] }>(projectDetailKey(vars.projectId));
+    const what = kind === 'takeStep' ? detail?.steps?.find(step => step.id === vars.stepId)?.text : detail?.project?.title;
+    addNotice(by, { kind: 'taken', projectId: vars.projectId, recordId, text: alreadyHas(memberName(client, holder), what), at });
   }
 }
 

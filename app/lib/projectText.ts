@@ -56,7 +56,8 @@ export const COPY = {
 
 export const heldBy = (name: string): string => `${name} is on this`;
 export const youHold = "You're on this";
-export const alreadyHas = (name: string): string => `${name} already has this`;
+// Names the step or project when it is known, since the message may be read away from the thing that was tapped.
+export const alreadyHas = (name: string, what?: string): string => (what === undefined ? `${name} already has this` : `${name} already has "${what}". Nothing was changed.`);
 export const lastChangedBy = (name: string): string => `Last changed by ${name}`;
 export const stepsDone = (done: number, steps: number): string => `${done} of ${steps} ${steps === 1 ? 'step' : 'steps'} done`;
 export const stepsAndMore = (steps: number): string => `${steps} ${steps === 1 ? 'step' : 'steps'}`;

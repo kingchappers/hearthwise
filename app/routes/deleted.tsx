@@ -134,7 +134,7 @@ function DeletedContent() {
                     <Text size="sm">{`Deleted by ${memberName(actions.members, project.deletedBy ?? '')}, ${formatDay(dayInZone(project.deletedAt ?? 0, zone))}. Comes back with ${comesBack}.`}</Text>
                   </Stack>
                   {/* A change not saved yet has not got the server's deletion time, which a restore must name. */}
-                  <Button variant="light" aria-label={`Restore: ${project.title}`} disabled={projects.unsavedIds.has(project.id)} onClick={() => projectActions.restoreProject({ id: project.id, deletedAt: project.deletedAt ?? 0 })}>Restore</Button>
+                  <Button variant="light" aria-label={`Restore: ${project.title}`} disabled={projects.unsavedIds.has(project.id)} onClick={() => projectActions.restoreProject({ id: project.id, deletedAt: project.deletedAt ?? 0, title: project.title })}>Restore</Button>
                 </Group>
               </li>
             ))}

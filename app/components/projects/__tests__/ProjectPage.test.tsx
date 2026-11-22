@@ -157,7 +157,44 @@ describe('the project page', () => {
   });
 });
 
+describe('a finished project', () => {
+  it('says Finished on the page itself, not only by changing a button, and no longer offers to take it', () => {
+    page({ project: project({ status: 'finished' }) });
+    expect(screen.getByText('Finished')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: "I'm on this: the whole project" })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bring back' })).toBeInTheDocument();
+  });
+
+  it('does not say Finished for an active project', () => {
+    page();
+    expect(screen.queryByText('Finished')).not.toBeInTheDocument();
+  });
+
+  it('deletes with the project, so the message can name it', async () => {
+    page();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }));
+    expect(a.deleteProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', title: 'Take down the decking' }));
+  });
+});
+
 describe('the notices', () => {
+  const stepNotice: ProjectNotice = { id: 'n3', kind: 'taken', projectId: 'p1', recordId: 'b', text: 'Alex already has "Step b". Nothing was changed.', at: 3 };
+  const listNotice: ProjectNotice = { id: 'n4', kind: 'taken', projectId: 'p1', recordId: 'p1', field: 'list', text: 'Added 2 lines to Shopping.', at: 4 };
+
+  it('shows a step\'s message on that step\'s row, not at the top of the page', () => {
+    page({ steps: [step('a', 'i'), step('b', 'j')] }, { notices: [stepNotice] });
+    const rows = screen.getAllByRole('listitem');
+    expect(within(rows[1]).getByText(/Alex already has "Step b"/)).toBeInTheDocument();
+    expect(within(rows[0]).queryByText(/already has/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Alex already has/)).toHaveLength(1);
+  });
+
+  it('shows the Shopping message beside the Shopping button', () => {
+    page({ materials: [{ id: 'm1', projectId: 'p1', text: 'Timber', fieldTimes: {}, createdBy: ME, createdAt: 1, updatedAt: 1, updatedBy: ME }] }, { notices: [listNotice] });
+    const section = screen.getByRole('region', { name: 'Materials' });
+    expect(within(section).getByText('Added 2 lines to Shopping.')).toBeInTheDocument();
+  });
+
   const replaced: ProjectNotice = { id: 'n1', kind: 'replaced', projectId: 'p1', recordId: 'a', field: 'text', text: 'Sam wording kept', at: 1 };
   const taken: ProjectNotice = { id: 'n2', kind: 'taken', projectId: 'p1', recordId: 'a', text: 'Alex already has this', at: 2 };
 

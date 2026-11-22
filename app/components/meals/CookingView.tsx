@@ -6,6 +6,7 @@ import { formatAmount, parseIngredientLine } from '../../../src/shared/ingredien
 import { MAX_SERVINGS } from '../../../src/shared/mealValidation';
 import { roundAmount, scaleFactor } from '../../../src/shared/shoppingLines';
 import { readCooking, startAgain, tickLine, writeServings } from '~/lib/cookingState';
+import { useUndoToast } from '~/hooks/useUndoToast';
 import { useWakeLock } from '~/lib/wakeLock';
 
 export interface CookingViewProps {
@@ -32,6 +33,7 @@ function scaledLine(line: string, factor: number): { text: string; notScaled: bo
 
 export function CookingView({ recipe, userId, plannedServings, readOnly = false, onRestore }: CookingViewProps) {
   useWakeLock();
+  const undoToast = useUndoToast();
   const base = plannedServings ?? recipe.servings;
   const [stored] = useState(() => readCooking(userId, recipe.id));
   const [servings, setServings] = useState(stored?.servings ?? base);
@@ -52,10 +54,21 @@ export function CookingView({ recipe, userId, plannedServings, readOnly = false,
   }
 
   function again(): void {
+    const before = { ingredients, steps, servings };
     startAgain(userId, recipe.id, base);
     setIngredients([]);
     setSteps([]);
     setServings(base);
+    // Starting again clears every tick, so the ticks can be put back for as long as the message stays.
+    if (before.ingredients.length === 0 && before.steps.length === 0 && before.servings === base) return;
+    undoToast('Started again. Your ticks are cleared.', 'Undo', () => {
+      for (const index of before.ingredients) tickLine(userId, recipe.id, 'ingredients', index, true, before.servings);
+      for (const index of before.steps) tickLine(userId, recipe.id, 'steps', index, true, before.servings);
+      writeServings(userId, recipe.id, before.servings);
+      setIngredients(before.ingredients);
+      setSteps(before.steps);
+      setServings(before.servings);
+    });
   }
 
   return (
