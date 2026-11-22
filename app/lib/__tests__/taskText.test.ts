@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../../../src/tasks/types';
-import { assigneeLabel, dueLabel, formatDay, memberName, repeatLabel } from '../taskText';
+import { assigneeLabel, dueLabel, formatDay, memberName, pendingAsks, repeatLabel } from '../taskText';
 
 const roster = [{ userId: 'u1', displayName: 'Sam' }, { userId: 'u2', displayName: 'Alex' }];
 const task = (over: Partial<Task> = {}): Task => ({
@@ -59,5 +59,24 @@ describe('repeatLabel', () => {
     expect(repeatLabel({ type: 'fixed', every: 1, unit: 'week', weekdays: ['sun'], startOn: '2026-11-01' })).toBe('Every week on Sun');
     expect(repeatLabel({ type: 'fixed', every: 2, unit: 'week', weekdays: ['mon', 'thu'], startOn: '2026-11-01' })).toBe('Every 2 weeks on Mon, Thu');
     expect(repeatLabel({ type: 'fixed', every: 1, unit: 'month', dayOfMonth: 31, startOn: '2026-01-31' })).toBe('Every month on the 31st');
+  });
+});
+
+describe('pendingAsks', () => {
+  const proposal = (over: object = {}) => ({
+    id: 'p', taskId: 'a', fromUserId: 'u1', toUserId: 'u2', change: { kind: 'edit', set: { assignee: 'u2' } }, baseRuleVersion: 1, baseCycleSeq: 1, status: 'pending', createdAt: 1, ...over,
+  }) as never;
+
+  it('names the person the viewer asked to take each task, while it waits', () => {
+    expect([...pendingAsks([proposal()], 'u1', roster)]).toEqual([['a', 'Alex']]);
+  });
+
+  it('ignores answered requests, requests from the other person, and changes that are not a hand-over', () => {
+    const none = pendingAsks([
+      proposal({ status: 'declined' }), proposal({ fromUserId: 'u2', toUserId: 'u1' }), proposal({ change: { kind: 'swap' } }),
+      proposal({ change: { kind: 'edit', set: { dueOn: '2026-12-01' } } }), proposal({ change: { kind: 'edit', set: { assignee: 'either' } } }),
+      proposal({ change: { kind: 'edit', set: { assignee: 'u1' } } }),
+    ], 'u1', roster);
+    expect(none.size).toBe(0);
   });
 });

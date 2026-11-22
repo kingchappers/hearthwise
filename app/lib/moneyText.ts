@@ -4,8 +4,9 @@ import { formatPounds } from '../../src/shared/money';
 import type { Total } from '../../src/shared/ledger';
 import type { MoneyChange, MoneyEntry, MoneyKind } from '../../src/money/types';
 
-export function totalText(total: Total, meName: string, otherName: string): string {
-  if (total.direction === 'square') return 'All square';
+// Only agreed entries count, so "All square" is said with how many entries are still waiting: otherwise it could be untrue.
+export function totalText(total: Total, meName: string, otherName: string, waiting = 0): string {
+  if (total.direction === 'square') return waiting > 0 ? `All square so far (${waiting} ${waiting === 1 ? 'entry' : 'entries'} waiting)` : 'All square';
   const [from, to] = total.direction === 'toMe' ? [otherName, meName] : [meName, otherName];
   return `${formatPounds(total.pence)} to settle, from ${from} to ${to}`;
 }
@@ -66,7 +67,7 @@ export function stateLabel(entry: MoneyEntry, people: People): string | undefine
     return request.money ? `Change waiting for ${waitingFor}: ${changeSummary(entry, request.money, { ...people, meName: 'you' })}` : `Change waiting for ${waitingFor}`;
   }
   if (entry.status === 'waiting') return entry.proposedBy === meId ? `Waiting for ${otherName}` : 'Waiting for you';
-  if (entry.status === 'declined') return entry.proposedBy === meId ? `${otherName} wants to check this one` : `Waiting for ${otherName}`;
+  if (entry.status === 'declined') return entry.proposedBy === meId ? `${otherName} wants to check this one` : `You asked ${otherName} to check this`;
   return undefined;
 }
 

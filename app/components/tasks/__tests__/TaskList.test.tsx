@@ -100,3 +100,14 @@ describe('NextThing', () => {
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
   });
 });
+
+describe('TaskList: a task the viewer has asked the other person to take', () => {
+  it('says "Asked of Alex" in place of "Anyone" while the request waits, and only on that task', () => {
+    const asked = task({ id: 'asked', title: 'Clean oven', assignee: 'either' });
+    const other = task({ id: 'other', title: 'Hoover', assignee: 'either' });
+    renderIn(<TaskList tasks={[asked, other]} today={TODAY} roster={MEMBERS} viewerId={ME.userId} onComplete={vi.fn()} askedOf={new Map([['asked', 'Alex']])} />);
+    const rows = screen.getAllByRole('listitem');
+    expect(within(rows.find(row => /Clean oven/.test(row.textContent ?? ''))!).getByText(/Asked of Alex/)).toBeInTheDocument();
+    expect(within(rows.find(row => /Hoover/.test(row.textContent ?? ''))!).queryByText(/Asked of/)).not.toBeInTheDocument();
+  });
+});
