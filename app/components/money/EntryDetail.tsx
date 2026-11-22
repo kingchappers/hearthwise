@@ -41,7 +41,7 @@ export function EntryDetail({ entry, people, notSaved, canWrite, loan, actions, 
     if (request) {
       const answer = request.by === meId
         ? [action('Withdraw', () => actions.withdrawChange(entry))]
-        : [action('Agree', () => actions.respondChange(entry, 'agree'), true), action('Keep as it is', () => actions.respondChange(entry, 'decline'))];
+        : [action('Agree', () => actions.respondChange(entry, 'agree'), true), action("Don't change it", () => actions.respondChange(entry, 'decline'))];
       return <>{answer}{action('Change words or date', () => onEdit(true))}</>;
     }
     if (entry.status === 'waiting' && entry.proposedBy !== meId) {
@@ -58,7 +58,7 @@ export function EntryDetail({ entry, people, notSaved, canWrite, loan, actions, 
     return (
       <>
         {action('Change', () => onEdit(false), true)}
-        {action('Delete', () => (agreed ? actions.askChange(entry, { delete: true }) : actions.remove(entry)))}
+        {action(agreed ? `Ask ${otherName} to agree to delete` : 'Delete', () => (agreed ? actions.askChange(entry, { delete: true }) : actions.remove(entry)))}
       </>
     );
   }
@@ -71,7 +71,7 @@ export function EntryDetail({ entry, people, notSaved, canWrite, loan, actions, 
       <Title order={1} size="h3" style={{ overflowWrap: 'anywhere' }}>{entry.description}</Title>
       {state && <Text fw={600}>{state}</Text>}
       {entry.declinedBecause && <Text>{`Because: ${entry.declinedBecause}`}</Text>}
-      {notSaved && <Text size="sm">Not saved yet</Text>}
+      {notSaved && <Text size="sm">Not saved yet. The buttons come back when it is saved.</Text>}
       {loan && <Text fw={600}>{loanText(loan.progress, loan.loan.amountPence, loan.paidBack)}</Text>}
 
       <section>
@@ -100,8 +100,8 @@ export function EntryDetail({ entry, people, notSaved, canWrite, loan, actions, 
       )}
 
       {controls && <Group gap="xs">{controls}</Group>}
-      {asksForDelete && entry.kind === 'loan' && <Text size="sm">Payments recorded against this loan will stay in the total.</Text>}
-      {asksForDelete && <Text size="sm">{`${otherName} needs to agree to a delete.`}</Text>}
+      {asksForDelete && entry.kind === 'loan' && <Text size="sm">If this loan is deleted, its payments are kept and still count in the total.</Text>}
+      {asksForDelete && <Text size="sm">{`The entry stays until ${otherName} agrees.`}</Text>}
     </Stack>
   );
 }

@@ -46,7 +46,7 @@ describe('EntryDetail: what it shows', () => {
   it('shows its state, and Not saved yet', () => {
     renderDetail(entry({ status: 'declined' }), { notSaved: true });
     expect(screen.getByText('Alex wants to check this one')).toBeInTheDocument();
-    expect(screen.getByText('Not saved yet')).toBeInTheDocument();
+    expect(screen.getByText('Not saved yet. The buttons come back when it is saved.')).toBeInTheDocument();
   });
 
   it('shows a request to change beside the figure it would change, with who asked', () => {
@@ -104,16 +104,16 @@ describe('EntryDetail: the buttons that apply', () => {
   it('offers Change and Delete on an agreed entry, and asks for a delete rather than making it', async () => {
     const agreed = entry();
     const { actions } = renderDetail(agreed);
-    expect(buttons()).toEqual(['Change', 'Delete']);
-    expect(screen.getByText('Alex needs to agree to a delete.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(buttons()).toEqual(['Change', 'Ask Alex to agree to delete']);
+    expect(screen.getByText('The entry stays until Alex agrees.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ask Alex to agree to delete' }));
     expect(actions.askChange).toHaveBeenCalledWith(agreed, { delete: true });
     expect(actions.remove).not.toHaveBeenCalled();
   });
 
   it('says payments recorded against a loan stay in the total, when deleting a loan', () => {
     renderDetail(entry({ kind: 'loan', amountPence: 5000, sharePence: 5000 }));
-    expect(screen.getByText('Payments recorded against this loan will stay in the total.')).toBeInTheDocument();
+    expect(screen.getByText('If this loan is deleted, its payments are kept and still count in the total.')).toBeInTheDocument();
   });
 
   it('does not say it for an expense', () => {
@@ -124,10 +124,10 @@ describe('EntryDetail: the buttons that apply', () => {
   it('lets the other person agree to a request, or keep things as they are', async () => {
     const asked = entry({ pendingChange: { id: 'r', by: ALEX, at: AT, delete: true } });
     const { actions } = renderDetail(asked);
-    expect(buttons()).toEqual(['Agree', 'Keep as it is', 'Change words or date']);
+    expect(buttons()).toEqual(['Agree', "Don't change it", 'Change words or date']);
     await userEvent.click(screen.getByRole('button', { name: 'Agree' }));
     expect(actions.respondChange).toHaveBeenCalledWith(asked, 'agree');
-    await userEvent.click(screen.getByRole('button', { name: 'Keep as it is' }));
+    await userEvent.click(screen.getByRole('button', { name: "Don't change it" }));
     expect(actions.respondChange).toHaveBeenCalledWith(asked, 'decline');
   });
 
