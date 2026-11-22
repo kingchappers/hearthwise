@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import { useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Project } from '../../src/projects/types';
 import { useProtectedApi } from '~/hooks/useProtectedApi';
+import { useEffect } from 'react';
 import { useHousehold } from './household';
+import { detectReplaced } from './projectNotices';
 import type { MemberSummary } from './household';
 import { projectKey, projectMutationKeys, projectsKey } from './projectKeys';
 import { applyPendingProjectDetail, applyPendingProjectsList } from './projectOverlay';
@@ -121,6 +123,17 @@ export function useProject(id: string): ProjectState {
 
   const data = useMemo(() => (query.data ? applyPendingProjectDetail(query.data, pending) : undefined), [query.data, pending]);
   const unsavedIds = useMemo(() => new Set(pending.flatMap(({ variables }) => idsOf(variables))), [pending]);
+  // When the other person's newer edit has replaced words this person saved, say so and keep those words (from the server's answer, not
+  // the overlay, so a write that is still waiting is never mistaken for a replaced one).
+  const me = household.data?.me.userId ?? '';
+  useEffect(() => {
+    const served = query.data;
+    if (!served || me === '') return;
+    detectReplaced(me, id, [
+      { id: served.project.id, fieldTimes: served.project.fieldTimes as Record<string, number>, updatedBy: served.project.updatedBy, values: { title: served.project.title, notes: served.project.notes ?? '' } },
+      ...served.steps.map(step => ({ id: step.id, fieldTimes: step.fieldTimes as Record<string, number>, updatedBy: step.updatedBy, values: { text: step.text, note: step.note ?? '' } })),
+    ]);
+  }, [query.data, me, id]);
   const missing = query.isError && (query.error as { status?: number }).status === 404;
   return {
     status: data ? 'ready' : missing ? 'notfound' : query.isError ? 'error' : 'loading',

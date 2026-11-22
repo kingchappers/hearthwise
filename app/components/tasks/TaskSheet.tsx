@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDraftText } from '~/lib/textDrafts';
 import { Alert, Button, Group, NativeSelect, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { firstOnOrAfter } from '../../../src/shared/schedule';
 import type { Repeat } from '../../../src/shared/schedule';
@@ -26,8 +27,10 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
   const { me, members, today } = actions;
   const other = members.find(member => member.userId !== me.userId);
 
-  const [title, setTitle] = useState(task?.title ?? '');
-  const [notes, setNotes] = useState(task?.notes ?? '');
+  // Typing is kept on this device until the task is saved, so a tap outside, Escape or a reload does not lose it.
+  const draftKey = task ? `task:${task.id}` : 'newtask';
+  const [title, setTitle, clearTitle] = useDraftText(me.userId, `${draftKey}:title`, task?.title ?? '');
+  const [notes, setNotes, clearNotes] = useDraftText(me.userId, `${draftKey}:notes`, task?.notes ?? '');
   const [assignee, setAssignee] = useState(task?.assignee ?? 'either');
   const [repeat, setRepeat] = useState<Repeat>(task?.repeat ?? { type: 'none' });
   const [dueOn, setDueOn] = useState(task?.dueOn ?? '');
@@ -81,6 +84,8 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
         ...(trimmedSteps().length === 0 ? {} : { checklist: trimmedSteps() }),
       });
     }
+    clearTitle();
+    clearNotes();
     onClose();
   }
 

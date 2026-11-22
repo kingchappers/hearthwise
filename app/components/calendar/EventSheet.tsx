@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { clearTextDraft, readTextDraft, writeTextDraft } from '~/lib/textDrafts';
 import { Button, NativeSelect, Radio, Stack, Switch, Text, Textarea, TextInput } from '@mantine/core';
 import type { EventKind, EventView } from '../../../src/calendar/types';
 import { MAX_NOTES, MAX_PLACE, MAX_TITLE } from '../../../src/shared/calendarValidation';
@@ -34,8 +35,15 @@ function Content({ onClose, event, day, me, members, actions }: Omit<EventSheetP
   const choosable = (who: string): string => (who === me || who === 'both' || who === other?.userId) && (who !== 'both' || other) ? who : me;
   const [form, setForm] = useState<EventForm>(() => {
     const start = event ? formFromEvent(event) : blankForm(day);
-    return { ...start, who: choosable(start.who) };
+    // A new event's words are kept on this device until it is added, so a tap outside, Escape or a reload does not lose them.
+    const kept = event ? {} : { title: readTextDraft(me, 'newevent:title') ?? start.title, notes: readTextDraft(me, 'newevent:notes') ?? start.notes };
+    return { ...start, ...kept, who: choosable(start.who) };
   });
+  useEffect(() => {
+    if (event) return;
+    writeTextDraft(me, 'newevent:title', form.title);
+    writeTextDraft(me, 'newevent:notes', form.notes);
+  }, [event, me, form.title, form.notes]);
   const [submitted, setSubmitted] = useState(false);
   // Made once, when the sheet opens, and kept while it is open: a double tap is one event.
   const [ids] = useState(() => ({ id: crypto.randomUUID(), mutationId: crypto.randomUUID() }));
@@ -65,6 +73,8 @@ function Content({ onClose, event, day, me, members, actions }: Omit<EventSheetP
       const changes = changesFrom(event, result, me);
       if (Object.keys(changes).length > 0) actions.edit(event, changes);
     }
+    clearTextDraft(me, 'newevent:title');
+    clearTextDraft(me, 'newevent:notes');
     onClose();
   }
 

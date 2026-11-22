@@ -34,7 +34,7 @@ function actions(): ProjectActions {
 }
 
 let a: ProjectActions;
-beforeEach(() => { a = actions(); });
+beforeEach(() => { window.localStorage.clear(); a = actions(); });
 
 function page(data: Partial<ProjectDetailData> = {}, extra: { notices?: ProjectNotice[]; unsaved?: string[] } = {}) {
   const full: ProjectDetailData = { project: project(), steps: [step('a', 'i'), step('b', 'j'), step('c', 'k')], materials: [], serverTime: 0, ...data };
@@ -238,5 +238,44 @@ describe('the project list', () => {
   it('links each project to its page', () => {
     render2([project()]);
     expect(screen.getByRole('link', { name: /Take down the decking/ })).toHaveAttribute('href', '/plan/projects/p1');
+  });
+});
+
+describe('the step sheet', () => {
+  it('says what happens when two people change a step, before they do', async () => {
+    page();
+    await userEvent.click(screen.getByRole('button', { name: 'Step a' }));
+    expect(await screen.findByText('If you both change a step, the later save is kept. If yours is replaced, your words are kept for you.')).toBeInTheDocument();
+  });
+});
+
+describe('half-typed words are kept', () => {
+  it('keeps a list typed into Add a step when the page is left and come back to, and forgets it once the steps are added', async () => {
+    const first = page();
+    await userEvent.type(screen.getByLabelText('Add a step'), 'Ring the council{Enter}Order the skip');
+    first.unmount();
+    page();
+    expect(screen.getByLabelText('Add a step')).toHaveValue('Ring the council\nOrder the skip');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a step' }));
+    expect(a.addSteps).toHaveBeenCalled();
+    expect(screen.getByLabelText('Add a step')).toHaveValue('');
+  });
+
+  it('keeps what was typed into the materials box', async () => {
+    const first = page({ materials: [{ id: 'm1', projectId: 'p1', text: 'Timber', fieldTimes: {}, createdBy: ME, createdAt: 1, updatedAt: 1, updatedBy: ME }] });
+    await userEvent.type(screen.getByLabelText('Add materials'), '1 box of screws');
+    first.unmount();
+    page({ materials: [{ id: 'm1', projectId: 'p1', text: 'Timber', fieldTimes: {}, createdBy: ME, createdAt: 1, updatedAt: 1, updatedBy: ME }] });
+    expect(screen.getByLabelText('Add materials')).toHaveValue('1 box of screws');
+  });
+
+  it('keeps a half-typed note on a step when its sheet is closed without saving', async () => {
+    const first = page();
+    await userEvent.click(screen.getByRole('button', { name: 'Step a' }));
+    await userEvent.type(await screen.findByLabelText('Note'), 'Use the long bar');
+    first.unmount();
+    page();
+    await userEvent.click(screen.getByRole('button', { name: 'Step a' }));
+    expect(await screen.findByLabelText('Note')).toHaveValue('Use the long bar');
   });
 });
