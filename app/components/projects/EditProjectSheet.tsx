@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Stack, Textarea, TextInput } from '@mantine/core';
+import { Button, Stack, Switch, Textarea, TextInput } from '@mantine/core';
 import type { Project } from '../../../src/projects/types';
 import { MAX_PROJECT_NOTES, MAX_PROJECT_TITLE } from '../../../src/shared/projectValidation';
 import type { ProjectActions } from '~/hooks/useProjectActions';
@@ -13,6 +13,7 @@ function Form({ project, actions, onClose }: { project: Project; actions: Pick<P
   const [notes, setNotes] = useState(project.notes ?? '');
   const [start, setStart] = useState(project.plannedOn ?? '');
   const [end, setEnd] = useState(project.plannedEndOn ?? '');
+  const [ordered, setOrdered] = useState(project.ordered === true);
   const [endError, setEndError] = useState(false);
   const trimmed = title.trim();
   return (
@@ -29,6 +30,7 @@ function Form({ project, actions, onClose }: { project: Project; actions: Pick<P
           if (!planned.ok) { setEndError(true); return; }
           changes.planned = planned.change;
         }
+        if (ordered !== (project.ordered === true)) changes.ordered = ordered;
         actions.editProject(project.id, changes);
         onClose();
       }}
@@ -39,6 +41,7 @@ function Form({ project, actions, onClose }: { project: Project; actions: Pick<P
         <TextInput label={COPY.plannedStart} type="date" value={start} onChange={event => setStart(event.currentTarget.value)} />
         <TextInput label={COPY.plannedEnd} type="date" value={end} onChange={event => setEnd(event.currentTarget.value)} error={endError ? COPY.plannedEndError : undefined} />
         {(start !== '' || end !== '') && <Button variant="default" style={{ minHeight: 44 }} onClick={() => { setStart(''); setEnd(''); setEndError(false); }}>{COPY.clearPlanned}</Button>}
+        <Switch label={COPY.inOrder} description={COPY.inOrderHint} checked={ordered} onChange={event => setOrdered(event.currentTarget.checked)} />
         <Button type="submit" disabled={trimmed === ''} style={{ minHeight: 44 }}>Save</Button>
       </Stack>
     </form>

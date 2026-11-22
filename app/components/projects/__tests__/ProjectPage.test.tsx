@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { MemoryRouter } from 'react-router';
@@ -46,6 +46,30 @@ function page(data: Partial<ProjectDetailData> = {}, extra: { notices?: ProjectN
     </MantineProvider>,
   );
 }
+
+describe('the project page: do in this order', () => {
+  it('marks the first step not done as Next, and moves the mark as steps are done', () => {
+    page({ project: project({ ordered: true }), steps: [step('a', 'i', { state: 'done' }), step('b', 'j'), step('c', 'k')] });
+    const items = within(screen.getByRole('list', { name: 'Steps in order' })).getAllByRole('listitem');
+    expect(items[0]).not.toHaveTextContent('Next');
+    expect(items[1]).toHaveTextContent('Next');
+    expect(items[2]).not.toHaveTextContent('Next');
+  });
+
+  it('marks nothing when the project is not in order, and the Next step can still be skipped: every step stays tickable and takeable', () => {
+    page({ steps: [step('a', 'i'), step('b', 'j')] });
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+    cleanup();
+    page({ project: project({ ordered: true }), steps: [step('a', 'i'), step('b', 'j')] });
+    expect(screen.getByRole('checkbox', { name: 'Mark done: Step b' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Take this step: Step b' })).toBeEnabled();
+  });
+
+  it('marks no step when all are done', () => {
+    page({ project: project({ ordered: true }), steps: [step('a', 'i', { state: 'done' })] });
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+  });
+});
 
 describe('the project page', () => {
   it('shows the steps in order with their state in words', () => {

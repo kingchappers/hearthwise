@@ -52,6 +52,8 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
   const listNotices = notices.filter(notice => notice.field === 'list');
   const topNotices = notices.filter(notice => notice.field !== 'list' && !stepIds.has(notice.recordId));
 
+  const nextStepId = steps.find(step => step.state === 'todo')?.id;
+
   const move = (step: Step, direction: 'up' | 'down') => {
     const position = positionFor(steps, { type: direction, id: step.id });
     if (position === undefined) { setNoRoom(true); return; }
@@ -109,7 +111,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
                   <StepRow
                     key={step.id} step={step} projectId={project.id} members={members} me={me} now={now} unsaved={unsavedIds.has(step.id)}
                     first={index === 0} last={index === steps.length - 1} actions={actions} onMove={move} onOpen={setEditing}
-                    notices={stepNotices(step.id)} userId={me} number={index + 1} reordering={reordering}
+                    notices={stepNotices(step.id)} userId={me} number={index + 1} reordering={reordering} isNext={project.ordered === true && step.id === nextStepId}
                   />
                 ))}
               </List>

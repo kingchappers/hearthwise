@@ -10,7 +10,7 @@ export interface ProjectApplied {
   stale: string[];
 }
 
-const FIELDS: (keyof ProjectWrite & keyof ProjectFieldTimes)[] = ['title', 'notes', 'status', 'planned', 'estimate', 'spent'];
+const FIELDS: (keyof ProjectWrite & keyof ProjectFieldTimes)[] = ['title', 'notes', 'status', 'ordered', 'planned', 'estimate', 'spent'];
 
 const plannedOf = (project: Project): { plannedOn: string | null; plannedEndOn: string | null } => ({ plannedOn: project.plannedOn ?? null, plannedEndOn: project.plannedEndOn ?? null });
 
@@ -24,7 +24,7 @@ function applyFields(project: Project, write: ProjectWrite, userId: string, serv
     const at = clampTime(entry.at, serverNow);
     const value = entry.value;
     if (at <= (project.fieldTimes[field] ?? 0)) {
-      const stored = field === 'notes' ? project.notes ?? null : field === 'estimate' ? project.estimatePence ?? null : field === 'spent' ? project.spentPence ?? null : field === 'planned' ? JSON.stringify(plannedOf(project)) : project[field];
+      const stored = field === 'ordered' ? project.ordered ?? false : field === 'notes' ? project.notes ?? null : field === 'estimate' ? project.estimatePence ?? null : field === 'spent' ? project.spentPence ?? null : field === 'planned' ? JSON.stringify(plannedOf(project)) : project[field];
       const incoming = field === 'planned' ? JSON.stringify({ plannedOn: (value as PlannedValue).plannedOn, plannedEndOn: (value as PlannedValue).plannedEndOn ?? null }) : value;
       if (stored !== incoming) stale.push(field);
       continue;
@@ -47,6 +47,9 @@ function applyFields(project: Project, write: ProjectWrite, userId: string, serv
         project.plannedOn = planned.plannedOn;
         if (planned.plannedEndOn !== undefined && planned.plannedEndOn !== null) project.plannedEndOn = planned.plannedEndOn;
       }
+    } else if (field === 'ordered') {
+      if (value === true) project.ordered = true;
+      else delete project.ordered;
     } else if (field === 'title') project.title = value as string;
     else project.status = value as ProjectStatus;
     project.fieldTimes[field] = at;

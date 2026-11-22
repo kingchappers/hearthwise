@@ -178,3 +178,12 @@ describe('a step\'s energy tag', () => {
     expect(parseStepPut({ ...body, energy: 'small' }).ok).toBe(false);
   });
 });
+
+describe('the in-order flag', () => {
+  it('is accepted as true or false with its time, and nothing else', () => {
+    expect(parseProjectPut({ ordered: true, orderedAt: AT, ...env }).ok).toBe(true);
+    expect(parseProjectPut({ ordered: false, orderedAt: AT, ...env }).ok).toBe(true);
+    expect(parseProjectPut({ ordered: 'yes', orderedAt: AT, ...env }).ok).toBe(false);
+    expect(parseProjectPut({ ordered: true, ...env }).ok).toBe(false);
+  });
+});

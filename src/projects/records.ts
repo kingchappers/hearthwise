@@ -15,6 +15,7 @@ export function toProject(raw: Item): Project {
     updatedBy: String(raw.updatedBy ?? ''),
   };
   if (typeof raw.notes === 'string') project.notes = raw.notes;
+  if (raw.ordered === true) project.ordered = true;
   if (typeof raw.plannedOn === 'string') project.plannedOn = raw.plannedOn;
   if (typeof raw.plannedEndOn === 'string') project.plannedEndOn = raw.plannedEndOn;
   if (typeof raw.estimatePence === 'number') project.estimatePence = raw.estimatePence;

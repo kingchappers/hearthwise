@@ -163,3 +163,18 @@ describe('applyProjectDelete', () => {
     expect(applyProjectDelete(deleted, U2, NOW + 1000).result).toBe('noop');
   });
 });
+
+describe('the in-order flag', () => {
+  const NOW2 = Date.parse('2026-11-14T10:00:00.000Z');
+  const make = () => applyProjectWrite(undefined, 'p1', { title: { value: 'Decking', at: 1000 } }, 'auth0|u1', NOW2).project!;
+
+  it('is stored only when true, newest write wins, an older one is stale, and false removes it', () => {
+    const on = applyProjectWrite(make(), 'p1', { ordered: { value: true, at: 2000 } }, 'auth0|u2', NOW2);
+    expect(on.project?.ordered).toBe(true);
+    const older = applyProjectWrite(on.project, 'p1', { ordered: { value: false, at: 1500 } }, 'auth0|u1', NOW2);
+    expect(older.result).toBe('noop');
+    expect(older.stale).toEqual(['ordered']);
+    const off = applyProjectWrite(on.project, 'p1', { ordered: { value: false, at: 3000 } }, 'auth0|u1', NOW2);
+    expect('ordered' in off.project!).toBe(false);
+  });
+});

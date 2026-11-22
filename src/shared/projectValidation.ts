@@ -14,7 +14,7 @@ export const MAX_STEP_NOTE = 500;
 export const MAX_MATERIAL_TEXT = 120;
 export const MAX_ADD_MATERIALS = 60;
 
-const PROJECT_FIELD_KEYS = ['title', 'notes', 'status'];
+const PROJECT_FIELD_KEYS = ['title', 'notes', 'status', 'ordered'];
 const STEP_FIELD_KEYS = ['text', 'note', 'energy', 'state', 'position'];
 
 export const parseId = (value: unknown, field: string): Parsed<string> => (typeof value === 'string' && ID_PATTERN.test(value) ? good(value) : bad(field));
@@ -92,6 +92,7 @@ export function parseProjectPut(body: Record<string, unknown>): Put<ProjectWrite
     title: value => trimmedText(value, MAX_PROJECT_TITLE, 'title'),
     notes: optionalText(MAX_PROJECT_NOTES, 'notes'),
     status: oneOf<ProjectStatus>(['active', 'finished'], 'status'),
+    ordered: value => (typeof value === 'boolean' ? good(value) : bad('ordered')),
   }, planned.value !== undefined || estimate.value !== undefined || spent.value !== undefined);
   if (!parsed.ok) return parsed;
   const write: ProjectWrite = { ...parsed.value.write };
