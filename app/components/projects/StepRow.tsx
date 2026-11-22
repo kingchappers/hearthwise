@@ -28,11 +28,13 @@ export interface StepRowProps {
   number?: number;
   // Move up and Move down show only while the person is reordering.
   reordering?: boolean;
+  // The first step not done in a project set to be done in order. Only a mark: nothing is blocked.
+  isNext?: boolean;
 }
 
 // One step: a tick, its words, its state in words ("Not started", "On it", "Done"), who is on it, and move and hold buttons. A done step
 // stays in place with a tick; it does not jump to the bottom.
-export function StepRow({ step, projectId, members, me, now, unsaved, first, last, actions, onMove, onOpen, notices = [], userId = me, number, reordering = false }: StepRowProps) {
+export function StepRow({ step, projectId, members, me, now, unsaved, first, last, actions, onMove, onOpen, notices = [], userId = me, number, reordering = false, isNext = false }: StepRowProps) {
   const status = stepStatus(step, members);
   const holder = holderOf(step, members);
   // A step someone has says who in one sentence ("Alex has this") below, so the state word is only for Not started and Done.
@@ -52,6 +54,7 @@ export function StepRow({ step, projectId, members, me, now, unsaved, first, las
           <Text component="button" type="button" ta="left" style={{ background: 'none', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', color: 'inherit', font: 'inherit' }} onClick={() => onOpen(step)}>
             {step.text}
           </Text>
+          {isNext && <Text size="sm" fw={700}>{COPY.next}</Text>}
           {statusText !== '' && <Text size="sm">{statusText}</Text>}
           {step.energy && <Text size="sm">{ENERGY_LABELS[step.energy]} step</Text>}
           {step.note && <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{step.note}</Text>}

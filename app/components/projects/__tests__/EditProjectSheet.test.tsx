@@ -55,3 +55,24 @@ describe('the edit project sheet: the planned day', () => {
     expect(actions.editProject).toHaveBeenCalledWith('p1', { title: 'Garden room' });
   });
 });
+
+describe('the edit project sheet: do in this order', () => {
+  it('is off to begin with, says it never stops anyone, and sends only the flag when turned on', async () => {
+    const actions = setup();
+    const box = screen.getByRole('switch', { name: /Do the steps in this order/ });
+    expect(box).not.toBeChecked();
+    expect(screen.getByText(/never stops anyone/)).toBeInTheDocument();
+    await userEvent.click(box);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(actions.editProject).toHaveBeenCalledWith('p1', { ordered: true });
+  });
+
+  it('shows a project already in order as on, and turning it off sends false', async () => {
+    const actions = setup(project({ ordered: true }));
+    const box = screen.getByRole('switch', { name: /Do the steps in this order/ });
+    expect(box).toBeChecked();
+    await userEvent.click(box);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(actions.editProject).toHaveBeenCalledWith('p1', { ordered: false });
+  });
+});

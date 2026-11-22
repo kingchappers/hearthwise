@@ -9,6 +9,7 @@ export interface ProjectFieldTimes {
   notes?: number;
   status?: number;
   planned?: number;
+  ordered?: number;
   estimate?: number;
   spent?: number;
 }
@@ -33,6 +34,8 @@ export interface Project extends Tombstone {
   title: string;
   notes?: string;
   status: ProjectStatus;
+  // The steps are meant to be done in order: the app marks the next one. It blocks nothing. Stored only when true.
+  ordered?: true;
   plannedOn?: string;
   plannedEndOn?: string;
   estimatePence?: number;
@@ -82,6 +85,7 @@ export interface ProjectWrite {
   title?: Stamped<string>;
   notes?: Stamped<string | null>;
   status?: Stamped<ProjectStatus>;
+  ordered?: Stamped<boolean>;
   planned?: Stamped<PlannedValue>;
   // Whole pence, 1 or more, or `null` to clear. Each figure has its own time.
   estimate?: Stamped<number | null>;

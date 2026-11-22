@@ -185,7 +185,7 @@ export interface CalendarMutationVars {
 // The planned day: a start and an optional end, written together. `plannedOn: null` clears both.
 export interface PlannedChange { plannedOn: string | null; plannedEndOn?: string | null }
 // A cost figure is whole pence from 1, or `null` to clear it. Each has its own time.
-export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus; planned?: PlannedChange; estimatePence?: number | null; spentPence?: number | null }
+export interface ProjectChanges { title?: string; notes?: string | null; status?: ProjectStatus; ordered?: boolean; planned?: PlannedChange; estimatePence?: number | null; spentPence?: number | null }
 export interface StepChanges { text?: string; note?: string | null; energy?: Energy | null; state?: StepState; position?: string }
 
 export interface ProjectMutationVars {
