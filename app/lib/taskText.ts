@@ -1,7 +1,7 @@
 // The words the task screens use for dates, people and repeats. Neutral by rule: a task past its date reads "Due", never anything harsher.
 import type { Repeat } from '../../src/shared/schedule';
 import { normalizedAssignee } from '../../src/tasks/ownership';
-import type { Task } from '../../src/tasks/types';
+import type { Proposal, Task } from '../../src/tasks/types';
 
 export interface NamedMember {
   userId: string;
@@ -18,6 +18,19 @@ export function dueLabel(task: Pick<Task, 'dueOn'>, today: string): string | und
   if (task.dueOn === undefined) return undefined;
   if (task.dueOn === today) return 'Due today';
   return task.dueOn < today ? `Due · ${formatDay(task.dueOn)}` : formatDay(task.dueOn);
+}
+
+// The tasks the viewer has asked the other person to take and that wait for an answer, by task id, with that person's name. Such a task
+// still shows in the viewer's list until it is answered, so its row says so.
+export function pendingAsks(proposals: Proposal[], viewerId: string, roster: NamedMember[]): Map<string, string> {
+  const asks = new Map<string, string>();
+  for (const proposal of proposals) {
+    if (proposal.status !== 'pending' || proposal.fromUserId !== viewerId || proposal.change.kind !== 'edit') continue;
+    const assignee = proposal.change.set.assignee;
+    if (assignee === undefined || assignee === 'either' || assignee === 'both' || assignee === viewerId) continue;
+    asks.set(proposal.taskId, memberName(roster, assignee));
+  }
+  return asks;
 }
 
 export function memberName(roster: NamedMember[], userId: string): string {
