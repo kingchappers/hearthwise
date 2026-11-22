@@ -26,7 +26,7 @@ describe('EventSheet: adding', () => {
   it('is titled, offers an event or a block, and starts for both of you on the day, at 09:00 for an hour', () => {
     renderSheet();
     expect(screen.getByRole('dialog', { name: 'Add to the calendar' })).toBeInTheDocument();
-    expect(screen.getAllByRole('radio').map(radio => (radio as HTMLInputElement).labels?.[0]?.textContent)).toEqual(['Event', 'Block, a routine like Wind down']);
+    expect(screen.getAllByRole('radio').map(radio => (radio as HTMLInputElement).labels?.[0]?.textContent)).toEqual(['Event', 'Routine, like Wind down']);
     expect(screen.getByRole('radio', { name: 'Event' })).toBeChecked();
     expect(screen.getByLabelText('Who is it for?')).toHaveValue('both');
     expect(screen.getByLabelText('Date')).toHaveValue(TODAY);
@@ -62,7 +62,7 @@ describe('EventSheet: adding', () => {
 
   it('CUJ 5: adds a weekday block that repeats', async () => {
     renderSheet();
-    await userEvent.click(screen.getByRole('radio', { name: 'Block, a routine like Wind down' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Routine, like Wind down' }));
     await type('Title', 'Wind down');
     await userEvent.selectOptions(screen.getByLabelText('Repeat'), 'week');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
@@ -71,7 +71,7 @@ describe('EventSheet: adding', () => {
 
   it('offers no repeat after it is done, and an end date once it repeats', async () => {
     renderSheet();
-    expect(screen.queryByRole('option', { name: "Some days after it's done" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: "Some days after I finish it" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Repeat until (optional)')).not.toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText('Repeat'), 'day');
     await type('Repeat until (optional)', '2026-12-31');

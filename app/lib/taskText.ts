@@ -42,7 +42,7 @@ export function assigneeLabel(task: Task, roster: NamedMember[], viewerId: strin
   const swapped = task.overrideAssignee !== undefined && task.overrideCycle === task.cycleSeq && roster.some(member => member.userId === task.overrideAssignee);
   if (swapped) return `${who(task.overrideAssignee!)} (this time)`;
   const owner = normalizedAssignee(task.assignee, { members: roster });
-  if (owner === 'both') return 'Together';
+  if (owner === 'both') return 'Both of you';
   if (owner === 'either') return 'Anyone';
   return who(owner);
 }

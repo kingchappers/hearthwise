@@ -14,7 +14,7 @@ export interface NextThingProps {
   onNotNow: () => void;
 }
 
-// One card: the next thing for this person. "Not now" only moves to the next card for this visit; it changes nothing for anyone.
+// One card: the next thing for this person. "Show a different task" only moves to the next card for this visit; it changes nothing for anyone.
 export function NextThing({ task, today, roster, viewerId, onDone, onNotNow }: NextThingProps) {
   if (!task) return <Text>Nothing left for now.</Text>;
   const owner = effectiveAssignee(task, { members: roster });
@@ -26,7 +26,7 @@ export function NextThing({ task, today, roster, viewerId, onDone, onNotNow }: N
         <Text>{[assigneeLabel(task, roster, viewerId), due].filter(Boolean).join(' · ')}</Text>
         <Group>
           <DidThisToday task={task} own={owner === viewerId || owner === 'either' || owner === 'both'} onClick={onDone} />
-          <Button variant="default" onClick={onNotNow}>Not now</Button>
+          <Button variant="default" onClick={onNotNow}>Show a different task</Button>
         </Group>
       </Stack>
     </Card>

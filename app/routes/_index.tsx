@@ -39,7 +39,7 @@ function TodayContent() {
   const [easy, setEasy] = useState(false);
   // The viewer's own default view is saved with their settings; switching here lasts for this visit only.
   const [chosen, setChosen] = useState<View | undefined>(undefined);
-  // "Not now" is this visit only too, and never touches the task.
+  // "Show a different task" is this visit only too, and never touches the task.
   const [skipped, setSkipped] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const view: View = chosen ?? household.data?.me.settings.defaultView ?? 'list';
@@ -60,7 +60,7 @@ function TodayContent() {
       <Group>
         <Button onClick={() => setAdding(true)}>Add a task</Button>
         <Button variant="default" onClick={() => setChosen(view === 'list' ? 'next' : 'list')}>
-          {view === 'list' ? 'Show the next thing' : 'Show the full list'}
+          {view === 'list' ? 'Show one task' : 'Show all tasks'}
         </Button>
       </Group>
       <PushPrompt />

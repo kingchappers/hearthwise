@@ -18,8 +18,8 @@ describe('step status', () => {
 
 describe('holderLine', () => {
   it('names the other person, says "You\'re on this" for the viewer, and says nothing for a holder who has left', () => {
-    expect(holderLine({ takenBy: 'u2' }, members, 'u1')).toBe('Alex is on this');
-    expect(holderLine({ takenBy: 'u1' }, members, 'u1')).toBe("You're on this");
+    expect(holderLine({ takenBy: 'u2' }, members, 'u1')).toBe('Alex has this');
+    expect(holderLine({ takenBy: 'u1' }, members, 'u1')).toBe("You have this");
     expect(holderLine({ takenBy: 'gone' }, members, 'u1')).toBeUndefined();
     expect(holderLine({}, members, 'u1')).toBeUndefined();
   });
@@ -62,13 +62,13 @@ describe('plannedText', () => {
 
 describe('costLine', () => {
   it('shows both figures as "of", one figure on its own, and nothing for neither', () => {
-    expect(costLine({ estimatePence: 400000, spentPence: 125000 })).toBe('£1,250.00 of £4,000.00');
-    expect(costLine({ estimatePence: 400000 })).toBe('Estimated £4,000.00');
-    expect(costLine({ spentPence: 125000 })).toBe('£1,250.00 spent so far');
+    expect(costLine({ estimatePence: 400000, spentPence: 125000 })).toBe('Spent so far £1,250.00. Estimate £4,000.00.');
+    expect(costLine({ estimatePence: 400000 })).toBe('Estimate £4,000.00.');
+    expect(costLine({ spentPence: 125000 })).toBe('Spent so far £1,250.00.');
     expect(costLine({})).toBeUndefined();
   });
 
   it('never says a verdict, even when more is spent than estimated', () => {
-    expect(costLine({ estimatePence: 100000, spentPence: 250000 })).toBe('£2,500.00 of £1,000.00');
+    expect(costLine({ estimatePence: 100000, spentPence: 250000 })).toBe('Spent so far £2,500.00. Estimate £1,000.00.');
   });
 });

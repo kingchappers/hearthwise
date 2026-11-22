@@ -167,12 +167,12 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
         </Title>
         <Text>
           {notFound
-            ? 'The link may be out of date. You can go back to Home.'
-            : 'Reload the page to try again. If it keeps happening, go back to Home.'}
+            ? 'The link may be out of date. You can go back to Today.'
+            : 'Reload the page to try again. If it keeps happening, go back to Today.'}
         </Text>
         <Group>
           {!notFound && <Button onClick={() => window.location.reload()}>Reload</Button>}
-          <Button component="a" href="/" variant={notFound ? 'filled' : 'default'}>Go to Home</Button>
+          <Button component="a" href="/" variant={notFound ? 'filled' : 'default'}>Go to Today</Button>
         </Group>
         {stack && (
           <pre className="w-full p-4 overflow-x-auto">

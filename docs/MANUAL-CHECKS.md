@@ -78,7 +78,7 @@ Needs two real phones, one signed in as each person.
 
 Run these on two real phones, one for each person, with phase 5 in place. Design: `docs/designs/phase-5-diy-projects.md`.
 
-- [ ] Both phones offline: each taps "I'm on this" on the same step, Alex first, then both reconnect with Sam's tap reaching the server first. Alex's phone then says "Sam is on this" and "Sam already has this" in calm words, with no red and nothing shown as failed, and "I'm on this" is not offered there. The refused person's notice stays until dismissed.
+- [ ] Both phones offline: each taps "Take this step" on the same step, Alex first, then both reconnect with Sam's tap reaching the server first. Alex's phone then says "Sam has this" and "Sam already has this" in calm words, with no red and nothing shown as failed, and "Take this step" is not offered there. The refused person's notice stays until dismissed.
 - [ ] Both phones offline: reorder different steps on each. Both moves are kept and both phones show one order. Move the same step on both: the later one wins and the other person's page still shows one order.
 - [ ] Edit the same step's words on both phones offline. The newer wording stays, and the other person sees "This was changed after you wrote it. Your wording is kept here." with their own words below, which they can copy.
 - [ ] Add materials on a project and press "Add to the shopping list" twice. Nothing is doubled. Edit a line on the shopping list and press the button again: the edit stays. Clear a line from the list and press again: it says "Added earlier, and since cleared" and is not added again.

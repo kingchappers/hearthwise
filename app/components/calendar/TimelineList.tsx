@@ -64,7 +64,7 @@ function Edge({ mark, members }: { mark: Mark; members: Person[] }) {
 }
 
 function metaLine(item: TimelineItem): string {
-  return [item.who, item.type === 'block' ? 'Block' : '', item.place === undefined ? '' : `At ${item.place}`].filter(part => part !== '').join(' · ');
+  return [item.who, item.type === 'block' ? 'Routine' : '', item.place === undefined ? '' : `At ${item.place}`].filter(part => part !== '').join(' · ');
 }
 
 const APPROX = 'Time may be an hour out';

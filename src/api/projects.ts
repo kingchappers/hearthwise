@@ -9,6 +9,7 @@ import { deleteMaterial, putMaterial } from '../projects/materials';
 import { getProject, getProjectsList, putProject } from '../projects/projects';
 import { deleteStep, putStep } from '../projects/steps';
 import * as events from '../push/events';
+import type { ProjectChange } from '../push/events';
 import type { NotifyEvent } from '../push/notifyOther';
 import { parseAddMaterials, parseMaterialPut, parseProjectPut, parseStepPut, parseTakeBody } from '../shared/projectValidation';
 import { getStore } from '../store';
@@ -28,7 +29,8 @@ async function getList(event: APIGatewayProxyEventV2, ctx: HouseholdContext): Pr
 const getOne: TaskHandler = async (_event, ctx, params) => noStore(ok(await getProject(getStore(), ctx, params.id)));
 
 // A write tells the other person only when it was asked to (the "Let them know" tick), was fresh, and actually changed something.
-const changed = (ctx: HouseholdContext, mutationId: string, projectId: string): NotifyEvent => events.projectChanged(ctx.member.displayName, mutationId, projectId);
+const changed = (ctx: HouseholdContext, mutationId: string, projectId: string, what: ProjectChange = 'project'): NotifyEvent =>
+  events.projectChanged(ctx.member.displayName, mutationId, projectId, what);
 const didChange = (outcome: string): boolean => outcome === 'created' || outcome === 'applied' || outcome === 'taken' || outcome === 'released';
 
 const putProjectRoute: TaskHandler = async (event, ctx, params) => {
@@ -38,7 +40,9 @@ const putProjectRoute: TaskHandler = async (event, ctx, params) => {
   if (!input.ok) return invalid(input.field);
   const outcome = await putProject(getStore(), ctx, params.id, input.value);
   const { mutationId } = input.value;
-  const notice = outcome.result.outcome === 'created' ? events.projectAdded(ctx.member.displayName, mutationId, params.id) : changed(ctx, mutationId, params.id);
+  const status = input.value.write.status?.value;
+  const what: ProjectChange = status === 'finished' ? 'finished' : status === 'active' ? 'reopened' : 'project';
+  const notice = outcome.result.outcome === 'created' ? events.projectAdded(ctx.member.displayName, mutationId, params.id) : changed(ctx, mutationId, params.id, what);
   await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? notice : undefined);
   return written(outcome, 200);
 };
@@ -49,7 +53,7 @@ const deleteProjectRoute: TaskHandler = async (event, ctx, params) => {
   const input = parseTakeBody(body);
   if (!input.ok) return invalid(input.field);
   const outcome = await deleteProjectTree(getStore(), ctx, params.id, input.value);
-  await notifyAfter(ctx, body, outcome.fresh, outcome.result.outcome === 'applied' ? changed(ctx, input.value.mutationId, params.id) : undefined);
+  await notifyAfter(ctx, body, outcome.fresh, outcome.result.outcome === 'applied' ? changed(ctx, input.value.mutationId, params.id, 'deleted') : undefined);
   return written(outcome, 200);
 };
 
@@ -59,7 +63,7 @@ const putStepRoute: TaskHandler = async (event, ctx, params) => {
   const input = parseStepPut(body);
   if (!input.ok) return invalid(input.field);
   const outcome = await putStep(getStore(), ctx, params.id, params.sid, input.value);
-  await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? changed(ctx, input.value.mutationId, params.id) : undefined);
+  await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? changed(ctx, input.value.mutationId, params.id, outcome.result.outcome === 'created' ? 'step_added' : 'step') : undefined);
   return written(outcome, 200);
 };
 
@@ -79,7 +83,7 @@ const putMaterialRoute: TaskHandler = async (event, ctx, params) => {
   const input = parseMaterialPut(body);
   if (!input.ok) return invalid(input.field);
   const outcome = await putMaterial(getStore(), ctx, params.id, params.lid, input.value);
-  await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? changed(ctx, input.value.mutationId, params.id) : undefined);
+  await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? changed(ctx, input.value.mutationId, params.id, 'materials') : undefined);
   return written(outcome, 200);
 };
 
@@ -89,7 +93,7 @@ const deleteMaterialRoute: TaskHandler = async (event, ctx, params) => {
   const input = parseTakeBody(body);
   if (!input.ok) return invalid(input.field);
   const outcome = await deleteMaterial(getStore(), ctx, params.id, params.lid, input.value);
-  await notifyAfter(ctx, body, outcome.fresh, outcome.result.outcome === 'applied' ? changed(ctx, input.value.mutationId, params.id) : undefined);
+  await notifyAfter(ctx, body, outcome.fresh, outcome.result.outcome === 'applied' ? changed(ctx, input.value.mutationId, params.id, 'materials') : undefined);
   return written(outcome, 200);
 };
 
@@ -113,7 +117,9 @@ function holdRoute(act: typeof takeRecord): TaskHandler {
     if (!input.ok) return invalid(input.field);
     const target: HoldTarget = params.sid === undefined ? { kind: 'project', id: params.id } : { kind: 'step', projectId: params.id, id: params.sid };
     const outcome = await act(getStore(), ctx, target, input.value);
-    await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? changed(ctx, input.value.mutationId, params.id) : undefined);
+    const taking = outcome.result.outcome === 'taken';
+    const what: ProjectChange = target.kind === 'step' ? (taking ? 'step_taken' : 'step_freed') : (taking ? 'project_taken' : 'project_freed');
+    await notifyAfter(ctx, body, outcome.fresh, didChange(outcome.result.outcome) ? changed(ctx, input.value.mutationId, params.id, what) : undefined);
     return written(outcome, 200);
   };
 }

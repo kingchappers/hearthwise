@@ -70,9 +70,9 @@ describe('the Plan page', () => {
     expect(state.actions.clear).toHaveBeenCalledWith('2026-11-17');
   });
 
-  it('has Pick something easy, which plans a dinner for today', async () => {
+  it('has Choose an easy dinner, which plans a dinner for today', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Pick something easy' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose an easy dinner' }));
     await userEvent.click(screen.getByRole('button', { name: 'Look at Chilli' }));
     await userEvent.click(screen.getByRole('button', { name: 'Make this tonight' }));
     expect(state.actions.set).toHaveBeenCalledWith('2026-11-14', { recipeId: 'r1', title: 'Chilli', servings: 2 });

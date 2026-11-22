@@ -70,32 +70,32 @@ describe('Today', () => {
     state.tasks.tasks = [task({ title: 'Hoover' })];
     renderToday();
     expect(screen.getByRole('link', { name: 'Hoover' })).toBeInTheDocument();
-    expect(screen.queryByText('Not now', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByText('Show a different task', { exact: false })).not.toBeInTheDocument();
   });
 
   it('opens on the next-thing card when that is the viewer\'s default view, and can switch to the list for this visit', async () => {
     state.defaultView = 'next';
     state.tasks.tasks = [task({ title: 'Hoover', dueOn: '2026-11-12' }), task({ title: 'Bins', dueOn: TODAY })];
     renderToday();
-    expect(screen.getByRole('button', { name: 'Not now' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show a different task' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'Today' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Show the full list' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show all tasks' }));
     expect(screen.getByRole('heading', { level: 2, name: 'Today' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Show the next thing' }));
-    expect(screen.getByRole('button', { name: 'Not now' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show one task' }));
+    expect(screen.getByRole('button', { name: 'Show a different task' })).toBeInTheDocument();
   });
 
-  it('moves to the next card on Not now, and does not call anything', async () => {
+  it('moves to the next card on Show a different task, and does not call anything', async () => {
     state.defaultView = 'next';
     state.tasks.tasks = [task({ title: 'First', dueOn: '2026-11-12' }), task({ title: 'Second', dueOn: TODAY })];
     renderToday();
     expect(screen.getByText('First')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show a different task' }));
     expect(screen.getByText('Second')).toBeInTheDocument();
     expect(screen.queryByText('First')).not.toBeInTheDocument();
     const actions = state.actions as ReturnType<typeof makeActions>;
     for (const fn of [actions.complete, actions.save, actions.remove, actions.swap, actions.create]) expect(fn).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show a different task' }));
     expect(screen.getByText('Nothing left for now.')).toBeInTheDocument();
   });
 
@@ -176,11 +176,11 @@ describe('Today: the Tonight card', () => {
     expect(screen.getByRole('link', { name: 'Open Chilli' })).toHaveAttribute('href', `/recipes/r1?servings=4&day=${TODAY}`);
   });
 
-  it('says Nothing planned yet, and Pick something easy plans an easy dinner for tonight', async () => {
+  it('says Nothing planned yet, and Choose an easy dinner plans an easy dinner for tonight', async () => {
     state.plan.recipes = [recipe];
     renderToday();
     expect(screen.getByText('Nothing planned yet')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Pick something easy' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose an easy dinner' }));
     await userEvent.click(screen.getByRole('button', { name: 'Look at Chilli' }));
     await userEvent.click(screen.getByRole('button', { name: 'Make this tonight' }));
     expect(state.planActions.set).toHaveBeenCalledWith(TODAY, { recipeId: 'r1', title: 'Chilli', servings: 2 });

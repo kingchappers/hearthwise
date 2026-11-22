@@ -22,7 +22,7 @@ describe('ErrorBoundary', () => {
   it('says it could not find the page and offers Home, without "Oops"', () => {
     renderBoundary(notFound);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent("We couldn't find that page");
-    expect(screen.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Go to Today' })).toHaveAttribute('href', '/');
     expect(screen.queryByText(/Oops/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument();
   });
@@ -33,7 +33,7 @@ describe('ErrorBoundary', () => {
     renderBoundary(serverError);
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent("Something didn't load. Your data is safe.");
-    expect(screen.getByRole('link', { name: 'Go to Home' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Today' })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Reload' }));
     expect(reload).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();

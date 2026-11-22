@@ -48,7 +48,7 @@ export function EasyPicks({ opened, onClose, recipes, random = Math.random, onMa
   }
 
   return (
-    <ResponsiveSheet opened={opened} onClose={close} title="Pick something easy">
+    <ResponsiveSheet opened={opened} onClose={close} title="Choose an easy dinner">
       {chosen ? (
         <Detail recipe={chosen} onBack={() => setChosen(undefined)} onMake={() => { onMake(chosen); close(); }} />
       ) : (

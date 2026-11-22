@@ -40,7 +40,7 @@ function Content({ selected, unsaved, onEdit, onClose, actions }: Omit<EventDeta
     <Stack>
       <Text>{when}</Text>
       <Text>{`For: ${item.who}`}</Text>
-      {event.kind === 'block' && <Text>Block</Text>}
+      {event.kind === 'block' && <Text>Routine</Text>}
       {event.place !== undefined && <Text style={{ overflowWrap: 'anywhere' }}>{`Where: ${event.place}`}</Text>}
       {event.notes !== undefined && <Text style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{event.notes}</Text>}
       {repeats && <Text>{repeats}</Text>}

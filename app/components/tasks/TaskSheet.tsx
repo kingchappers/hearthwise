@@ -100,7 +100,7 @@ function TaskForm({ task, onClose }: { task?: Task; onClose: () => void }) {
           onChange={event => setAssignee(event.currentTarget.value)}
           data={[
             { value: 'either', label: 'Anyone' },
-            ...(other ? [{ value: 'both', label: 'Together' }] : []),
+            ...(other ? [{ value: 'both', label: 'Both of you' }] : []),
             { value: me.userId, label: 'You' },
             ...(other ? [{ value: other.userId, label: other.displayName }] : []),
           ]}

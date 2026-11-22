@@ -314,6 +314,37 @@ describe('materials', () => {
   });
 });
 
+describe('what the pushes say', () => {
+  const tick = { notify: true, clientAt: AT };
+  const last = () => sent.at(-1)!.payload.title;
+
+  it('says the kind of change: a step added, taken, given back, changed, a project finished, reopened or deleted, a materials list changed', async () => {
+    const { id } = await newProject();
+    sent.length = 0;
+    const stepId = uuid();
+    await call(U1, 'PUT', `${P}/${id}/steps/${stepId}`, mut({ text: 'Lift', textAt: AT, position: 'i', positionAt: AT, ...tick }));
+    expect(last()).toBe('Sam added a step');
+    await call(U1, 'PUT', `${P}/${id}/steps/${stepId}`, mut({ note: 'x', noteAt: AT + 5, ...tick }));
+    expect(last()).toBe('Sam changed a step');
+    await call(U1, 'POST', `${P}/${id}/steps/${stepId}/take`, mut(tick));
+    expect(last()).toBe('Sam took a step');
+    await call(U1, 'POST', `${P}/${id}/steps/${stepId}/release`, mut(tick));
+    expect(last()).toBe('Sam gave a step back');
+    await call(U1, 'POST', `${P}/${id}/take`, mut(tick));
+    expect(last()).toBe('Sam took a project');
+    await call(U1, 'POST', `${P}/${id}/release`, mut(tick));
+    expect(last()).toBe('Sam gave a project back');
+    await call(U1, 'PUT', `${P}/${id}/materials/${uuid()}`, mut({ text: 'Timber', textAt: AT, ...tick }));
+    expect(last()).toBe('Sam changed a materials list');
+    await call(U1, 'PUT', `${P}/${id}`, mut({ status: 'finished', statusAt: AT + 10, ...tick }));
+    expect(last()).toBe('Sam marked a project as finished');
+    await call(U1, 'PUT', `${P}/${id}`, mut({ status: 'active', statusAt: AT + 20, ...tick }));
+    expect(last()).toBe('Sam reopened a project');
+    await call(U1, 'DELETE', `${P}/${id}`, mut(tick));
+    expect(last()).toBe('Sam deleted a project');
+  });
+});
+
 describe('what leaves the app', () => {
   it('never puts a title, step, note or figure in a log line or a push', async () => {
     const { id } = await newProject(SENTINEL);
@@ -334,7 +365,7 @@ describe('what leaves the app', () => {
     await call(U1, 'PUT', `${P}/${id}`, mut({ title: 'Garden room', titleAt: AT, notify: true, clientAt: AT }));
     expect(sent).toHaveLength(1);
     expect(sent[0].endpoint).toContain(U2);
-    expect(sent[0].payload).toMatchObject({ title: 'Sam added a project', body: 'Open the project to take a look.', url: `/plan/projects/${id}` });
+    expect(sent[0].payload).toMatchObject({ title: 'Sam added a project', body: 'Open Hearthwise, then Plan, then Projects to see it.', url: `/plan/projects/${id}` });
     await call(U1, 'PUT', `${P}/${id}`, mut({ notes: 'x', notesAt: AT + 5, notify: true, clientAt: AT }));
     expect(sent[1].payload.title).toBe('Sam changed a project');
   });

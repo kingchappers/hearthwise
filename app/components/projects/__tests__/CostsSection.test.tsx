@@ -31,9 +31,9 @@ describe('the costs section', () => {
     expect(actions.editProject).toHaveBeenCalledWith('p1', { estimatePence: 400000 });
   });
 
-  it('shows "£1,250.00 of £4,000.00" and who changed it last, and says it is not in Money', () => {
+  it('names each figure, "Spent so far £1,250.00. Estimate £4,000.00.", and says who changed it last, and says it is not in Money', () => {
     setup(project({ estimatePence: 400000, spentPence: 125000, costBy: 'u1' }));
-    expect(screen.getByText('£1,250.00 of £4,000.00')).toBeInTheDocument();
+    expect(screen.getByText('Spent so far £1,250.00. Estimate £4,000.00.')).toBeInTheDocument();
     expect(screen.getByText('Last changed by Sam')).toBeInTheDocument();
     expect(screen.getByText('Not in Money. This is only for the project.')).toBeInTheDocument();
   });

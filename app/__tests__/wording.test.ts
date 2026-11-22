@@ -26,7 +26,7 @@ const CALENDAR_LIB = ['calendar', 'calendarKeys', 'calendarOverlay', 'calendarFo
 const CALENDAR_PHRASES = [
   'Not saved yet', 'Nothing more today', 'Now: nothing on', 'Only you can see the details.', 'sees that you are busy.', 'Busy', 'Times are shown in', 'Nothing on', 'Due: ',
   'Dinner: ', 'Skip this day', 'Not saved: this event is now private.', 'This household has reached 500 events.', 'Open the calendar', 'Now and next', 'Dinners', 'Calendar',
-  'Add a title.', 'Block, a routine like Wind down', 'Both of you', 'Loading the calendar',
+  'Add a title.', 'Routine, like Wind down', 'Both of you', 'Loading the calendar',
   // Step 6: the feeds, in the design's words.
   'Updated ', 'Last updated ', 'We can read links from Google, Outlook, Apple and Proton calendars.', 'That does not look like a link.', 'We could not read that link.',
   'The link stopped working. You may need a new one from ', ' did not answer. We will try again soon.', 'That address did not give us a calendar.',
@@ -39,18 +39,18 @@ const CALENDAR_PHRASES = [
 // never on screen (phase 4 uses "claim" for a send-once record, and both read as adversarial).
 const BANNED_PHASE_5 = /\b(over budget|overspent|overrun|behind schedule|stuck|stalled|blocked|abandoned|unfinished|undone|conflict|rejected|lost|claim|assign)\b/i;
 const PROJECT_PHRASES = [
-  'Not started', 'On it', 'Done', "I'm on this", 'Free this step', 'Not saved yet', 'Not saved for offline yet', 'No projects yet. Add one when you start a bigger job.',
-  'This household has reached 60 projects.', 'This was changed after you wrote it. Your wording is kept here.', 'Mark as finished', 'Finished', 'Bring back',
+  'Not started', 'On it', 'Done', "Take this step", 'Give this step back', 'Not saved yet', 'Not saved for offline yet', 'No projects yet. Add one when you start a bigger job.',
+  'This household has reached 60 projects.', 'This was changed after you wrote it. Your wording is kept here.', 'Mark as finished', 'Finished', 'Reopen this project',
   ' already has this', 'Last changed by ', 'On it for ',
   'Add to the shopping list', 'On the list', 'Already on the list', 'Added earlier, and since cleared',
-  'Planned for ', 'No day planned', 'Add a cost', 'Not in Money. This is only for the project.', ' spent so far', 'Estimated ',
+  'Planned for ', 'No day planned', 'Add a cost', 'Not in Money. This is only for the project.', 'Spent so far ', 'Estimate ',
 ];
 // The costs read as figures, never as a verdict or a settling up: nothing says over, under or on budget, who paid, or settle.
 const COST_VERDICT = /\b(over budget|under budget|on budget|overspent|overspend|who paid|paid by|settle|settled|settling|owe|owes|owed|debt|unpaid|behind)\b/i;
 const MEAL_LIB = ['recipes', 'recipeOverlay', 'plan', 'planOverlay', 'cookingState', 'reviewState', 'recipeDraft', 'wakeLock'];
 // The fixed phrases the design promises, each of which must appear in what a person can read in the meal files.
 const FIXED_PHRASES = [
-  'Nothing planned yet', 'Tonight', 'Pick something easy', 'Make this tonight', 'Add to shopping list', 'I have this', 'Not adding', 'On the list',
+  'Nothing planned yet', 'Tonight', 'Choose an easy dinner', 'Make this tonight', 'Add to shopping list', 'I have this', 'Not adding', 'On the list',
   'Not scaled', 'Get everything out', 'Steps', 'Start again', 'Kept as typed', 'Checking the recipe…', 'This recipe was deleted', 'This recipe is gone', 'Last changed by',
 ];
 

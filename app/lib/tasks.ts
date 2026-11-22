@@ -31,7 +31,7 @@ export function groupTasks(tasks: Task[], today: string): Record<Group, Task[]> 
 }
 
 // The one task to offer next: what is due, then an undated to-do, then the soonest dated one. The viewer's own comes before an either
-// or both task of the same day. Tasks set aside with "Not now" are skipped, for this session only.
+// or both task of the same day. Tasks set aside with "Show a different task" are skipped, for this session only.
 export function nextThing(tasks: Task[], viewerId: string, today: string, roster: Roster, skipped: string[] = []): Task | undefined {
   const mine = (task: Task): boolean => effectiveAssignee(task, roster) === viewerId;
   const candidates = tasks.filter(task => isOpen(task) && !skipped.includes(task.id) && [viewerId, 'either', 'both'].includes(effectiveAssignee(task, roster)));
