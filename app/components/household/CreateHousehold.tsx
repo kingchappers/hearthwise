@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, NativeSelect, Stack, TextInput } from '@mantine/core';
 import { useCreateHousehold } from '~/lib/household';
+import { tryAgainText } from '~/lib/tryAgain';
 
 const MAX_NAME = 60;
 const MAX_DISPLAY_NAME = 40;
@@ -13,7 +14,7 @@ function timeZones(current: string): string[] {
 function failureMessage(error: unknown): string {
   const code = (error as { code?: string } | null)?.code;
   if (code === 'already_member') return 'You already have a household.';
-  return 'We could not create the household. Check your connection and try again.';
+  return tryAgainText('We could not create the household.', error);
 }
 
 export function CreateHousehold({ defaultDisplayName }: { defaultDisplayName: string }) {

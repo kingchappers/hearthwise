@@ -35,7 +35,7 @@ describe('LetThemKnow', () => {
   it('says what it will do and when it clears, and says the other person was told after the save', async () => {
     const user = userEvent.setup();
     ui();
-    expect(screen.getByText('Sends Alex one short message. It clears after each save.')).toBeInTheDocument();
+    expect(screen.getByText('Sends Alex one short message, then clears after each save. A task, shopping or dinner message names the item; money, calendar and project messages never do. It waits until their quiet hours end.')).toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' }));
     act(() => { notifyFields(); });
     expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();

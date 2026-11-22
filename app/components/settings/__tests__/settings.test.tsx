@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { DEFAULT_SETTINGS, type MemberSettings } from '../../../../src/shared/household';
@@ -76,6 +76,28 @@ describe('Reminders', () => {
   it('is labelled and accessible', async () => {
     const { container } = ui(<Reminders />);
     await expectNoViolations(container);
+  });
+});
+
+describe('a settings save that fails', () => {
+  it('says so for quiet hours and for reminders, and says nothing once it works again', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    updateMe.mockRejectedValueOnce(new Error('offline'));
+    ui(<QuietHours />);
+    await user.click(screen.getByRole('switch', { name: /Quiet hours/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save that. Try again.');
+    await user.click(screen.getByRole('switch', { name: /Quiet hours/ }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
+  it('says so for a reminder', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    updateMe.mockRejectedValueOnce(new Error('offline'));
+    ui(<Reminders />);
+    await user.click(screen.getByRole('switch', { name: /Daily summary/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save that. Try again.');
   });
 });
 

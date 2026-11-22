@@ -9,6 +9,7 @@ import { clearInviteToken, peekInviteToken, storeInviteToken, tokenFromHash } fr
 import { loginLocal, setupLocal, signupWithInvite } from '~/lib/localAuth';
 import { pageTitle } from '~/lib/pageTitle';
 import type { Route } from './+types/join';
+import { tryAgainText } from '~/lib/tryAgain';
 
 export const meta: Route.MetaFunction = () => [{ title: pageTitle('Join your household') }];
 
@@ -28,7 +29,7 @@ function describeFailure(error: unknown): { outcome: Outcome; final: boolean } {
   if (code === 'already_member') {
     return { outcome: { kind: 'problem', message: "You're already in a household that has things in it, so it can't be moved into this one." }, final: true };
   }
-  return { outcome: { kind: 'problem', message: 'We could not join the household. Check your connection and try again.' }, final: false };
+  return { outcome: { kind: 'problem', message: tryAgainText('We could not join the household.', error) }, final: false };
 }
 
 function AcceptInvite({ token, defaultName }: { token: string; defaultName: string }) {

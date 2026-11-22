@@ -13,7 +13,7 @@ export function LetThemKnow() {
     <>
       <Checkbox
         label={`Tell ${other.displayName} when I save a change`}
-        description={`Sends ${other.displayName} one short message. It clears after each save.`}
+        description={`Sends ${other.displayName} one short message, then clears after each save. A task, shopping or dinner message names the item; money, calendar and project messages never do. It waits until their quiet hours end.`}
         checked={box.on}
         onChange={event => box.set(event.currentTarget.checked)}
       />

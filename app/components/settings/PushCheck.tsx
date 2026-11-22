@@ -3,6 +3,7 @@ import { Alert, Button, List, Stack, Text, Title } from '@mantine/core';
 import { useProtectedApi } from '~/hooks/useProtectedApi';
 import { hasPushSubscription, pushSupport, subscribeToPush, unsubscribeFromPush } from '~/lib/push';
 import { peekRuntimeConfig } from '~/lib/runtimeConfig';
+import { tryAgainText } from '~/lib/tryAgain';
 
 const permission = (): NotificationPermission | 'unavailable' => (typeof Notification === 'undefined' ? 'unavailable' : Notification.permission);
 
@@ -50,7 +51,7 @@ export function PushCheck() {
       setSubscribed(true);
     } catch (error) {
       console.error('PushCheck: could not turn on notifications', error);
-      setProblem("We couldn't turn on notifications. Check your connection and try again.");
+      setProblem(tryAgainText("We couldn't turn on notifications.", error));
     } finally {
       setBusy(false);
     }
@@ -64,7 +65,7 @@ export function PushCheck() {
       setSubscribed(false);
     } catch (error) {
       console.error('PushCheck: could not turn off notifications', error);
-      setProblem("We couldn't turn off notifications. Check your connection and try again.");
+      setProblem(tryAgainText("We couldn't turn off notifications.", error));
     } finally {
       setBusy(false);
     }
@@ -74,7 +75,7 @@ export function PushCheck() {
     <Stack gap="xs" align="flex-start">
       {subscribed
         ? <><Text size="sm">Notifications are on for this device.</Text><Button variant="default" loading={busy} onClick={() => void turnOff()}>Turn off notifications on this device</Button></>
-        : <><Text size="sm">Notifications are off for this device.</Text><Button loading={busy} onClick={() => void turnOn()}>Turn on notifications on this device</Button></>}
+        : <><Text size="sm">Notifications are off for this device.</Text><Text size="sm">Your browser will ask for permission. Choose Allow.</Text><Button loading={busy} onClick={() => void turnOn()}>Turn on notifications on this device</Button></>}
       {problem && <Alert color="honey" role="alert">{problem}</Alert>}
     </Stack>
   );
