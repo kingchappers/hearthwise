@@ -34,7 +34,7 @@ function PlanContent() {
     <Stack maw={640}>
       <Title order={1} size="h3">Plan</Title>
       <Group>
-        <Button variant="default" onClick={() => setEasy(true)}>Pick something easy</Button>
+        <Button variant="default" onClick={() => setEasy(true)}>Choose an easy dinner</Button>
       </Group>
       <LetThemKnow />
       <WeekPlan days={plan.days} recipes={plan.recipes} checkedAt={plan.recipesCheckedAt} today={plan.today} onOpen={setOpenDay} onAddToList={() => setReviewing(true)} />

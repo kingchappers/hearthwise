@@ -15,7 +15,7 @@ describe('TaskHistory', () => {
     expect(screen.getByText('Nothing has happened to this yet.')).toBeInTheDocument();
   });
 
-  it('shows who did a cycle, "Also did it" for each further person, and Together', () => {
+  it('shows who did a cycle, "Also did it" for each further person, and Both of you', () => {
     renderHistory(history({ completions: [
       { cycleSeq: 2, cycleDueOn: '2026-11-12', together: false, by: [{ userId: ME.userId, at: 1_000 }, { userId: THEM.userId, at: 2_000 }] },
       { cycleSeq: 1, together: true, by: [{ userId: THEM.userId, at: 500 }] },
@@ -23,7 +23,7 @@ describe('TaskHistory', () => {
     expect(screen.getByText('Done by Sam')).toBeInTheDocument();
     expect(screen.getByText('Also did it: Alex')).toBeInTheDocument();
     expect(screen.getByText(/Done by Alex/)).toBeInTheDocument();
-    expect(screen.getByText(/Together/)).toBeInTheDocument();
+    expect(screen.getByText(/Both of you/)).toBeInTheDocument();
   });
 
   it('shows the other member\'s direct edits', () => {

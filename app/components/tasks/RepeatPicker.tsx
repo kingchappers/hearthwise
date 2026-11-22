@@ -6,8 +6,8 @@ type Kind = 'none' | 'after' | 'day' | 'week' | 'month';
 
 const KINDS: { value: Kind; label: string }[] = [
   { value: 'none', label: "Doesn't repeat" },
-  { value: 'after', label: "Some days after it's done" },
-  { value: 'day', label: 'Every few days' },
+  { value: 'after', label: "Some days after I finish it" },
+  { value: 'day', label: 'Every few days, finished or not' },
   { value: 'week', label: 'Every few weeks, on set days' },
   { value: 'month', label: 'Every few months, on a set day' },
 ];

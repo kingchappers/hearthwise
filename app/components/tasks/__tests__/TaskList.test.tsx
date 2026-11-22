@@ -25,7 +25,7 @@ describe('TaskList', () => {
     const past = screen.getByText('Past').closest('li')!;
     expect(within(past).getByText(/You/)).toBeInTheDocument();
     expect(within(past).getByText(/Due · Tue,? 10 Nov/)).toBeInTheDocument();
-    expect(within(screen.getByText('Shared job').closest('li')!).getByText(/Together/)).toBeInTheDocument();
+    expect(within(screen.getByText('Shared job').closest('li')!).getByText(/Both of you/)).toBeInTheDocument();
   });
 
   it('never says overdue, missed or streak, however late a task is', () => {
@@ -74,14 +74,14 @@ describe('NextThing', () => {
   it('shows one card with the task, who it is for and its date', () => {
     renderCard(task({ title: 'Bins', dueOn: '2026-11-12', assignee: 'both' }));
     expect(screen.getByText('Bins')).toBeInTheDocument();
-    expect(screen.getByText(/Together/)).toBeInTheDocument();
+    expect(screen.getByText(/Both of you/)).toBeInTheDocument();
     expect(screen.getByText(/Due · /)).toBeInTheDocument();
   });
 
-  it('has Done and Not now, each calling only its own handler', async () => {
+  it('has Done and Show a different task, each calling only its own handler', async () => {
     const t = task({ title: 'Bins' });
     const { onDone, onNotNow } = renderCard(t);
-    await userEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show a different task' }));
     expect(onNotNow).toHaveBeenCalledTimes(1);
     expect(onDone).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Done: Bins' }));

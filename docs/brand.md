@@ -8,6 +8,26 @@ The one place brand values are written down. Hex values live in `app/lib/brand.t
 - **Yellow and green are in the palette on purpose** (a household favourite). Yellow carries fills and highlights, green carries "done". A neon or synthwave theme was considered and left out: saturated neon is high-arousal, which works against the calm goal.
 - **Text must be readable.** Normal text needs 4.5:1. A bright yellow cannot carry words on a light background, so yellow text uses the dark shade 6.
 
+## Words (one word for one thing)
+
+Chosen from the neurodivergent design review (`docs/reviews/neurodivergent-2026-11/REPORT.md`). New copy uses these words, and a screen does not use one word for two things.
+
+| Idea | Word | Not |
+|---|---|---|
+| The first screen | Today | Home |
+| Both people | Both of you | Together |
+| Taking something | "Take this step" / "Take this project"; the holder is said as one sentence, "Alex has this" / "You have this" | I'm on this, On it, Free this step |
+| Handing it back | "Give this step back" | Free |
+| A finished project, undone | "Reopen this project" | Bring back |
+| Put something deleted back | Restore | Bring back |
+| A thing that can be put back from Deleted | Delete | Remove |
+| A person or link leaves | Remove | Delete |
+| Empties a list or a day | Clear | Delete |
+| Finishing a to-do, as a button | "Mark done"; the state reads "Done" | Done as a button |
+| A repeating part of the day | Routine | Block |
+| Asking the other person | Ask; the request reads "You asked Alex to take ..." | Give ... to (said to the person who asked) |
+| Waiting | "Waiting for Alex" (a name, not "them") | Waiting for them |
+
 ## Palette
 
 | Token | Shade 6 | Use | Contrast (checked) |

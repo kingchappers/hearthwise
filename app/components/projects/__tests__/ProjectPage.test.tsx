@@ -54,8 +54,10 @@ describe('the project page', () => {
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent('Not started');
     expect(items[1]).toHaveTextContent('Done');
-    expect(items[2]).toHaveTextContent('On it');
-    expect(items[2]).toHaveTextContent('Alex is on this');
+    expect(items[2]).not.toHaveTextContent(/^On it\b/);
+    expect(items[2]).toHaveTextContent('Alex has this');
+    // One sentence says who has it; the state word "On it" is not repeated beside it.
+    expect(items[2].textContent?.match(/On it/g)).toHaveLength(1);
     expect(items[2]).toHaveTextContent('On it for 3 weeks');
   });
 
@@ -70,19 +72,19 @@ describe('the project page', () => {
     for (const button of screen.getAllByRole('button')) expect(button, button.textContent ?? '').toHaveStyle({ minHeight: '44px' });
   });
 
-  it('takes a free step, and offers "Free this step" on a held one but not "I\'m on this" there', async () => {
+  it('takes a free step, and offers "Give this step back" on a held one but not "Take this step" there', async () => {
     page({ steps: [step('a', 'i'), step('b', 'j', { takenBy: THEM, takenAt: NOW })] });
     const rows = screen.getAllByRole('listitem');
-    await userEvent.click(within(rows[0]).getByRole('button', { name: "I'm on this" }));
+    await userEvent.click(within(rows[0]).getByRole('button', { name: /^Take this step/ }));
     expect(a.takeStep).toHaveBeenCalledWith('p1', 'a');
-    expect(within(rows[1]).queryByRole('button', { name: "I'm on this" })).not.toBeInTheDocument();
-    await userEvent.click(within(rows[1]).getByRole('button', { name: 'Free this step' }));
+    expect(within(rows[1]).queryByRole('button', { name: /^Take this step/ })).not.toBeInTheDocument();
+    await userEvent.click(within(rows[1]).getByRole('button', { name: 'Give this step back' }));
     expect(a.releaseStep).toHaveBeenCalledWith('p1', 'b');
   });
 
   it('ticks a step done in place', async () => {
     page();
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Done: Step a' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mark done: Step a' }));
     expect(a.editStep).toHaveBeenCalledWith('p1', 'a', { state: 'done' });
   });
 
@@ -119,19 +121,19 @@ describe('the project page', () => {
 
   it('takes the whole project, and frees it when it is mine', async () => {
     const first = page();
-    await userEvent.click(screen.getByRole('button', { name: "I'm on this: the whole project" }));
+    await userEvent.click(screen.getByRole('button', { name: "Take this project" }));
     expect(a.takeProject).toHaveBeenCalledWith('p1');
     first.unmount();
     page({ project: project({ takenBy: ME, takenAt: NOW }) });
-    expect(screen.getByText("You're on this")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Free this project' }));
+    expect(screen.getByText("You have this")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Give this project back' }));
     expect(a.releaseProject).toHaveBeenCalledWith('p1');
   });
 
   it('shows a hold by someone who has left as nobody, so the project can be taken', () => {
     page({ project: project({ takenBy: 'gone', takenAt: NOW }) });
     expect(screen.queryByText(/is on this/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: "I'm on this: the whole project" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: "Take this project" })).toBeInTheDocument();
   });
 
   it('marks a project finished and brings it back', async () => {
@@ -140,7 +142,7 @@ describe('the project page', () => {
     expect(a.editProject).toHaveBeenCalledWith('p1', { status: 'finished' });
     first.unmount();
     page({ project: project({ status: 'finished' }) });
-    await userEvent.click(screen.getByRole('button', { name: 'Bring back' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen this project' }));
     expect(a.editProject).toHaveBeenLastCalledWith('p1', { status: 'active' });
   });
 
@@ -161,8 +163,8 @@ describe('a finished project', () => {
   it('says Finished on the page itself, not only by changing a button, and no longer offers to take it', () => {
     page({ project: project({ status: 'finished' }) });
     expect(screen.getByText('Finished')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: "I'm on this: the whole project" })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Bring back' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: "Take this project" })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen this project' })).toBeInTheDocument();
   });
 
   it('does not say Finished for an active project', () => {
@@ -229,7 +231,7 @@ describe('the project list', () => {
       project({ id: 'p2', title: 'Fix the fence', status: 'finished' }),
     ]);
     expect(screen.getByText('3 of 8 steps done')).toBeInTheDocument();
-    expect(screen.getByText('Alex is on this')).toBeInTheDocument();
+    expect(screen.getByText('Alex has this')).toBeInTheDocument();
     const finished = screen.getByRole('region', { name: 'Finished' });
     expect(within(finished).getByText('Fix the fence')).toBeInTheDocument();
     expect(within(finished).queryByText('Take down the decking')).not.toBeInTheDocument();

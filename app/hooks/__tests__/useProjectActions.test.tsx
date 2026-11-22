@@ -91,7 +91,7 @@ describe('useProjectActions', () => {
     result.current.editProject('p1', { status: 'finished' });
     expect(show.mock.calls.at(-1)![0].message).toBe('Marked as finished. You can bring it back any time.');
     result.current.editProject('p1', { status: 'active' });
-    expect(show.mock.calls.at(-1)![0].message).toBe('Brought back. It is in your active projects.');
+    expect(show.mock.calls.at(-1)![0].message).toBe('Reopened. It is in your active projects.');
     show.mockClear();
     result.current.editProject('p1', { notes: 'x' });
     expect(show).not.toHaveBeenCalled();

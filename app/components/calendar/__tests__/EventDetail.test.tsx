@@ -41,7 +41,7 @@ describe('EventDetail', () => {
 
   it('says it is a block, and that it is private', () => {
     renderDetail(event({ kind: 'block', private: true, who: SAM }));
-    expect(screen.getByText('Block')).toBeInTheDocument();
+    expect(screen.getByText('Routine')).toBeInTheDocument();
     expect(screen.getByText('Private: only you can see the details')).toBeInTheDocument();
   });
 

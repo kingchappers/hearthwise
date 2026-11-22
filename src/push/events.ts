@@ -39,7 +39,23 @@ const CALENDAR_BODY = 'Open the calendar to take a look.';
 export const eventAdded = (actor: string, mutationId: string): NotifyEvent => base('event.added', mutationId, `${actor} added an event`, CALENDAR_BODY, '/plan/calendar');
 export const eventChanged = (actor: string, mutationId: string): NotifyEvent => base('event.changed', mutationId, `${actor} changed an event`, CALENDAR_BODY, '/plan/calendar');
 
-// Projects. No title, step, material, note or figure is ever in the text; the body is fixed, as for money and the calendar.
-const PROJECT_BODY = 'Open the project to take a look.';
+// Projects. No title, step, material, note or figure is ever in the text; the body is fixed, as for money and the calendar. The title says
+// the kind of thing that happened, so a push is not a bare "changed a project" that sends the person to look for what changed.
+const PROJECT_BODY = 'Open Hearthwise, then Plan, then Projects to see it.';
+export type ProjectChange = 'project' | 'step' | 'step_added' | 'step_taken' | 'step_freed' | 'project_taken' | 'project_freed' | 'finished' | 'reopened' | 'deleted' | 'materials';
+const PROJECT_TITLES: Record<ProjectChange, (actor: string) => string> = {
+  project: actor => `${actor} changed a project`,
+  step: actor => `${actor} changed a step`,
+  step_added: actor => `${actor} added a step`,
+  step_taken: actor => `${actor} took a step`,
+  step_freed: actor => `${actor} gave a step back`,
+  project_taken: actor => `${actor} took a project`,
+  project_freed: actor => `${actor} gave a project back`,
+  finished: actor => `${actor} marked a project as finished`,
+  reopened: actor => `${actor} reopened a project`,
+  deleted: actor => `${actor} deleted a project`,
+  materials: actor => `${actor} changed a materials list`,
+};
 export const projectAdded = (actor: string, mutationId: string, projectId: string): NotifyEvent => base('project.added', mutationId, `${actor} added a project`, PROJECT_BODY, `/plan/projects/${projectId}`);
-export const projectChanged = (actor: string, mutationId: string, projectId: string): NotifyEvent => base('project.changed', mutationId, `${actor} changed a project`, PROJECT_BODY, `/plan/projects/${projectId}`);
+export const projectChanged = (actor: string, mutationId: string, projectId: string, what: ProjectChange = 'project'): NotifyEvent =>
+  base('project.changed', mutationId, PROJECT_TITLES[what](actor), PROJECT_BODY, `/plan/projects/${projectId}`);

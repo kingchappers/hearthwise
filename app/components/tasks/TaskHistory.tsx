@@ -20,7 +20,7 @@ export function TaskHistory({ history, roster }: TaskHistoryProps) {
           <li key={`done-${completion.cycleSeq}`} style={{ listStyle: 'none' }}>
             <Stack gap={0} py={4}>
               <Text fw={600}>{`Done by ${memberName(roster, completion.by[0]?.userId ?? '')}`}</Text>
-              {completion.together && <Text size="sm">Together</Text>}
+              {completion.together && <Text size="sm">Both of you</Text>}
               {completion.by.slice(1).map(other => (
                 <Text key={other.userId} size="sm">{`Also did it: ${memberName(roster, other.userId)}`}</Text>
               ))}

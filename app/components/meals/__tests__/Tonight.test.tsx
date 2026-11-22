@@ -34,10 +34,10 @@ describe('Tonight', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('says Nothing planned yet with a Pick something easy button when nothing is planned, or the day was cleared', async () => {
+  it('says Nothing planned yet with a Choose an easy dinner button when nothing is planned, or the day was cleared', async () => {
     const first = renderTonight(undefined);
     expect(screen.getByText('Nothing planned yet')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Pick something easy' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose an easy dinner' }));
     expect(first.onPickEasy).toHaveBeenCalled();
     first.unmount();
     renderTonight(plan(undefined));

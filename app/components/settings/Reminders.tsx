@@ -36,7 +36,7 @@ export function Reminders() {
 
   return (
     <Stack gap="lg">
-      {block('digest', 'Daily summary', 'One message a day with what is due, today and from earlier days.', 'Daily summary time')}
+      {block('digest', 'Daily summary', 'One message a day with what is due today, and anything still waiting.', 'Daily summary time')}
       {block('dueNudges', 'Due-day reminders', 'A message for each task of yours that is due today.', 'Due-day reminder time')}
       <Text size="sm">Times are in your household's time zone.</Text>
     </Stack>

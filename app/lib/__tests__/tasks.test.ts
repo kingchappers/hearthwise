@@ -106,7 +106,7 @@ describe('nextThing', () => {
     expect(next([future])?.id).toBe(future.id);
   });
 
-  it('skips tasks set aside with Not now, and ignores deleted and done ones', () => {
+  it('skips tasks set aside with Show a different task, and ignores deleted and done ones', () => {
     const a = task({ dueOn: '2026-11-12' });
     const b = task({ dueOn: '2026-11-13' });
     expect(next([a, b], [a.id])?.id).toBe(b.id);

@@ -84,10 +84,10 @@ describe('TimelineList', () => {
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'e1', label: 'Dentist', on: TODAY }));
   });
 
-  it('says Block for a routine, and (next day) for one that runs past midnight', () => {
+  it('says Routine for a routine, and (next day) for one that runs past midnight', () => {
     show(inputsFor({ events: [event({ kind: 'block', title: 'Sleep', startTime: '23:00', durationMin: 480 })] })());
     expect(screen.getByText('23:00 to 07:00 (next day)')).toBeInTheDocument();
-    expect(screen.getByText(/Block/)).toBeInTheDocument();
+    expect(screen.getByText(/Routine/)).toBeInTheDocument();
   });
 
   it('says Not saved yet on an event with a write waiting', () => {

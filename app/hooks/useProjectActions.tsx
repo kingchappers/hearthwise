@@ -66,7 +66,7 @@ export function useProjectActions(): ProjectActions {
       put.mutate({ ...common(), projectId, changes });
       // A change of state says so where it happened, not only by a button changing its label.
       if (changes.status === 'finished') toast('Marked as finished. You can bring it back any time.');
-      else if (changes.status === 'active') toast('Brought back. It is in your active projects.');
+      else if (changes.status === 'active') toast('Reopened. It is in your active projects.');
     },
     // Where it went is said at once: a deleted project is in Deleted for 30 days. (An Undo here would need the server's deletion time,
     // which is only known once the delete has landed, so the way back is Restore on the Deleted page.)

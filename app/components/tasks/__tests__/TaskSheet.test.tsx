@@ -40,7 +40,7 @@ describe('TaskSheet: a new task', () => {
   it('offers anyone, both of you and each member as who it is for', () => {
     open();
     const options = [...screen.getByLabelText('Who is it for?').querySelectorAll('option')].map(option => option.textContent);
-    expect(options).toEqual(['Anyone', 'Together', 'You', 'Alex']);
+    expect(options).toEqual(['Anyone', 'Both of you', 'You', 'Alex']);
   });
 
   it('says Ask Alex instead of Save when the task is for Alex', async () => {

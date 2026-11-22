@@ -10,13 +10,13 @@ const show = (props: Partial<React.ComponentProps<typeof RepeatPicker>> = {}) =>
 describe('RepeatPicker', () => {
   it('offers a repeat counted from when a task is done, by default', () => {
     show();
-    expect(screen.getByRole('option', { name: "Some days after it's done" })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: "Some days after I finish it" })).toBeInTheDocument();
   });
 
   it('leaves that out when told, as an event has no done', () => {
     show({ allowAfter: false });
-    expect(screen.queryByRole('option', { name: "Some days after it's done" })).not.toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Every few days' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: "Some days after I finish it" })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Every few days, finished or not' })).toBeInTheDocument();
   });
 
   it('starts a new rule on the date it is given', async () => {

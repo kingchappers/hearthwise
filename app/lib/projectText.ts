@@ -9,9 +9,10 @@ export const COPY = {
   notStarted: 'Not started',
   onIt: 'On it',
   done: 'Done',
-  takeIt: "I'm on this",
-  freeIt: 'Free this step',
-  freeProject: 'Free this project',
+  takeIt: 'Take this step',
+  takeProject: 'Take this project',
+  freeIt: 'Give this step back',
+  freeProject: 'Give this project back',
   notSaved: 'Not saved yet',
   notSavedForOffline: 'Not saved for offline yet',
   addStep: 'Add a step',
@@ -25,7 +26,7 @@ export const COPY = {
   replaced: 'This was changed after you wrote it. Your wording is kept here.',
   finish: 'Mark as finished',
   finished: 'Finished',
-  bringBack: 'Bring back',
+  bringBack: 'Reopen this project',
   copy: 'Copy',
   dismiss: 'Dismiss',
   undo: 'Undo',
@@ -54,8 +55,8 @@ export const COPY = {
   plannedEndError: 'The last day must be on or after the first, and within 14 days.',
 } as const;
 
-export const heldBy = (name: string): string => `${name} is on this`;
-export const youHold = "You're on this";
+export const heldBy = (name: string): string => `${name} has this`;
+export const youHold = "You have this";
 // Names the step or project when it is known, since the message may be read away from the thing that was tapped.
 export const alreadyHas = (name: string, what?: string): string => (what === undefined ? `${name} already has this` : `${name} already has "${what}". Nothing was changed.`);
 export const lastChangedBy = (name: string): string => `Last changed by ${name}`;
@@ -104,12 +105,13 @@ export function plannedText(planned: { plannedOn: string | null; plannedEndOn?: 
   return startMonth === endMonth ? `Planned for ${startDay} to ${endDay} ${endMonth}` : `Planned for ${startDay} ${startMonth} to ${endDay} ${endMonth}`;
 }
 
-// "£1,250.00 of £4,000.00", "Estimated £4,000.00" or "£1,250.00 spent so far", from whichever figures are set. Never a verdict: nothing says
-// over, under or on budget.
+// "Spent so far £1,250.00. Estimate £4,000.00.", "Estimate £4,000.00" or "Spent so far £1,250.00", from whichever figures are set. Each figure
+// is named, so it is never a guess which is which. Never a verdict: nothing says over, under, left or remaining.
 export function costLine(project: { estimatePence?: number; spentPence?: number }): string | undefined {
   const { estimatePence, spentPence } = project;
-  if (estimatePence !== undefined && spentPence !== undefined) return `${formatPounds(spentPence)} of ${formatPounds(estimatePence)}`;
-  if (estimatePence !== undefined) return `Estimated ${formatPounds(estimatePence)}`;
-  if (spentPence !== undefined) return `${formatPounds(spentPence)} spent so far`;
-  return undefined;
+  const parts = [
+    spentPence === undefined ? undefined : `Spent so far ${formatPounds(spentPence)}.`,
+    estimatePence === undefined ? undefined : `Estimate ${formatPounds(estimatePence)}.`,
+  ].filter((part): part is string => part !== undefined);
+  return parts.length === 0 ? undefined : parts.join(' ');
 }

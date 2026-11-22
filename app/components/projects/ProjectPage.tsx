@@ -74,7 +74,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
               ? <Button variant="default" style={{ minHeight: 44 }} onClick={() => actions.releaseProject(project.id)}>{COPY.freeProject}</Button>
               : project.status === 'finished' ? null
               : project.takenBy === undefined || holder === undefined
-                ? <Button variant="default" style={{ minHeight: 44 }} aria-label={`${COPY.takeIt}: the whole project`} onClick={() => actions.takeProject(project.id)}>{COPY.takeIt}</Button>
+                ? <Button variant="default" style={{ minHeight: 44 }} onClick={() => actions.takeProject(project.id)}>{COPY.takeProject}</Button>
                 : null}
             <Button variant="default" style={{ minHeight: 44 }} onClick={() => actions.editProject(project.id, { status: project.status === 'finished' ? 'active' : 'finished' })}>
               {project.status === 'finished' ? COPY.bringBack : COPY.finish}

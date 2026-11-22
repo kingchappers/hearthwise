@@ -28,10 +28,10 @@ describe('dueLabel', () => {
 });
 
 describe('assigneeLabel', () => {
-  it('reads You, a name, Together and Anyone', () => {
+  it('reads You, a name, Both of you and Anyone', () => {
     expect(assigneeLabel(task({ assignee: 'u1' }), roster, 'u1')).toBe('You');
     expect(assigneeLabel(task({ assignee: 'u2' }), roster, 'u1')).toBe('Alex');
-    expect(assigneeLabel(task({ assignee: 'both' }), roster, 'u1')).toBe('Together');
+    expect(assigneeLabel(task({ assignee: 'both' }), roster, 'u1')).toBe('Both of you');
     expect(assigneeLabel(task({ assignee: 'either' }), roster, 'u1')).toBe('Anyone');
   });
 

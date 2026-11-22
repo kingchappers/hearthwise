@@ -119,10 +119,10 @@ function SettingsContent() {
       </Card>
 
       <Card withBorder>
-        <Title order={2} size="h4" mb="sm">Messages</Title>
+        <Title order={2} size="h4" mb="sm">Pop-up notes</Title>
         <Radio.Group
-          label="How long messages with an Undo button stay"
-          description="Done and deleted messages. Problems always stay until you close them."
+          label="How long notes with an Undo button stay"
+          description="Done and deleted notes go by themselves. Notes that need you to act stay until you close them."
           value={preferences.undoDuration}
           onChange={value => setPreferences({ undoDuration: value as UndoDuration })}
         >

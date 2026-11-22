@@ -25,7 +25,7 @@ export interface EventSheetProps {
 }
 
 const BUTTON = { minHeight: 44 };
-const KINDS: { value: EventKind; label: string }[] = [{ value: 'event', label: 'Event' }, { value: 'block', label: 'Block, a routine like Wind down' }];
+const KINDS: { value: EventKind; label: string }[] = [{ value: 'event', label: 'Event' }, { value: 'block', label: 'Routine, like Wind down' }];
 
 const title = (event: EventView | undefined): string => (event ? `Edit ${event.kind}` : 'Add to the calendar');
 
