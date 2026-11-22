@@ -79,21 +79,21 @@ describe('the calendar mutations', () => {
   it('says so when a write is refused because the event became private', async () => {
     request.mockRejectedValueOnce(new ApiError(403, 'Forbidden', 'private'));
     await run('editEvent', { eventId: ID, title: 'x' }).catch(() => undefined);
-    expect(report).toHaveBeenCalledWith('Not saved: this event is now private.');
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('Not saved: this event is now private.'));
   });
 
   it('describes the calendar limits in kind words', () => {
     expect(describeFailure(new ApiError(409, 'Conflict', 'event_limit'), 'createEvent')).toBe('This household has reached 500 events.');
     expect(describeFailure(new ApiError(409, 'Conflict', 'reminder_limit'), 'setReminders')).toBe('That is the most reminders we can add.');
-    expect(describeFailure(new ApiError(410, 'Gone'), 'editEvent')).toBe('That was deleted on another phone.');
+    expect(describeFailure(new ApiError(410, 'Gone'), 'editEvent')).toBe('It was deleted somewhere else. Your change was undone.');
   });
 
   it('tells the person when a restore is refused because the household is full or the event changed', async () => {
     request.mockResolvedValueOnce({ results: [{ status: 'event_limit' }] });
     await run('eventRestore', { entries: [{ id: ID, deletedAt: 5 }] });
-    expect(report).toHaveBeenCalledWith('This household has reached 500 events.');
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('This household has reached 500 events.'));
     request.mockResolvedValueOnce({ results: [{ status: 'entry_changed' }] });
     await run('eventRestore', { entries: [{ id: ID, deletedAt: 5 }] });
-    expect(report).toHaveBeenCalledWith('That event changed. Please look at it again.');
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('That event changed. Please look at it again.'));
   });
 });

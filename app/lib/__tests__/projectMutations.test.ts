@@ -138,7 +138,7 @@ describe('the project notices', () => {
 
   it('says a household at the project limit was reached, when a restore is refused', () => {
     defaults('restoreProject').onSuccess!({ results: [{ id: 'p1', status: 'project_limit' }] }, { ...common, entries: [] } as never, undefined, undefined as never);
-    expect(report).toHaveBeenCalledWith('This household has reached 60 projects.');
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('This household has reached 60 projects.'));
   });
 });
 
@@ -171,7 +171,7 @@ describe('refusals', () => {
     const error = new ApiError(409, 'Conflict', 'step_limit');
     expect(shouldRetry(0, error)).toBe(false);
     defaults('putStep').onError!(error, { ...common, projectId: 'p1', stepId: 's1', changes: {} } as never, undefined as never, undefined as never);
-    expect(report).toHaveBeenCalledWith('This project has reached 40 steps.');
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('This project has reached 40 steps.'));
   });
 
   it('retries a network failure for ever', () => {

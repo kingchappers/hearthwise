@@ -62,19 +62,19 @@ describe('PendingWritesBanner', () => {
 
   it('lists each change that could not be saved, and dismisses it', async () => {
     renderBanner();
-    act(() => recordDropped({ id: 'a', message: 'This changed on another phone. Please check it and try again.' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('This changed on another phone');
+    act(() => recordDropped({ id: 'a', message: 'It was changed somewhere else first. Your change was undone.' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('changed somewhere else');
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('offers Ask when the change needs the other person\'s say, and sends the ask', async () => {
+  it('offers Send as a request when the change needs the other person\'s say, and sends the ask', async () => {
     const ask = vi.fn();
     renderBanner();
-    act(() => recordDropped({ id: 'a', message: 'That change needs their say. Ask them instead.', ask }));
-    await userEvent.click(screen.getByRole('button', { name: 'Ask' }));
+    act(() => recordDropped({ id: 'a', message: 'This needs Alex to agree first.', ask }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send as a request' }));
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Request sent. They can agree to it or not.');
   });
 
   it('never says overdue, missed or streak, and has no small buttons', async () => {

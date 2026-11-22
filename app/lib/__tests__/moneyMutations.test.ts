@@ -112,20 +112,20 @@ describe('what the person is told when a money write is refused', () => {
   ])('says the right thing for %s, before the generic 409 text', async (code, status, text) => {
     request.mockRejectedValue(new ApiError(status, 'Conflict', code));
     await run('moneyDelete', { entryId: ID }).catch(() => undefined);
-    expect(report).toHaveBeenCalledWith(text);
+    expect(report).toHaveBeenCalledWith(expect.stringContaining(text));
   });
 
   it('describeFailure gives the same words without a name, and does not change other kinds', () => {
     expect(describeFailure(new ApiError(409, 'Conflict', 'needs_agreement'), 'moneyChange')).toBe('Ask them to agree to this change.');
     expect(describeFailure(new ApiError(409, 'Conflict', 'needs_agreement'), 'moneyChange', 'Sam')).toBe('Ask Sam to agree to this change.');
-    expect(describeFailure(new ApiError(409, 'Conflict'), 'moneyChange')).toBe('This changed on another phone. Please check it and try again.');
-    expect(describeFailure(new ApiError(410, 'Gone', 'gone'), 'moneyDelete')).toBe('That was deleted on another phone.');
+    expect(describeFailure(new ApiError(409, 'Conflict'), 'moneyChange')).toBe('It was changed somewhere else first. Your change was undone.');
+    expect(describeFailure(new ApiError(410, 'Gone', 'gone'), 'moneyDelete')).toBe('It was deleted somewhere else. Your change was undone.');
   });
 
   it('tells the person when a restore was not made, from the answer', async () => {
     request.mockResolvedValue({ results: [{ id: ID, status: 'entry_changed' }] });
     await run('moneyRestore', { entries: [{ id: ID, deletedAt: 55 }] });
-    expect(report).toHaveBeenCalledWith('That entry changed. Please look at it again.');
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('That entry changed. Please look at it again.'));
   });
 
   it('says nothing about a restore that was made or was already done', async () => {

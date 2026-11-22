@@ -34,7 +34,7 @@ export function createHouseholdClient(userId: string | undefined): HouseholdClie
     client,
     (endpoint, options) => (runtime.request ? runtime.request(endpoint, options) : Promise.reject(new TypeError('The app is not ready to send yet'))),
     except => dataForMutation(client, except),
-    (message, options) => recordDropped({ id: crypto.randomUUID(), message, ask: options?.ask }),
+    (message, options) => recordDropped({ id: crypto.randomUUID(), message, ask: options?.ask, userId }),
     userId === undefined ? undefined : { ownerId: userId, currentUserId: readStoredUser },
   );
   return { client, runtime };
