@@ -177,6 +177,12 @@ describe('EntryDetail: a reason when asking to check', () => {
     expect(actions.respond).toHaveBeenCalledWith(waiting, 'decline', 'The amount looks high');
   });
 
+  it('puts the cursor in the reason box when it opens', async () => {
+    renderDetail(waitingForMe());
+    await userEvent.click(screen.getByRole('button', { name: /say why/i }));
+    expect(screen.getByLabelText('Because (optional)')).toHaveFocus();
+  });
+
   it('shows the reason to the person who asked for the entry, and cancel asks nothing', async () => {
     const declined = { ...waitingForMe(), status: 'declined' as const, declinedBecause: 'The amount looks high' };
     renderDetail(declined);

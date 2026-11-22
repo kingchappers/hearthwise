@@ -37,7 +37,7 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
       await logoutLocal();
     } catch (error) {
       console.error('Sign out failed:', error);
-      notifications.show({ color: 'red', message: 'Could not sign out. Please try again.' });
+      notifications.show({ color: 'honey', message: 'Could not sign out. Please try again.' });
       return;
     }
     window.location.assign('/'); // a fresh load drops every in-memory cache, as Auth0's redirect does

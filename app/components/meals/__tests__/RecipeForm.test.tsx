@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import type { Recipe } from '../../../../src/meals/types';
@@ -143,14 +143,27 @@ describe('a new recipe', () => {
     expect(readDraft(ME, 'new')).toBeUndefined();
   });
 
-  it('cancel drops the draft and does not save', async () => {
+  it('leaving keeps what was typed as a draft and does not save the recipe', async () => {
     renderForm();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
     await userEvent.type(title(), 'Soup');
-    saveDraft(ME, 'new', { recipeId: 'x', base: EMPTY_FIELDS, fields: { ...EMPTY_FIELDS, title: 'Soup' } });
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Leave and keep my draft' }));
     expect(onAdd).not.toHaveBeenCalled();
+    expect(readDraft(ME, 'new')?.fields.title).toBe('Soup');
+    expect(onDone).toHaveBeenCalled();
+  });
+
+  it('cancel on an untouched form leaves no draft', async () => {
+    renderForm();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(readDraft(ME, 'new')).toBeUndefined();
     expect(onDone).toHaveBeenCalled();
+  });
+
+  it('moves focus to the first field that needs a look when Save finds a problem', async () => {
+    renderForm();
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(title()).toHaveFocus());
   });
 });
 
@@ -170,7 +183,7 @@ describe('a draft from before', () => {
   it('can be thrown away', async () => {
     saveDraft(ME, 'new', draft);
     renderForm();
-    await userEvent.click(screen.getByRole('button', { name: 'Start again' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Throw away the draft' }));
     expect(readDraft(ME, 'new')).toBeUndefined();
     expect(screen.queryByRole('button', { name: 'Continue your draft' })).not.toBeInTheDocument();
   });
@@ -226,12 +239,23 @@ describe('editing a recipe', () => {
 
   it('offers Delete when it is given a way to delete', async () => {
     renderForm({ recipe, onDelete });
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete this recipe' }));
+    expect(screen.getByText('Delete this recipe? You can bring it back from Deleted for 30 days.')).toBeInTheDocument();
+    expect(onDelete).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete it' }));
     expect(onDelete).toHaveBeenCalled();
+  });
+
+  it('keeps the recipe when Keep it is chosen', async () => {
+    renderForm({ recipe, onDelete });
+    await userEvent.click(screen.getByRole('button', { name: 'Delete this recipe' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Delete this recipe' })).toBeInTheDocument();
   });
 
   it('has no Delete button for a new recipe', () => {
     renderForm();
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete this recipe' })).not.toBeInTheDocument();
   });
 });

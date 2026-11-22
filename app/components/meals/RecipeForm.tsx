@@ -68,6 +68,8 @@ export function RecipeForm({ userId, recipe, pendingIds, onAdd, onEdit, onDone, 
   const [recipeId, setRecipeId] = useState<string>(() => recipe?.id ?? crypto.randomUUID());
   const [errors, setErrors] = useState<Errors>({});
   const [messages, setMessages] = useState<string[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // The latest values, for the timer and the page-hidden handler.
   const latest = useRef({ base, fields, recipeId, offered });
@@ -101,7 +103,11 @@ export function RecipeForm({ userId, recipe, pendingIds, onAdd, onEdit, onDone, 
     const found = validate(fields);
     setErrors(found.errors);
     setMessages(found.messages);
-    if (Object.keys(found.errors).length > 0) return;
+    if (Object.keys(found.errors).length > 0) {
+      // Takes the person to the first field that needs a look, once the errors are drawn.
+      window.setTimeout(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0);
+      return;
+    }
 
     // The draft stays until the server accepts the save: the registered mutation removes it, even after a reload.
     if (recipe) {
@@ -120,9 +126,11 @@ export function RecipeForm({ userId, recipe, pendingIds, onAdd, onEdit, onDone, 
     onDone();
   }
 
-  function cancel(): void {
+  // Leaving keeps what was typed as a draft (the page does the same on Back), so this never throws work away.
+  const touched = Object.keys(changedFields(base, fields)).length > 0;
+  function leave(): void {
+    if (touched) saveDraft(userId, draftKey, { recipeId, base, fields });
     finished.current = true;
-    removeDraft(userId, draftKey);
     onDone();
   }
 
@@ -140,14 +148,14 @@ export function RecipeForm({ userId, recipe, pendingIds, onAdd, onEdit, onDone, 
   }
 
   return (
-    <form onSubmit={submit} noValidate>
+    <form ref={formRef} onSubmit={submit} noValidate>
       <Stack maw={640}>
         {offered && (
           <Alert color="honey" title="You have an unsaved draft of this recipe">
             {offered.refused && <Text mb="xs">{offered.refused}</Text>}
             <Group gap="xs">
               <Button onClick={continueDraft}>Continue your draft</Button>
-              <Button variant="default" onClick={startAgain}>Start again</Button>
+              <Button variant="default" onClick={startAgain}>Throw away the draft</Button>
             </Group>
           </Alert>
         )}
@@ -207,9 +215,22 @@ export function RecipeForm({ userId, recipe, pendingIds, onAdd, onEdit, onDone, 
         <StepsEditor value={fields.steps} onChange={value => set('steps', value)} error={errors.steps} />
         <Group gap="xs">
           <Button type="submit">Save</Button>
-          <Button variant="default" onClick={cancel}>Cancel</Button>
-          {onDelete && <Button variant="subtle" onClick={onDelete}>Delete</Button>}
+          <Button variant="default" onClick={leave}>{touched ? 'Leave and keep my draft' : 'Cancel'}</Button>
         </Group>
+        {onDelete && (
+          <Stack gap="xs" pt="md" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+            {!confirmingDelete && <Group><Button variant="subtle" onClick={() => setConfirmingDelete(true)}>Delete this recipe</Button></Group>}
+            {confirmingDelete && (
+              <>
+                <Text role="alert">Delete this recipe? You can bring it back from Deleted for 30 days.</Text>
+                <Group gap="xs">
+                  <Button variant="default" onClick={onDelete}>Delete it</Button>
+                  <Button variant="default" onClick={() => setConfirmingDelete(false)}>Keep it</Button>
+                </Group>
+              </>
+            )}
+          </Stack>
+        )}
       </Stack>
     </form>
   );
