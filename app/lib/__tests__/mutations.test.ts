@@ -133,7 +133,7 @@ describe('when a write fails', () => {
   it('drops a 409 or 410 and says what happened, in plain words', async () => {
     request.mockRejectedValueOnce(new ApiError(409, 'Conflict', 'conflict'));
     await expect(run('complete', { taskId: 't1', cycleSeq: 3, nextDueOn: null })).rejects.toBeInstanceOf(ApiError);
-    expect(report.mock.calls.at(-1)![0]).toMatch(/changed on another phone/i);
+    expect(report.mock.calls.at(-1)![0]).toMatch(/changed somewhere else first/i);
     request.mockRejectedValueOnce(new ApiError(410, 'Gone', 'gone'));
     await expect(run('edit', { taskId: 't1', title: 'x' })).rejects.toBeInstanceOf(ApiError);
     expect(report.mock.calls.at(-1)![0]).toMatch(/was deleted/i);
@@ -142,13 +142,13 @@ describe('when a write fails', () => {
   it('says a change needs the other person\'s say, on proposal_required', async () => {
     request.mockRejectedValueOnce(new ApiError(403, 'Forbidden', 'proposal_required'));
     await expect(run('delete', { taskId: 't1' })).rejects.toBeInstanceOf(ApiError);
-    expect(report.mock.calls.at(-1)![0]).toMatch(/needs their say/i);
+    expect(report.mock.calls.at(-1)![0]).toMatch(/to agree first/i);
   });
 
   it('says the change could not be saved for any other 4xx', async () => {
     request.mockRejectedValueOnce(new ApiError(400, 'Bad Request', 'invalid'));
     await expect(run('edit', { taskId: 't1', title: 'x' })).rejects.toBeInstanceOf(ApiError);
-    expect(report.mock.calls.at(-1)![0]).toMatch(/couldn't save/i);
+    expect(report.mock.calls.at(-1)![0]).toMatch(/change was undone/i);
   });
 
   it('says nothing for a network failure: the write is sent again instead', async () => {
@@ -167,7 +167,7 @@ describe('a write the server keeps failing', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     await done;
     expect(request).toHaveBeenCalledTimes(4);
-    expect(report.mock.calls.at(-1)![0]).toMatch(/couldn't save.*try again/i);
+    expect(report.mock.calls.at(-1)![0]).toMatch(/undone.*make it again/i);
     vi.useRealTimers();
   });
 
@@ -437,7 +437,7 @@ describe('the meal mutations', () => {
     request.mockRejectedValueOnce(new ApiError(400, 'Bad Request', 'invalid'));
     await expect(runMeal('recipeEdit', { recipeId: 'r1', changes: { title: 'x' } })).rejects.toBeInstanceOf(ApiError);
     expect(readDraft(ME, 'r1')?.refused).toBe("That recipe couldn't be saved. Please check its length.");
-    expect(report.mock.calls.at(-1)![0]).toBe("That recipe couldn't be saved. Please check its length.");
+    expect(report.mock.calls.at(-1)![0]).toContain("That recipe couldn't be saved. Please check its length.");
   });
 
   it('keep the draft of a new recipe when the limit is reached, and say so', async () => {
@@ -451,7 +451,7 @@ describe('the meal mutations', () => {
     saveDraft(ME, 'r1', { recipeId: 'r1', base: EMPTY_FIELDS, fields: EMPTY_FIELDS });
     request.mockRejectedValueOnce(new ApiError(410, 'Gone', 'gone'));
     await expect(runMeal('recipeEdit', { recipeId: 'r1', changes: { title: 'x' } })).rejects.toBeInstanceOf(ApiError);
-    expect(readDraft(ME, 'r1')?.refused).toBe('That was deleted on another phone.');
+    expect(readDraft(ME, 'r1')?.refused).toBe('It was deleted somewhere else. Your change was undone.');
   });
 });
 
@@ -463,7 +463,7 @@ describe('describeFailure', () => {
   it('asks for the recipe\'s length to be checked on a 400 for an add or an edit, and is unchanged for an item', () => {
     expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'), 'recipeAdd')).toBe("That recipe couldn't be saved. Please check its length.");
     expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'), 'recipeEdit')).toBe("That recipe couldn't be saved. Please check its length.");
-    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'), 'itemEdit')).toBe("We couldn't save that change.");
-    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'))).toBe("We couldn't save that change.");
+    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'), 'itemEdit')).toBe('Your change was undone. Please make it again.');
+    expect(describeFailure(new ApiError(400, 'Bad Request', 'invalid'))).toBe('Your change was undone. Please make it again.');
   });
 });

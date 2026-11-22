@@ -20,6 +20,7 @@ import type { TasksData } from './overlay';
 import { HOUSEHOLD_KEY } from './household';
 import type { HouseholdData } from './household';
 import { ITEMS_KEY } from './items';
+import { labelOf, notSavedLine } from './droppedLabel';
 import { MONEY_KEY, moneyMutationKeys } from './moneyKeys';
 import { moneyFailureText } from './moneyText';
 import type { MoneyMutationKind } from './moneyKeys';
@@ -439,12 +440,12 @@ export function describeFailure(error: unknown, kind?: string, otherName?: strin
   const money = kind?.startsWith('money') && error.code !== undefined ? moneyFailureText(error.code, otherName) : undefined;
   if (money) return money;
   if (error.status === 400 && (kind === 'recipeAdd' || kind === 'recipeEdit')) return "That recipe couldn't be saved. Please check its length.";
-  if (error.status === 409) return 'This changed on another phone. Please check it and try again.';
-  if (error.status === 410) return 'That was deleted on another phone.';
-  if (error.status === 403 && error.code === 'proposal_required') return 'That change needs their say. Ask them instead.';
+  if (error.status === 409) return 'It was changed somewhere else first. Your change was undone.';
+  if (error.status === 410) return 'It was deleted somewhere else. Your change was undone.';
+  if (error.status === 403 && error.code === 'proposal_required') return `This needs ${otherName ?? 'the other person'} to agree first.`;
   if (error.status === 401) return undefined;
-  if (error.status >= 500) return "We couldn't save that change. Try again.";
-  return "We couldn't save that change.";
+  if (error.status >= 500) return 'Your change was undone. Please make it again.';
+  return 'Your change was undone. Please make it again.';
 }
 
 // A write the server said needs the other person's say, turned into the proposal it should have been. Only the changes that have a
@@ -588,8 +589,14 @@ function otherMemberName(client: QueryClient): string | undefined {
 }
 
 export function registerMutations(
-  client: QueryClient, request: Request, getData: GetData, report: (message: string, options?: { ask?: () => void }) => void, guard?: OwnerGuard,
+  client: QueryClient, request: Request, getData: GetData, reportPlain: (message: string, options?: { ask?: () => void }) => void, guard?: OwnerGuard,
 ): void {
+  // Every refusal says which change it was, so it can be read away from the screen it was made on.
+  const refusal = (kind: string, variables: object, message: string, options?: { ask?: () => void }): void => {
+    const text = `${notSavedLine(kind, labelOf(kind, variables as Record<string, unknown>, client, () => getData()))} ${message}`;
+    if (options) reportPlain(text, options);
+    else reportPlain(text);
+  };
   registerSet(client, request, guard, {
     keys: mutationKeys,
     run: (kind, variables: MutationVars[MutationKind], send) => {
@@ -604,7 +611,7 @@ export function registerMutations(
       if (!message) return;
       const proposalRequired = error instanceof ApiError && error.code === 'proposal_required';
       const ask = proposalRequired ? askInstead(client, kind as MutationKind, variables) : undefined;
-      report(message, ask ? { ask } : undefined);
+      refusal(kind, variables, message, ask ? { ask } : undefined);
     },
   });
 
@@ -614,9 +621,9 @@ export function registerMutations(
       (ITEM_RUNNERS[kind as ItemMutationKind] as (vars: ItemMutationVars[ItemMutationKind], request: Request) => Promise<unknown>)(variables, send),
     // The add also marks plan days, so the plan is refreshed too and the marker does not flicker when the overlay drops.
     invalidate: kind => (kind === 'itemsFromPlan' ? [ITEMS_KEY, PLAN_KEY] : [ITEMS_KEY]),
-    onError: (_kind, error) => {
+    onError: (kind, error, variables) => {
       const message = describeFailure(error);
-      if (message) report(message);
+      if (message) refusal(kind, variables, message);
     },
   });
 
@@ -639,7 +646,7 @@ export function registerMutations(
     onError: (kind, error, variables: MealMutationVars[MealMutationKind]) => {
       const message = describeFailure(error, kind);
       if (!message) return;
-      report(message);
+      refusal(kind, variables, message);
       const refused = error instanceof ApiError && (error.status === 400 || error.status === 409 || error.status === 410);
       if (!refused) return;
       if (kind === 'recipeAdd') markRefused(variables.by, (variables as MealMutationVars['recipeAdd']).recipe.id, message);
@@ -653,17 +660,17 @@ export function registerMutations(
       (MONEY_RUNNERS[kind as MoneyMutationKind] as (vars: MoneyMutationVars[MoneyMutationKind], request: Request) => Promise<unknown>)(variables, send),
     invalidate: () => [MONEY_KEY],
     // A restore is answered with a status for each entry rather than an error, so the refusals are read from the answer.
-    onSuccess: (kind, _variables, data) => {
+    onSuccess: (kind, variables, data) => {
       if (kind !== 'moneyRestore') return;
       const results = (data as { results?: { status: string }[] } | undefined)?.results ?? [];
       const refused = results.find(result => RESTORE_REFUSALS.includes(result.status));
       if (!refused) return;
       const message = describeFailure(new ApiError(409, 'Conflict', refused.status), kind, otherMemberName(client));
-      if (message) report(message);
+      if (message) refusal(kind, variables, message);
     },
-    onError: (kind, error) => {
+    onError: (kind, error, variables) => {
       const message = describeFailure(error, kind, otherMemberName(client));
-      if (message) report(message);
+      if (message) refusal(kind, variables, message);
     },
   });
 
@@ -680,11 +687,11 @@ export function registerMutations(
       // A restore is answered with a status for each project rather than an error.
       if (kind !== 'restoreProject') return;
       const results = (data as { results?: { status: string }[] } | undefined)?.results ?? [];
-      if (results.some(result => result.status === 'project_limit')) report('This household has reached 60 projects.');
+      if (results.some(result => result.status === 'project_limit')) refusal(kind, variables, 'This household has reached 60 projects.');
     },
-    onError: (kind, error) => {
+    onError: (kind, error, variables) => {
       const message = describeFailure(error, kind);
-      if (message) report(message);
+      if (message) refusal(kind, variables, message);
     },
   });
 
@@ -694,17 +701,17 @@ export function registerMutations(
       (CALENDAR_RUNNERS[kind as CalendarMutationKind] as (vars: CalendarMutationVars[CalendarMutationKind], request: Request) => Promise<unknown>)(variables, send),
     invalidate: () => [CALENDAR_KEY],
     // A restore is answered with a status for each event rather than an error, so the refusals are read from the answer.
-    onSuccess: (kind, _variables, data) => {
+    onSuccess: (kind, variables, data) => {
       if (kind !== 'eventRestore') return;
       const results = (data as { results?: { status: string }[] } | undefined)?.results ?? [];
       const refused = results.find(result => EVENT_RESTORE_REFUSALS.includes(result.status));
       if (!refused) return;
       const message = calendarFailureText(refused.status);
-      if (message) report(message);
+      if (message) refusal(kind, variables, message);
     },
-    onError: (kind, error) => {
+    onError: (kind, error, variables) => {
       const message = describeFailure(error, kind);
-      if (message) report(message);
+      if (message) refusal(kind, variables, message);
     },
   });
 }
