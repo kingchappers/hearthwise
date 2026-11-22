@@ -56,6 +56,27 @@ describe('ProposalBanner', () => {
     expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument();
   });
 
+  it('says "take" when the proposer asked for a task to become the other person\'s, never "give it to" them', () => {
+    renderBanner([proposal({ fromUserId: ME.userId, toUserId: THEM.userId, change: { kind: 'edit', set: { assignee: THEM.userId } } })]);
+    expect(screen.getByText('You asked Alex to take "Bathroom".')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for Alex')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/give .* to Alex/);
+  });
+
+  it('says what became of a take in plain words, and that it stays on the list when declined', () => {
+    renderBanner([
+      proposal({ id: 'a', fromUserId: ME.userId, toUserId: THEM.userId, status: 'accepted', resolvedAt: 5, change: { kind: 'edit', set: { assignee: THEM.userId } } }),
+      proposal({ id: 'd', fromUserId: ME.userId, toUserId: THEM.userId, status: 'declined', resolvedAt: 6, change: { kind: 'edit', set: { assignee: THEM.userId } } }),
+    ]);
+    expect(screen.getByText('Alex said yes to taking "Bathroom". It is now theirs.')).toBeInTheDocument();
+    expect(screen.getByText('Alex said no to taking "Bathroom". It is still on your list.')).toBeInTheDocument();
+  });
+
+  it('keeps "give ... to you" for the person it is asked of, and "give ... to anyone" for a task for anyone', () => {
+    renderBanner([proposal({ id: 'x', change: { kind: 'edit', set: { assignee: 'either' } } })]);
+    expect(screen.getByText(/asks to give .* to anyone/)).toBeInTheDocument();
+  });
+
   it('shows the proposer what became of resolved ones, and says a stale one no longer applies', () => {
     renderBanner([
       proposal({ fromUserId: ME.userId, toUserId: THEM.userId, status: 'accepted', resolvedAt: 5 }),

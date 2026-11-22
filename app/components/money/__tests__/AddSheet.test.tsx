@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import type { MoneyEntry } from '../../../../src/money/types';
 import { expectNoViolations } from '~/test-utils/accessibility';
 
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import { AddSheet } from '../AddSheet';
 import type { AddSheetProps } from '../AddSheet';
@@ -189,7 +189,7 @@ describe('AddSheet: adding', () => {
 
   it('has the Let them know box, and no violations', async () => {
     renderSheet();
-    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();
     await expectNoViolations(document.body);
   });
 

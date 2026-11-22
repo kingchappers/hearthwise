@@ -8,7 +8,7 @@ import { expectNoViolations } from '~/test-utils/accessibility';
 
 const show = vi.hoisted(() => vi.fn());
 vi.mock('@mantine/notifications', () => ({ notifications: { show, hide: vi.fn() } }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import { DaySheet } from '../DaySheet';
 
@@ -163,7 +163,7 @@ describe('DaySheet', () => {
 
   it('has the Let them know tick, and no accessibility violations', async () => {
     renderSheet({ plan: plan({ recipeId: 'Chilli', title: 'Chilli', servings: 2 }) });
-    expect(screen.getByText('Let Alex know')).toBeInTheDocument();
+    expect(screen.getByText('Tell Alex when I save a change')).toBeInTheDocument();
     await expectNoViolations(document.body);
   });
 
