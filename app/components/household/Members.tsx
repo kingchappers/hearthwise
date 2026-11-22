@@ -70,6 +70,7 @@ function OtherMember({ member, canRemove }: { member: MemberSummary; canRemove: 
           </Button>
         )}
       </Group>
+      {!canRemove && <Text size="sm">Only the person who made the household can remove people.</Text>}
       {confirming && (
         <Paper withBorder p="sm" role="alertdialog" aria-label={`Remove ${member.displayName}`} w="100%">
           <Stack gap="xs">

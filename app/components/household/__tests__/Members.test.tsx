@@ -69,5 +69,6 @@ describe('Members', () => {
   it('never shows Remove to the other member', () => {
     renderMembers('auth0|bea');
     expect(screen.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Only the person who made the household can remove people.')).toBeInTheDocument();
   });
 });

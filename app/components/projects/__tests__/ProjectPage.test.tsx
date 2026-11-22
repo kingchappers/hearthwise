@@ -306,7 +306,7 @@ describe('the notices', () => {
 
   it('keeps a replaced edit\'s words with Copy and Dismiss, in calm words', () => {
     page({}, { notices: [replaced] });
-    expect(screen.getByText('This was changed after you wrote it. Your wording is kept here.')).toBeInTheDocument();
+    expect(screen.getByText('The other person changed this after you saved yours. Your words are kept here:')).toBeInTheDocument();
     expect(screen.getByText('Sam wording kept')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
