@@ -46,7 +46,7 @@ function MoneyContent() {
         <Button style={{ minHeight: 44 }} disabled={!money.canWrite} onClick={() => setAdding(true)}>Add</Button>
       </Group>
       {!money.canWrite && <Alert color="honey" role="note">Adding or agreeing needs the two people this ledger is between.</Alert>}
-      <TotalCard total={money.total} people={money.people} unsaved={money.unsaved} />
+      <TotalCard total={money.total} people={money.people} unsaved={money.unsaved} waiting={sections.waitingForMe.length + sections.waitingForOther.length} />
       <LetThemKnow />
       {live.length === 0 && <Text>No money entries yet. Add one when you share a cost or lend money.</Text>}
 
