@@ -7,7 +7,7 @@ import type { ShoppingItem } from '../../../../src/shopping/types';
 import { expectNoViolations } from '~/test-utils/accessibility';
 import { readReview } from '~/lib/reviewState';
 
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import { AddToListSheet } from '../AddToListSheet';
 import type { AddToListSheetProps } from '../AddToListSheet';
@@ -283,7 +283,7 @@ describe('AddToListSheet: interruptions', () => {
 describe('AddToListSheet: the sheet', () => {
   it('has the Let them know tick, and no accessibility violations', async () => {
     renderSheet({ shoppingItems: [item('Onions')] });
-    expect(screen.getByText('Let Alex know')).toBeInTheDocument();
+    expect(screen.getByText('Tell Alex when I save a change')).toBeInTheDocument();
     await expectNoViolations(document.body);
   });
 
