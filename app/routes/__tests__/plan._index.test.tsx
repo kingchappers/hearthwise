@@ -15,7 +15,7 @@ vi.mock('~/lib/plan', async importOriginal => ({ ...(await importOriginal<typeof
 vi.mock('~/lib/items', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/items')>()), useItems: () => state.items }));
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => state.itemActions }));
 vi.mock('~/hooks/usePlanActions', () => ({ usePlanActions: () => state.actions }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 vi.mock('~/lib/household', () => ({
   useHousehold: () => ({ status: 'ready', refetch: vi.fn(), data: { household: { timezone: 'UTC' }, members: [{ userId: 'u1', displayName: 'Sam' }, { userId: 'u2', displayName: 'Alex' }], me: { userId: 'u1', displayName: 'Sam', settings: {} } } }),
 }));
@@ -80,7 +80,7 @@ describe('the Plan page', () => {
 
   it('has the Let them know tick', () => {
     renderPage();
-    expect(screen.getByText('Let Alex know')).toBeInTheDocument();
+    expect(screen.getByText('Tell Alex when I save a change')).toBeInTheDocument();
   });
 });
 

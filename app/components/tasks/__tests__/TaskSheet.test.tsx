@@ -6,7 +6,7 @@ import { MEMBERS, ME, THEM, TODAY, makeActions, renderIn, task } from './fixture
 
 let actions: TaskActions;
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => actions }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import { TaskSheet } from '../TaskSheet';
 
@@ -118,7 +118,7 @@ describe('TaskSheet: an existing task', () => {
 describe('TaskSheet: Let them know', () => {
   it('has the box on a new task and on an edit, unticked', () => {
     open();
-    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();
   });
 });
 
