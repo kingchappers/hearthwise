@@ -77,7 +77,7 @@ export function StepRow({ step, projectId, members, me, now, unsaved, first, las
           }}
         >
           <Stack gap="xs">
-            <TextInput label={COPY.becauseLabel} description={COPY.becauseHint} value={because} onChange={event => setBecause(event.currentTarget.value)} maxLength={MAX_TAKE_BECAUSE} data-autofocus />
+            <TextInput label={COPY.becauseLabel} description={COPY.becauseHint} value={because} onChange={event => setBecause(event.currentTarget.value)} maxLength={MAX_TAKE_BECAUSE} autoFocus />
             <Group gap="xs">
               <Button type="submit" size="xs" style={{ minHeight: 44 }}>{COPY.takeIt}</Button>
               <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => { setExplaining(false); setBecause(''); }}>Cancel</Button>

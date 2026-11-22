@@ -158,7 +158,8 @@ describe('the edit recipe page', () => {
     state.recipes.recipes = [live];
     renderAt('/recipes/r1/edit');
     expect(screen.queryByRole('button', { name: 'Recipe actions' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete this recipe' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete it' }));
     expect(state.actions.remove).toHaveBeenCalledWith(live);
   });
 
