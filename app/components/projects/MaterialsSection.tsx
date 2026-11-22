@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDraftText } from '~/lib/textDrafts';
 import { Button, List, Stack, Text, Textarea, Title } from '@mantine/core';
 import type { Material } from '../../../src/projects/types';
 import type { ProjectActions } from '~/hooks/useProjectActions';
@@ -24,7 +25,7 @@ export interface MaterialsSectionProps {
 // the server skips any that are already there, so pressing it twice adds nothing.
 export function MaterialsSection({ projectId, materials, unsavedIds, listState, actions, notices = [], userId = '' }: MaterialsSectionProps) {
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState('');
+  const [text, setText, clearText] = useDraftText(userId, `materials:${projectId}`);
   if (materials.length === 0 && !open) {
     return <Button variant="default" style={{ minHeight: 44 }} onClick={() => setOpen(true)}>{COPY.addMaterials}</Button>;
   }
@@ -46,6 +47,7 @@ export function MaterialsSection({ projectId, materials, unsavedIds, listState, 
           if (lines.length === 0) return;
           actions.addMaterials(projectId, lines);
           setText('');
+          clearText();
         }}
       >
         <Stack gap="xs">

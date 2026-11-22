@@ -4,6 +4,8 @@
 export const recipeDraftKey = (userId: string): string => `hearthwise.recipeDraft.${userId}`;
 export const cookingKey = (userId: string): string => `hearthwise.cooking.${userId}`;
 export const reviewKey = (userId: string): string => `hearthwise.review.${userId}`;
+export const textDraftsKey = (userId: string): string => `hearthwise.textDrafts.${userId}`;
+export const projectSavedKey = (userId: string): string => `hearthwise.projectSaved.${userId}`;
 export const projectNoticesKey = (userId: string): string => `hearthwise.projectNotices.${userId}`;
 
 export function readObject(key: string): Record<string, unknown> {
@@ -28,7 +30,7 @@ export function writeObject(key: string, value: Record<string, unknown>): void {
 
 // Forgets everything this device kept for the person. Each key is removed on its own, so one that cannot be removed does not stop the rest.
 export function clearDeviceKeys(userId: string): void {
-  for (const key of [recipeDraftKey(userId), cookingKey(userId), reviewKey(userId), projectNoticesKey(userId)]) {
+  for (const key of [recipeDraftKey(userId), cookingKey(userId), reviewKey(userId), projectNoticesKey(userId), textDraftsKey(userId), projectSavedKey(userId)]) {
     try {
       window.localStorage.removeItem(key);
     } catch (error) {

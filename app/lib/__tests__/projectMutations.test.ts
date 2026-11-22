@@ -142,6 +142,25 @@ describe('the project notices', () => {
   });
 });
 
+describe('remembering what was saved', () => {
+  const settle = (kind: keyof typeof projectMutationKeys, vars: object, data: unknown) => defaults(kind).onSuccess!(data, { ...common, ...vars } as never, undefined, undefined as never);
+
+  it('remembers the words of a step or project that landed, so a later replacement by the other person can be caught', () => {
+    settle('putStep', { projectId: 'p1', stepId: 's1', changes: { text: 'Sam wording', note: null, position: 'k' } }, { outcome: 'applied', stale: [] });
+    settle('putProject', { projectId: 'p1', changes: { title: 'Decking' } }, { outcome: 'applied', stale: [] });
+    const saved = JSON.parse(window.localStorage.getItem('hearthwise.projectSaved.u1') ?? '{}');
+    expect(saved.s1.text).toMatchObject({ value: 'Sam wording', at: AT });
+    expect(saved.s1.note).toMatchObject({ value: '' });
+    expect(saved.s1.position).toBeUndefined();
+    expect(saved.p1.title.value).toBe('Decking');
+  });
+
+  it('does not remember a field whose write lost, which already has its own notice', () => {
+    settle('putStep', { projectId: 'p1', stepId: 's1', changes: { text: 'Older' } }, { outcome: 'noop', stale: ['text'] });
+    expect(window.localStorage.getItem('hearthwise.projectSaved.u1')).toBeNull();
+  });
+});
+
 describe('refusals', () => {
   it('describes the two limits in plain words', () => {
     expect(describeFailure(new ApiError(409, 'Conflict', 'project_limit'), 'putProject')).toBe('This household has reached 60 projects.');

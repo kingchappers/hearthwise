@@ -100,14 +100,14 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
                 ))}
               </List>
             )}
-          <AddSteps projectId={project.id} steps={steps} actions={actions} />
+          <AddSteps projectId={project.id} steps={steps} actions={actions} userId={me} />
           <CostsSection key={`${project.estimatePence}:${project.spentPence}`} project={project} members={members} actions={actions} />
           <MaterialsSection projectId={project.id} materials={materials} unsavedIds={unsavedIds} listState={listState} actions={actions} notices={listNotices} userId={me} />
           <Button variant="default" style={{ minHeight: 44 }} onClick={() => { actions.deleteProject(project); onBack(); }}>Delete project</Button>
         </>
       )}
 
-      <StepSheet step={editing} projectId={project.id} actions={actions} onClose={() => setEditing(undefined)} />
+      <StepSheet step={editing} projectId={project.id} actions={actions} userId={me} onClose={() => setEditing(undefined)} />
       <EditProjectSheet project={project} opened={editingProject} onClose={() => setEditingProject(false)} actions={actions} />
     </Stack>
   );

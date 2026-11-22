@@ -22,7 +22,7 @@ function renderSheet(props: Partial<AddSheetProps> = {}) {
 const type = (label: string, text: string) => userEvent.type(screen.getByLabelText(label), text);
 const addedWith = (): Record<string, unknown> => (actions.add as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
 
-beforeEach(() => { onClose.mockClear(); actions = makeActions(); });
+beforeEach(() => { window.localStorage.clear(); onClose.mockClear(); actions = makeActions(); });
 
 describe('AddSheet: adding', () => {
   it('is titled Add, offers the three kinds, and starts with the caller as payer, today and an equal split', () => {
@@ -267,5 +267,15 @@ describe('AddSheet: editing', () => {
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Who lent it?')).toHaveValue(SAM);
     expect(screen.queryByLabelText('Split')).not.toBeInTheDocument();
+  });
+});
+
+describe('AddSheet: a half-typed entry is kept', () => {
+  it('keeps the words when the sheet is closed and opened again, and forgets them once the entry is added', async () => {
+    const first = renderSheet();
+    await type('What for?', 'Weekly sh');
+    first.unmount();
+    renderSheet();
+    expect(screen.getByLabelText('What for?')).toHaveValue('Weekly sh');
   });
 });

@@ -12,7 +12,7 @@ import { TaskSheet } from '../TaskSheet';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-beforeEach(() => { actions = makeActions(); });
+beforeEach(() => { window.localStorage.clear(); actions = makeActions(); });
 
 function open(t?: ReturnType<typeof task>) {
   const onClose = vi.fn();
@@ -119,5 +119,32 @@ describe('TaskSheet: Let them know', () => {
   it('has the box on a new task and on an edit, unticked', () => {
     open();
     expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();
+  });
+});
+
+describe('TaskSheet: a half-typed task is kept', () => {
+  it('is still there when the sheet is closed and opened again, and gone once the task is saved', async () => {
+    const first = renderIn(<TaskSheet opened onClose={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText('Title'), 'Call the plumber about the');
+    await userEvent.type(screen.getByLabelText('Notes'), 'Ask about the tap too');
+    first.unmount();
+
+    const onClose = open();
+    expect(screen.getByLabelText('Title')).toHaveValue('Call the plumber about the');
+    expect(screen.getByLabelText('Notes')).toHaveValue('Ask about the tap too');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onClose).toHaveBeenCalled();
+
+    renderIn(<TaskSheet opened onClose={vi.fn()} />);
+    expect(screen.getAllByLabelText('Title').at(-1)).toHaveValue('');
+  });
+
+  it('keeps an edit of an existing task apart from a new task\'s draft', async () => {
+    const t = task({ title: 'Hoover', id: 'abc' });
+    const first = renderIn(<TaskSheet opened onClose={vi.fn()} task={t} />);
+    await userEvent.type(screen.getByLabelText('Title'), ' the stairs');
+    first.unmount();
+    renderIn(<TaskSheet opened onClose={vi.fn()} />);
+    expect(screen.getByLabelText('Title')).toHaveValue('');
   });
 });

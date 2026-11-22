@@ -20,7 +20,7 @@ const type = (label: string, text: string) => userEvent.type(screen.getByLabelTe
 const addedWith = (): Record<string, unknown> => (actions.add as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-beforeEach(() => { onClose.mockClear(); actions = makeActions(); });
+beforeEach(() => { window.localStorage.clear(); onClose.mockClear(); actions = makeActions(); });
 
 describe('EventSheet: adding', () => {
   it('is titled, offers an event or a block, and starts for both of you on the day, at 09:00 for an hour', () => {
@@ -179,5 +179,21 @@ describe('EventSheet: editing', () => {
     unmount();
     renderSheet({ event: event({ createdBy: ALEX }) });
     expect(screen.queryByRole('switch', { name: /^Private/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('EventSheet: a half-typed event is kept', () => {
+  it('is still there when the sheet is closed and opened again, and gone once the event is added', async () => {
+    const first = renderSheet();
+    await type('Title', 'Dentist, Smith St');
+    await type('Notes (optional)', 'Bring the form');
+    first.unmount();
+    renderSheet();
+    expect(screen.getByLabelText('Title')).toHaveValue('Dentist, Smith St');
+    expect(screen.getByLabelText('Notes (optional)')).toHaveValue('Bring the form');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(actions.add).toHaveBeenCalled();
+    renderSheet();
+    expect(screen.getAllByLabelText('Title').at(-1)).toHaveValue('');
   });
 });

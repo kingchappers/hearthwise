@@ -25,7 +25,7 @@ import type { MoneyMutationKind } from './moneyKeys';
 import { noteMutationSettled, TASKS_KEY } from './queries';
 import { PROJECT_KEY_PREFIX, PROJECTS_KEY, projectKey as projectDetailKey, projectMutationKeys } from './projectKeys';
 import type { ProjectMutationKind } from './projectKeys';
-import { addNotice } from './projectNotices';
+import { addNotice, rememberSaved } from './projectNotices';
 import { alreadyHas, plannedText } from './projectText';
 import { formatPounds } from '../../src/shared/money';
 import { markRefused, removeDraft, NEW_DRAFT } from './recipeDraft';
@@ -542,6 +542,17 @@ function saveProjectNotices(client: QueryClient, kind: ProjectMutationKind, vari
       : already > 0 ? 'Already on the list' : undefined;
     if (text !== undefined) addNotice(by, { kind: 'taken', projectId: vars.projectId, recordId: vars.projectId, field: 'list', text, at });
     return;
+  }
+  // A save that landed is remembered, so that if the other person's newer edit replaces it later, this person is told and keeps their words.
+  if ((kind === 'putStep' || kind === 'putProject') && (answer.outcome === 'applied' || answer.outcome === 'created')) {
+    const vars = variables as ProjectMutationVars['putProject'] | ProjectMutationVars['putStep'];
+    const recordId = kind === 'putStep' ? (vars as ProjectMutationVars['putStep']).stepId : vars.projectId;
+    const fields = kind === 'putStep' ? ['text', 'note'] : ['title', 'notes'];
+    for (const field of fields) {
+      const value = (vars.changes as Record<string, unknown>)[field];
+      if (value === undefined || (answer.stale ?? []).includes(field)) continue;
+      rememberSaved(by, recordId, field, value === null ? '' : String(value), at);
+    }
   }
   if (kind === 'putMaterial' && answer.stale && answer.stale.length > 0) {
     const vars = variables as ProjectMutationVars['putMaterial'];

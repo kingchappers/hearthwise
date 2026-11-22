@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDraftText } from '~/lib/textDrafts';
 import { Button, Stack, Text, Textarea } from '@mantine/core';
 import type { Step } from '../../../src/projects/types';
 import type { ProjectActions } from '~/hooks/useProjectActions';
@@ -6,8 +7,9 @@ import { positionsForLines, splitLines } from '~/lib/projectForm';
 import { COPY } from '~/lib/projectText';
 
 // One step for each line, so rough notes or a pasted list become steps. Each is placed after the last one.
-export function AddSteps({ projectId, steps, actions }: { projectId: string; steps: Step[]; actions: Pick<ProjectActions, 'addSteps'> }) {
-  const [text, setText] = useState('');
+export function AddSteps({ projectId, steps, actions, userId = '' }: { projectId: string; steps: Step[]; actions: Pick<ProjectActions, 'addSteps'>; userId?: string }) {
+  // Kept on this device until the steps are added, so leaving the page does not lose a list that was half typed.
+  const [text, setText, clearText] = useDraftText(userId, `steps:${projectId}`);
   const [refused, setRefused] = useState(false);
   return (
     <form
@@ -20,6 +22,7 @@ export function AddSteps({ projectId, steps, actions }: { projectId: string; ste
         setRefused(false);
         actions.addSteps(projectId, placed);
         setText('');
+        clearText();
       }}
     >
       <Stack gap="xs">

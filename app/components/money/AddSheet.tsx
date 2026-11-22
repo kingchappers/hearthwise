@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { clearTextDraft, readTextDraft, writeTextDraft } from '~/lib/textDrafts';
 import { Alert, Button, NativeSelect, Radio, Stack, Text, TextInput } from '@mantine/core';
 import type { MoneyChange, MoneyEntry, MoneyKind } from '../../../src/money/types';
 import { formatPounds } from '../../../src/shared/money';
@@ -41,7 +42,15 @@ function title(entry: MoneyEntry | undefined, wordsOnly: boolean): string {
 }
 
 function Content({ onClose, entry, wordsOnly = false, entries, people, today, canWrite, actions }: Omit<AddSheetProps, 'opened'>) {
-  const [form, setForm] = useState<FormState>(() => (entry ? formFromEntry(entry) : blankForm('expense', people.meId, today)));
+  const [form, setForm] = useState<FormState>(() => {
+    if (entry) return formFromEntry(entry);
+    // A new entry's words are kept on this device until it is added, so a tap outside, Escape or a reload does not lose them.
+    const start = blankForm('expense', people.meId, today);
+    return { ...start, description: readTextDraft(people.meId, 'newmoney:description') ?? start.description };
+  });
+  useEffect(() => {
+    if (!entry) writeTextDraft(people.meId, 'newmoney:description', form.description);
+  }, [entry, people.meId, form.description]);
   const [submitted, setSubmitted] = useState(false);
   // Made once, when the sheet opens, and kept while it is open: a double tap is one entry.
   const [ids] = useState(() => ({ id: crypto.randomUUID(), mutationId: crypto.randomUUID() }));
@@ -74,6 +83,7 @@ function Content({ onClose, entry, wordsOnly = false, entries, people, today, ca
       if (!result.money) return;
       const description = form.kind === 'payment' ? paymentDescription(loan?.description) : result.description;
       actions.add({ ...ids, kind: form.kind, description, on: form.on, money: result.money });
+      clearTextDraft(people.meId, 'newmoney:description');
       onClose();
       return;
     }
