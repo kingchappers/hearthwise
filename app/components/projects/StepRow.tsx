@@ -23,11 +23,15 @@ export interface StepRowProps {
   // What happened to this person's last action on this step, shown here and not at the top of a long page.
   notices?: ProjectNotice[];
   userId?: string;
+  // The place in the order, from 1, shown so a step can be named by its number.
+  number?: number;
+  // Move up and Move down show only while the person is reordering.
+  reordering?: boolean;
 }
 
 // One step: a tick, its words, its state in words ("Not started", "On it", "Done"), who is on it, and move and hold buttons. A done step
 // stays in place with a tick; it does not jump to the bottom.
-export function StepRow({ step, projectId, members, me, now, unsaved, first, last, actions, onMove, onOpen, notices = [], userId = me }: StepRowProps) {
+export function StepRow({ step, projectId, members, me, now, unsaved, first, last, actions, onMove, onOpen, notices = [], userId = me, number, reordering = false }: StepRowProps) {
   const status = stepStatus(step, members);
   const holder = holderOf(step, members);
   // A step someone has says who in one sentence ("Alex has this") below, so the state word is only for Not started and Done.
@@ -35,10 +39,14 @@ export function StepRow({ step, projectId, members, me, now, unsaved, first, las
   return (
     <Stack gap={4} component="li" style={{ listStyle: 'none', borderBottom: '1px solid var(--mantine-color-default-border)', paddingBlock: 8 }}>
       <Group wrap="nowrap" align="flex-start">
-        <Checkbox
-          size="md" checked={step.state === 'done'} aria-label={`Mark done: ${step.text}`}
-          onChange={event => actions.editStep(projectId, step.id, { state: event.currentTarget.checked ? 'done' : 'todo' })}
-        />
+        {number !== undefined && <Text fw={600} aria-hidden="true" style={{ minWidth: 24, paddingTop: 10 }}>{`${number}.`}</Text>}
+        {/* The label is the target: the box is 24 px, the tap area around it 44 px. */}
+        <label style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, cursor: 'pointer' }}>
+          <Checkbox
+            size="md" checked={step.state === 'done'} aria-label={`Mark done: ${step.text}`}
+            onChange={event => actions.editStep(projectId, step.id, { state: event.currentTarget.checked ? 'done' : 'todo' })}
+          />
+        </label>
         <Stack gap={2} style={{ flex: 1 }}>
           <Text component="button" type="button" ta="left" style={{ background: 'none', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', color: 'inherit', font: 'inherit' }} onClick={() => onOpen(step)}>
             {step.text}
@@ -52,8 +60,12 @@ export function StepRow({ step, projectId, members, me, now, unsaved, first, las
       <Group gap="xs">
         {step.state === 'todo' && holder === undefined && <Button variant="default" size="xs" style={{ minHeight: 44 }} aria-label={`${COPY.takeIt}: ${step.text}`} onClick={() => actions.takeStep(projectId, step.id)}>{COPY.takeIt}</Button>}
         {holder !== undefined && <Button variant="default" size="xs" style={{ minHeight: 44 }} onClick={() => actions.releaseStep(projectId, step.id)}>{COPY.freeIt}</Button>}
-        <Button variant="subtle" size="xs" style={{ minHeight: 44 }} disabled={first} onClick={() => onMove(step, 'up')} aria-label={`${COPY.moveUp}: ${step.text}`}>{COPY.moveUp}</Button>
-        <Button variant="subtle" size="xs" style={{ minHeight: 44 }} disabled={last} onClick={() => onMove(step, 'down')} aria-label={`${COPY.moveDown}: ${step.text}`}>{COPY.moveDown}</Button>
+        {reordering && (
+          <>
+            <Button variant="default" size="xs" style={{ minHeight: 44 }} disabled={first} onClick={() => onMove(step, 'up')} aria-label={`${COPY.moveUp}: ${step.text}`}>{COPY.moveUp}</Button>
+            <Button variant="default" size="xs" style={{ minHeight: 44 }} disabled={last} onClick={() => onMove(step, 'down')} aria-label={`${COPY.moveDown}: ${step.text}`}>{COPY.moveDown}</Button>
+          </>
+        )}
       </Group>
     </Stack>
   );

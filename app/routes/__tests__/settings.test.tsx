@@ -93,6 +93,13 @@ describe('Settings', () => {
     }
   });
 
+  it('puts Display (text size, appearance, motion) before everything else, since the people who need it are the least able to scroll for it', () => {
+    renderSettings();
+    const order = screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent);
+    expect(order[0]).toBe('Display');
+    expect(order.indexOf('Display')).toBeLessThan(order.indexOf('Notifications'));
+  });
+
   it('has nothing left over from a budgeting app', () => {
     const { container } = renderSettings();
     expect(container.textContent ?? '').not.toMatch(/money|bill|budget|transaction|pay day|milestone|assistant|access token|API docs/i);

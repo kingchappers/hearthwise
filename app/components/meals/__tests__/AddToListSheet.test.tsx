@@ -166,7 +166,9 @@ describe('AddToListSheet: the lines', () => {
     renderSheet();
     for (const button of within(lineList()).getAllByRole('button', { name: /^I have this:/ })) await userEvent.click(button);
     expect(screen.getByText('Nothing needs adding.')).toBeInTheDocument();
-    expect(addButton()).toBeDisabled();
+    // With nothing to add there is no "Add 0 lines" button to look at; only Cancel is left.
+    expect(screen.queryByRole('button', { name: /^Add \d+ lines?$/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
   it('turns Add off above 100 lines with a message, and on again as lines are marked I have this', async () => {
@@ -290,6 +292,6 @@ describe('AddToListSheet: the sheet', () => {
   it('says there is nothing to add when no day has a dinner', () => {
     renderSheet({ plan: [] });
     expect(screen.getByText('There are no dinners planned from today on.')).toBeInTheDocument();
-    expect(addButton()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /^Add \d+ lines?$|^Add lines$/ })).not.toBeInTheDocument();
   });
 });

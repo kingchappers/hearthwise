@@ -87,7 +87,7 @@ describe('empty pages', () => {
 describe('settings', () => {
   it('says where display settings are saved at a readable size', () => {
     renderIn(<Settings />);
-    expectReadable(screen.getByText('Display settings are saved on this device.'));
+    expectReadable(screen.getByText('These are saved on this device.'));
   });
 });
 

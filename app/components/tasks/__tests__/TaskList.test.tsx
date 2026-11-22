@@ -90,7 +90,7 @@ describe('NextThing', () => {
 
   it('says so when there is nothing left for now', () => {
     renderCard(undefined);
-    expect(screen.getByText('Nothing left for now.')).toBeInTheDocument();
+    expect(screen.getByText("That's all for now.")).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -98,6 +98,14 @@ describe('NextThing', () => {
     renderCard(task({ dueOn: '2020-01-01' }));
     expect(document.body.textContent).not.toMatch(WORDS_WE_NEVER_USE);
     for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-size')).not.toBe('xs');
+  });
+});
+
+describe('NextThing: where the card is, and what the button does', () => {
+  it('says which task of how many it is, and what Show a different task does and does not do', () => {
+    renderIn(<NextThing task={task({ title: 'Hoover' })} today={TODAY} roster={MEMBERS} viewerId={ME.userId} onDone={vi.fn()} onNotNow={vi.fn()} position={2} total={5} />);
+    expect(screen.getByText('Task 2 of 5')).toBeInTheDocument();
+    expect(screen.getByText('Show a different task sets this one aside for this visit. Nothing changes for anyone.')).toBeInTheDocument();
   });
 });
 

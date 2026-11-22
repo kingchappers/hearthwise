@@ -60,7 +60,10 @@ export function useProjectActions(): ProjectActions {
 
   return {
     me,
-    createProject: ({ id, mutationId, title }) => put.mutate({ ...common(), mutationId, projectId: id, changes: { title } }),
+    createProject: ({ id, mutationId, title }) => {
+      put.mutate({ ...common(), mutationId, projectId: id, changes: { title } });
+      toast(`Added: ${title}. It is in Projects.`);
+    },
     editProject: (projectId, changes) => {
       if (Object.keys(changes).length === 0) return;
       put.mutate({ ...common(), projectId, changes });

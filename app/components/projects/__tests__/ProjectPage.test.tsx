@@ -90,6 +90,7 @@ describe('the project page', () => {
 
   it('moves a step with a new position between its neighbours, and does not offer a move off either end', async () => {
     page();
+    await userEvent.click(screen.getByRole('button', { name: 'Reorder steps' }));
     expect(screen.getByRole('button', { name: 'Move up: Step a' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move down: Step c' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Move up: Step c' }));
@@ -99,6 +100,7 @@ describe('the project page', () => {
 
   it('refuses a move calmly when there is no room, and writes nothing', async () => {
     page({ steps: [step('a', 'i'), step('b', 'i'), step('c', 'i')] });
+    await userEvent.click(screen.getByRole('button', { name: 'Reorder steps' }));
     await userEvent.click(screen.getByRole('button', { name: 'Move up: Step c' }));
     expect(screen.getByText("This step can't be moved there. Move another step instead.")).toBeInTheDocument();
     expect(a.editStep).not.toHaveBeenCalled();
@@ -156,6 +158,51 @@ describe('the project page', () => {
     page({ project: project({ deletedAt: NOW }), steps: [] });
     expect(screen.getByText(/This project was deleted/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark as finished' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the steps list', () => {
+  it('hides Move up and Move down until the person asks to reorder, and hides them again when finished', async () => {
+    page();
+    expect(screen.queryByRole('button', { name: /^Move up/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Reorder steps' }));
+    expect(screen.getAllByRole('button', { name: /^Move up/ })).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'Finish reordering' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Finish reordering' }));
+    expect(screen.queryByRole('button', { name: /^Move up/ })).not.toBeInTheDocument();
+  });
+
+  it('offers no reordering for one step or none', () => {
+    page({ steps: [step('a', 'i')] });
+    expect(screen.queryByRole('button', { name: 'Reorder steps' })).not.toBeInTheDocument();
+  });
+
+  it('numbers the steps in order so one can be named by its number, and the numbers follow the order shown', () => {
+    page({ steps: [step('b', 'j'), step('a', 'i')] });
+    const rows = screen.getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent(/^1\./);
+    expect(rows[1]).toHaveTextContent(/^2\./);
+  });
+
+  it('shows how many steps are done on the page itself, and when all are done says the project can be finished', () => {
+    const first = page({ steps: [step('a', 'i', { state: 'done' }), step('b', 'j'), step('c', 'k')] });
+    expect(screen.getByText('1 of 3 steps done')).toBeInTheDocument();
+    expect(screen.queryByText(/All steps are done/)).not.toBeInTheDocument();
+    first.unmount();
+    page({ steps: [step('a', 'i', { state: 'done' }), step('b', 'j', { state: 'done' })] });
+    expect(screen.getByText('2 of 2 steps done')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('All steps are done. You can mark the project as finished.');
+  });
+
+  it('does not say the project can be finished when it already is', () => {
+    page({ project: project({ status: 'finished' }), steps: [step('a', 'i', { state: 'done' })] });
+    expect(screen.queryByText(/All steps are done/)).not.toBeInTheDocument();
+  });
+
+  it('gives the tick a 44px tap area around its 24px box, by making the label the target', () => {
+    page();
+    const label = screen.getByRole('checkbox', { name: 'Mark done: Step a' }).closest('label') as HTMLElement;
+    expect(label).toHaveStyle({ minWidth: '44px', minHeight: '44px' });
   });
 });
 

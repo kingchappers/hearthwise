@@ -167,7 +167,7 @@ function Review({ onClose, onAdd, userId, plan, today, recipes, checkedAt, shopp
       {count === 0 && <Text>Nothing needs adding.</Text>}
       <LetThemKnow />
       <Group gap="xs">
-        <Button onClick={add} disabled={done || count === 0 || tooMany}>{`Add ${count} ${count === 1 ? 'line' : 'lines'}`}</Button>
+        {count > 0 && <Button onClick={add} disabled={done || tooMany}>{`Add ${count} ${count === 1 ? 'line' : 'lines'}`}</Button>}
         <Button variant="default" onClick={cancel}>Cancel</Button>
       </Group>
     </Stack>

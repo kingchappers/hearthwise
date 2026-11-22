@@ -52,6 +52,20 @@ describe('positionsForLines', () => {
   });
 });
 
+describe('splitLines: pasted list markers', () => {
+  it('drops bullets, numbers and tick boxes from the start of each line, and keeps the words', () => {
+    expect(splitLines('- Sand edges\n* Oil the boards\n\u2022 Rinse\n1. First\n2) Second\n[ ] Check\n[x] Done one')).toEqual(['Sand edges', 'Oil the boards', 'Rinse', 'First', 'Second', 'Check', 'Done one']);
+  });
+
+  it('keeps a number or dash that is part of the words', () => {
+    expect(splitLines('2.4m timber\n47x100 - cut to length\n-5 degrees')).toEqual(['2.4m timber', '47x100 - cut to length', '-5 degrees']);
+  });
+
+  it('drops a line that was only a marker', () => {
+    expect(splitLines('- \n1.\nReal')).toEqual(['Real']);
+  });
+});
+
 describe('splitLines', () => {
   it('splits on newlines of either kind and trims', () => {
     expect(splitLines('a\r\n b \n\n c')).toEqual(['a', 'b', 'c']);

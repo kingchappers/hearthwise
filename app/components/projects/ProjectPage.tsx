@@ -5,7 +5,7 @@ import type { ProjectActions } from '~/hooks/useProjectActions';
 import { positionFor } from '~/lib/projectForm';
 import type { ProjectDetailData } from '~/lib/projectOverlay';
 import type { ProjectNotice } from '~/lib/projectNotices';
-import { COPY, holderLine, lastChangedBy, nameOf, plannedText } from '~/lib/projectText';
+import { COPY, holderLine, lastChangedBy, nameOf, plannedText, stepsDone } from '~/lib/projectText';
 import type { MemberSummary } from '~/lib/household';
 import { LetThemKnow } from '../shared/LetThemKnow';
 import { AddSteps } from './AddSteps';
@@ -38,6 +38,8 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
   const [editing, setEditing] = useState<Step | undefined>(undefined);
   const [editingProject, setEditingProject] = useState(false);
   const [noRoom, setNoRoom] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const doneCount = steps.filter(step => step.state === 'done').length;
   const holder = holderLine(project, members, me);
   const iHold = project.takenBy === me;
   const deleted = project.deletedAt !== undefined;
@@ -56,7 +58,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
 
   return (
     <Stack maw={640}>
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
+      <Group justify="space-between" align="flex-start" wrap="wrap">
         <Title order={1} size="h3">{project.title}</Title>
         <Button variant="subtle" style={{ minHeight: 44 }} onClick={onBack}>All projects</Button>
       </Group>
@@ -86,6 +88,15 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
           <LetThemKnow />
 
           <Title order={2} size="h4">Steps</Title>
+          {steps.length > 0 && <Text size="sm">{stepsDone(doneCount, steps.length)}</Text>}
+          {steps.length > 0 && doneCount === steps.length && project.status === 'active' && <Text size="sm" role="status">{COPY.allStepsDone}</Text>}
+          {steps.length > 1 && (
+            <Group>
+              <Button variant="default" style={{ minHeight: 44 }} aria-pressed={reordering} onClick={() => setReordering(!reordering)}>
+                {reordering ? COPY.doneReordering : COPY.reorder}
+              </Button>
+            </Group>
+          )}
           {noRoom && <Text size="sm" role="status">{COPY.noRoom}</Text>}
           {steps.length === 0
             ? <Text>{COPY.noSteps}</Text>
@@ -95,7 +106,7 @@ export function ProjectPage({ data, me, members, now, unsavedIds, notices, listS
                   <StepRow
                     key={step.id} step={step} projectId={project.id} members={members} me={me} now={now} unsaved={unsavedIds.has(step.id)}
                     first={index === 0} last={index === steps.length - 1} actions={actions} onMove={move} onOpen={setEditing}
-                    notices={stepNotices(step.id)} userId={me}
+                    notices={stepNotices(step.id)} userId={me} number={index + 1} reordering={reordering}
                   />
                 ))}
               </List>

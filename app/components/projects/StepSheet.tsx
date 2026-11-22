@@ -28,7 +28,7 @@ function Form({ step, projectId, actions, onClose, userId }: { step: Step; proje
     >
       <Stack>
         <TextInput label="Step" value={text} onChange={event => setText(event.currentTarget.value)} maxLength={MAX_STEP_TEXT} data-autofocus />
-        <Textarea label="Note" value={note} onChange={event => setNote(event.currentTarget.value)} maxLength={MAX_STEP_NOTE} autosize minRows={2} />
+        <Textarea label="Note" description="Why or how. The other person sees this under the step." value={note} onChange={event => setNote(event.currentTarget.value)} maxLength={MAX_STEP_NOTE} autosize minRows={2} />
         <Text size="sm">If you both change a step, the later save is kept. If yours is replaced, your words are kept for you.</Text>
         <Button type="submit" disabled={trimmed === ''} style={{ minHeight: 44 }}>Save</Button>
         <Button variant="default" style={{ minHeight: 44 }} onClick={() => { actions.deleteStep(projectId, step); onClose(); }}>Delete step</Button>

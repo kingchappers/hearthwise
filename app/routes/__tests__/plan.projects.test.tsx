@@ -46,7 +46,7 @@ describe('the Projects page', () => {
     const sheet = await screen.findByRole('dialog');
     expect(sheet).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Title'), 'Fix the hall socket');
-    await userEvent.click(screen.getAllByRole('button', { name: 'New project' }).at(-1)!);
+    await userEvent.click(screen.getByRole('button', { name: 'Add project' }));
     const create = (state.actions as { createProject: ReturnType<typeof vi.fn> }).createProject;
     expect(create).toHaveBeenCalledTimes(1);
     expect(create.mock.calls[0][0]).toMatchObject({ title: 'Fix the hall socket' });
