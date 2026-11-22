@@ -15,11 +15,11 @@ Record the date, the app version and the result of each line in the pull request
 
 - [ ] Settings, Notifications: "Turn on notifications on this device" on each phone. The iPhone shows "Add Hearthwise to your Home Screen" steps until the app is installed.
 - [ ] Settings says "Notifications are on for this device." on both phones.
-- [ ] From the Android phone, tick "Let them know" on a change. The iPhone gets one push. Tapping it opens the right page.
+- [ ] From the Android phone, tick "Tell Alex when I save a change" and save a change. The iPhone gets one push, the tick clears, and the box says "Alex was told." Tapping it opens the right page.
 - [ ] The same in the other direction.
 - [ ] A change made **without** the box ticked sends nothing.
 - [ ] Turn on the daily digest for an hour that is a few minutes away. It arrives once, at that hour, and not again.
-- [ ] Set quiet hours around the current time, send a "Let them know" push, and it is held. It arrives when quiet hours end.
+- [ ] Set quiet hours around the current time, send a push with that tick, and it is held. It arrives when quiet hours end.
 - [ ] Choose "Turn off notifications on this device" on one phone. Nothing more arrives there.
 
 ## Journeys

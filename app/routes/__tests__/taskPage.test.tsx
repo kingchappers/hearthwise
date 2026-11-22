@@ -16,7 +16,7 @@ vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children
 vi.mock('~/lib/queries', () => ({ useTasks: () => state.tasks }));
 vi.mock('~/lib/history', () => ({ useTaskHistory: () => ({ data: state.history, isError: false }) }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import TaskPage, { meta } from '../tasks.$id';
 
@@ -52,7 +52,38 @@ describe('the task page', () => {
 
   it('says so for a task that is not there', () => {
     renderPage('00000000-0000-4000-8000-0000000000ff');
-    expect(screen.getByText("We couldn't find that task.")).toBeInTheDocument();
+    expect(screen.getByText("That task isn't in your list. If it was deleted, you can bring it back from Deleted.")).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to Today' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Deleted' })).toHaveAttribute('href', '/deleted');
+  });
+
+  it('shows a finished to-do as Done, with the day, and no Done button', () => {
+    const t = task({ title: 'Bathroom', status: 'done', doneAt: Date.parse('2026-11-12T10:00:00Z') });
+    state.tasks.tasks = [t];
+    renderPage(t.id);
+    expect(screen.getByRole('status')).toHaveTextContent(/Done on .*12 Nov/);
+    expect(screen.queryByRole('button', { name: /^Done/ })).not.toBeInTheDocument();
+  });
+
+  it('goes to Today after a delete, where the Undo message stays, and stays put when it only asks the other person', async () => {
+    const t = task({ title: 'Bathroom' });
+    state.tasks.tasks = [t];
+    const view = render(
+      <MantineProvider env="test">
+        <MemoryRouter initialEntries={[`/tasks/${t.id}`]}>
+          <Routes><Route path="/tasks/:id" element={<TaskPage />} /><Route path="/" element={<p>today page</p>} /></Routes>
+        </MemoryRouter>
+      </MantineProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(actions().remove).toHaveBeenCalledWith(t);
+    expect(screen.getByText('today page')).toBeInTheDocument();
+    view.unmount();
+
+    (actions().needsAsk as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    renderPage(t.id);
+    await userEvent.click(screen.getByRole('button', { name: /^Ask .* to delete$/ }));
+    expect(screen.queryByText('today page')).not.toBeInTheDocument();
   });
 
   it('ticks and unticks checklist steps', async () => {
@@ -124,6 +155,6 @@ describe('the task page: Let them know', () => {
     const t = task({ title: 'Bathroom' });
     state.tasks.tasks = [t];
     renderPage(t.id);
-    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();
   });
 });

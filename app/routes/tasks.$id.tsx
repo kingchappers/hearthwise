@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Anchor, Button, Group, Stack, Text, Title } from '@mantine/core';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
+import { dayInZone } from '../../src/shared/schedule';
 import { isOtherMembersTask } from '../../src/tasks/ownership';
 import { Checklist } from '~/components/tasks/Checklist';
 import { DidThisToday } from '~/components/tasks/DidThisToday';
@@ -13,7 +14,7 @@ import { useTaskHistory } from '~/lib/history';
 import { pageTitle } from '~/lib/pageTitle';
 import { useTasks } from '~/lib/queries';
 import { effectiveAssignee } from '~/lib/tasks';
-import { assigneeLabel, dueLabel, repeatLabel } from '~/lib/taskText';
+import { assigneeLabel, dueLabel, formatDay, repeatLabel } from '~/lib/taskText';
 import type { Route } from './+types/tasks.$id';
 
 export const meta: Route.MetaFunction = () => [{ title: pageTitle('Task') }];
@@ -24,13 +25,17 @@ function TaskContent() {
   const actions = useTaskActions();
   const history = useTaskHistory(id);
   const [editing, setEditing] = useState(false);
+  const navigate = useNavigate();
 
   const task = tasks.tasks.find(candidate => candidate.id === id && candidate.deletedAt === undefined);
   if (!task) {
     return (
       <Stack maw={640}>
-        <Text>We couldn't find that task.</Text>
-        <Anchor component={Link} to="/">Back to Today</Anchor>
+        <Text>That task isn't in your list. If it was deleted, you can bring it back from Deleted.</Text>
+        <Group gap="md">
+          <Anchor component={Link} to="/">Back to Today</Anchor>
+          <Anchor component={Link} to="/deleted">Deleted</Anchor>
+        </Group>
       </Stack>
     );
   }
@@ -52,10 +57,22 @@ function TaskContent() {
         {due && <Group gap="xs"><Text fw={600}>When</Text><Text>{due}</Text></Group>}
       </Stack>
       <Group>
-        <DidThisToday task={task} own={owner === actions.me.userId || owner === 'either' || owner === 'both'} onClick={() => actions.complete(task)} />
+        {task.status === 'done'
+          ? <Text role="status" fw={600}>{task.doneAt === undefined ? 'Done' : `Done on ${formatDay(dayInZone(task.doneAt, Intl.DateTimeFormat().resolvedOptions().timeZone))}`}</Text>
+          : <DidThisToday task={task} own={owner === actions.me.userId || owner === 'either' || owner === 'both'} onClick={() => actions.complete(task)} />}
         <Button variant="default" onClick={() => setEditing(true)}>Edit</Button>
         {theirs && <Button variant="default" onClick={() => actions.swap(task)}>Swap this time</Button>}
-        <Button variant="default" onClick={() => actions.remove(task)}>{deleteLabel}</Button>
+        <Button
+          variant="default"
+          onClick={() => {
+            const asking = actions.needsAsk('delete', task);
+            actions.remove(task);
+            // The page is about a task that is now in Deleted: go to Today, where the Undo message stays.
+            if (!asking) void navigate('/');
+          }}
+        >
+          {deleteLabel}
+        </Button>
       </Group>
       <LetThemKnow />
       {task.checklist.length > 0 && (
