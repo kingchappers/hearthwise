@@ -2,10 +2,11 @@ import { Card, Group, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router';
 import type { ListedProject } from '~/lib/projects';
 import type { MemberSummary } from '~/lib/household';
+import { withRelative } from '~/lib/relativeTime';
 import { COPY, holderLine, plannedText, stepsDone } from '~/lib/projectText';
 
 // One project in the list: its title, how many steps are done, who is on it, and whether a write is waiting. Everything is in words.
-export function ProjectCard({ project, members, me, unsaved }: { project: ListedProject; members: MemberSummary[]; me: string; unsaved: boolean }) {
+export function ProjectCard({ project, members, me, unsaved, relativeFrom }: { project: ListedProject; members: MemberSummary[]; me: string; unsaved: boolean; relativeFrom?: string }) {
   const holder = holderLine(project, members, me);
   const counts = project.counts && project.counts.steps > 0 ? stepsDone(project.counts.done, project.counts.steps) : undefined;
   return (
@@ -17,7 +18,7 @@ export function ProjectCard({ project, members, me, unsaved }: { project: Listed
         </Group>
         {counts && <Text size="sm">{counts}</Text>}
         {holder && <Text size="sm">{holder}</Text>}
-        {project.plannedOn !== undefined && <Text size="sm">{plannedText({ plannedOn: project.plannedOn, plannedEndOn: project.plannedEndOn })}</Text>}
+        {project.plannedOn !== undefined && <Text size="sm">{withRelative(plannedText({ plannedOn: project.plannedOn, plannedEndOn: project.plannedEndOn }), project.plannedOn, relativeFrom ?? '', relativeFrom !== undefined)}</Text>}
       </Stack>
     </Card>
   );

@@ -26,7 +26,7 @@ function ProjectsContent() {
         <Button style={{ minHeight: 44 }} onClick={() => setAdding(true)}>{COPY.newProject}</Button>
       </Group>
       {projects.dataUpdatedAt === undefined && <Text size="sm">{COPY.notSavedForOffline}</Text>}
-      <ProjectList projects={projects.projects} members={projects.members} me={projects.me} unsavedIds={projects.unsavedIds} />
+      <ProjectList projects={projects.projects} members={projects.members} me={projects.me} unsavedIds={projects.unsavedIds} relativeFrom={projects.relativeFrom} />
       <NewProjectSheet opened={adding} onClose={() => setAdding(false)} actions={actions} />
     </Stack>
   );

@@ -15,10 +15,11 @@ export interface NextThingProps {
   // Where this card is among the ones that can be offered, and how many there are, so the person knows there is an end.
   position?: number;
   total?: number;
+  relative?: boolean;
 }
 
 // One card: the next thing for this person. "Show a different task" only moves to the next card for this visit; it changes nothing for anyone.
-export function NextThing({ task, today, roster, viewerId, onDone, onNotNow, position, total }: NextThingProps) {
+export function NextThing({ task, today, roster, viewerId, onDone, onNotNow, position, total, relative = false }: NextThingProps) {
   if (!task) {
     return (
       <Stack gap={4}>
@@ -28,7 +29,7 @@ export function NextThing({ task, today, roster, viewerId, onDone, onNotNow, pos
     );
   }
   const owner = effectiveAssignee(task, { members: roster });
-  const due = dueLabel(task, today);
+  const due = dueLabel(task, today, relative);
   return (
     <Card withBorder padding="lg">
       <Stack>

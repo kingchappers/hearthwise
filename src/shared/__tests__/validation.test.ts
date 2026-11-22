@@ -146,3 +146,21 @@ describe('parseMemberPatch', () => {
     expect(parseMemberPatch({ displayName: '' })).toEqual(bad('displayName'));
   });
 });
+
+describe('the Today, time and planned-day settings', () => {
+  it('reads each on-or-off setting, and the planned-day reminder like the other hour settings', () => {
+    expect(parseMemberPatch({ settings: { todayComingUp: false, todayProjects: false, relativeTimes: true } })).toEqual(ok({ settings: { todayComingUp: false, todayProjects: false, relativeTimes: true } }));
+    expect(parseMemberPatch({ settings: { plannedDay: { on: true, hour: 9 } } })).toEqual(ok({ settings: { plannedDay: { on: true, hour: 9 } } }));
+    expect(parseMemberPatch({ settings: { plannedDay: { hour: 7 } } })).toEqual(ok({ settings: { plannedDay: { hour: 7 } } }));
+  });
+
+  it.each(['todayComingUp', 'todayProjects', 'relativeTimes'])('refuses %s that is not true or false', key => {
+    expect(parseMemberPatch({ settings: { [key]: 'yes' } })).toEqual(bad(`settings.${key}`));
+    expect(parseMemberPatch({ settings: { [key]: 1 } })).toEqual(bad(`settings.${key}`));
+  });
+
+  it('refuses a planned-day hour out of range and an unknown setting', () => {
+    expect(parseMemberPatch({ settings: { plannedDay: { hour: 24 } } }).ok).toBe(false);
+    expect(parseMemberPatch({ settings: { plannedDays: { on: true } } }).ok).toBe(false);
+  });
+});

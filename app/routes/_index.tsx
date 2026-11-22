@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, Group, Loader, Stack, Title } from '@mantine/core';
+import { ComingUp } from '~/components/calendar/ComingUp';
 import { NowAndNext } from '~/components/calendar/NowAndNext';
 import { EasyPicks } from '~/components/meals/EasyPicks';
 import { Tonight } from '~/components/meals/Tonight';
@@ -14,6 +15,8 @@ import { PushPrompt } from '~/components/settings/PushPrompt';
 import { usePlanActions } from '~/hooks/usePlanActions';
 import { useTaskActions } from '~/hooks/useTaskActions';
 import { useTimelineSources } from '~/lib/calendar';
+import { comingUp, projectLines } from '~/lib/comingUp';
+import { useProjects } from '~/lib/projects';
 import { useHousehold } from '~/lib/household';
 import { pageTitle } from '~/lib/pageTitle';
 import { useNow } from '~/lib/useNow';
@@ -42,6 +45,9 @@ function TodayContent() {
   const [skipped, setSkipped] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const view: View = chosen ?? household.data?.me.settings.defaultView ?? 'list';
+  const showComing = household.data?.me.settings.todayComingUp !== false;
+  const showProjects = household.data?.me.settings.todayProjects !== false;
+  const projects = useProjects({ counts: true, enabled: showProjects });
 
   if (tasks.status === 'loading') return <Group justify="center" py="xl" role="status" aria-label="Loading your tasks"><Loader /></Group>;
   if (tasks.status === 'error') return <LoadError thing="tasks" onRetry={tasks.refetch} />;
@@ -52,6 +58,14 @@ function TodayContent() {
       <Title order={1} size="h3">Today</Title>
       {sources.status === 'ready' && (
         <NowAndNext {...nowAndNext(sources.inputsFor(sources.calendar.today), now, sources.calendar.timezone, sources.calendar.me)} />
+      )}
+      {sources.status === 'ready' && (showComing || showProjects) && (
+        <ComingUp
+          items={showComing ? comingUp(sources.inputsFor, sources.calendar.today, sources.calendar.me) : []}
+          projects={showProjects ? projectLines(projects.projects, sources.calendar.today, projects.me, projects.members) : []}
+          today={sources.calendar.today}
+          relative={household.data?.me.settings.relativeTimes === true}
+        />
       )}
       {plan.status === 'ready' && (
         <Tonight today={plan.today} plan={plan.days.find(day => day.day === plan.today)} recipes={plan.recipes} checkedAt={plan.recipesCheckedAt} onPickEasy={() => setEasy(true)} />
@@ -74,13 +88,14 @@ function TodayContent() {
         onWithdraw={actions.withdraw}
       />
       {view === 'list' ? (
-        <TaskList tasks={tasks.tasks} today={tasks.today} roster={actions.members} viewerId={actions.me.userId} onComplete={actions.complete} />
+        <TaskList tasks={tasks.tasks} today={tasks.today} roster={actions.members} viewerId={actions.me.userId} onComplete={actions.complete} relative={household.data?.me.settings.relativeTimes === true} />
       ) : (
         <NextThing
           task={next}
           position={skipped.length + 1}
           total={offerableCount(tasks.tasks, actions.me.userId, { members: actions.members })}
           today={tasks.today}
+          relative={household.data?.me.settings.relativeTimes === true}
           roster={actions.members}
           viewerId={actions.me.userId}
           onDone={() => next && actions.complete(next)}

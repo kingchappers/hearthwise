@@ -274,7 +274,7 @@ describe('the project list', () => {
 
   it('shows steps done, who is on it, and puts a finished project under "Finished"', () => {
     render2([
-      { ...project({ takenBy: THEM, takenAt: NOW }), counts: { steps: 8, done: 3, materials: 0 } },
+      { ...project({ takenBy: THEM, takenAt: NOW }), counts: { steps: 8, done: 3, materials: 0, held: {} } },
       project({ id: 'p2', title: 'Fix the fence', status: 'finished' }),
     ]);
     expect(screen.getByText('3 of 8 steps done')).toBeInTheDocument();

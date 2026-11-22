@@ -21,6 +21,10 @@ function settingsOf(raw: unknown): MemberSettings {
     dueNudges: { ...DEFAULT_SETTINGS.dueNudges, ...(isObject(stored.dueNudges) ? stored.dueNudges : {}) },
     quietHours: 'quietHours' in stored ? (stored.quietHours as MemberSettings['quietHours']) : DEFAULT_SETTINGS.quietHours,
     defaultView: stored.defaultView === 'next' ? 'next' : 'list',
+    todayComingUp: typeof stored.todayComingUp === 'boolean' ? stored.todayComingUp : DEFAULT_SETTINGS.todayComingUp,
+    todayProjects: typeof stored.todayProjects === 'boolean' ? stored.todayProjects : DEFAULT_SETTINGS.todayProjects,
+    relativeTimes: typeof stored.relativeTimes === 'boolean' ? stored.relativeTimes : DEFAULT_SETTINGS.relativeTimes,
+    plannedDay: { ...DEFAULT_SETTINGS.plannedDay, ...(isObject(stored.plannedDay) ? stored.plannedDay : {}) },
   };
 }
 

@@ -82,11 +82,11 @@ function parseQuietHours(value: unknown): Parsed<{ start: number; end: number } 
 
 function parseSettingsPatch(value: unknown): Parsed<MemberSettingsPatch> {
   if (!isObject(value)) return bad('settings');
-  const extra = unknownKey(value, ['digest', 'dueNudges', 'quietHours', 'defaultView'], 'settings');
+  const extra = unknownKey(value, ['digest', 'dueNudges', 'plannedDay', 'quietHours', 'defaultView', 'todayComingUp', 'todayProjects', 'relativeTimes'], 'settings');
   if (extra) return bad(extra);
 
   const result: MemberSettingsPatch = {};
-  for (const key of ['digest', 'dueNudges'] as const) {
+  for (const key of ['digest', 'dueNudges', 'plannedDay'] as const) {
     if (!(key in value)) continue;
     const parsed = parseHourSetting(value[key], `settings.${key}`);
     if (!parsed.ok) return parsed;
@@ -100,6 +100,11 @@ function parseSettingsPatch(value: unknown): Parsed<MemberSettingsPatch> {
   if ('defaultView' in value) {
     if (value.defaultView !== 'list' && value.defaultView !== 'next') return bad('settings.defaultView');
     result.defaultView = value.defaultView;
+  }
+  for (const key of ['todayComingUp', 'todayProjects', 'relativeTimes'] as const) {
+    if (!(key in value)) continue;
+    if (typeof value[key] !== 'boolean') return bad(`settings.${key}`);
+    result[key] = value[key];
   }
   return good(result);
 }

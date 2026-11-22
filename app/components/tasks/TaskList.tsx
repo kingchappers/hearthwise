@@ -18,9 +18,10 @@ export interface TaskListProps {
   roster: NamedMember[];
   viewerId: string;
   onComplete: (task: Task) => void;
+  relative?: boolean;
 }
 
-export function TaskList({ tasks, today, roster, viewerId, onComplete }: TaskListProps) {
+export function TaskList({ tasks, today, roster, viewerId, onComplete, relative = false }: TaskListProps) {
   const groups = groupTasks(tasks, today);
   if (GROUPS.every(({ group }) => groups[group].length === 0)) {
     return (
@@ -37,7 +38,7 @@ export function TaskList({ tasks, today, roster, viewerId, onComplete }: TaskLis
           <Title order={2} size="h5" mb={4}>{title}</Title>
           <ul style={{ margin: 0, padding: 0 }}>
             {groups[group].map(task => (
-              <TaskRow key={task.id} task={task} today={today} roster={roster} viewerId={viewerId} onComplete={onComplete} />
+              <TaskRow key={task.id} task={task} today={today} roster={roster} viewerId={viewerId} onComplete={onComplete} relative={relative} />
             ))}
           </ul>
         </section>

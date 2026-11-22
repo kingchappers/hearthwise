@@ -15,6 +15,13 @@ export interface MemberSettings {
   // `start` greater than `end` runs past midnight (22 to 7). Null means no quiet hours.
   quietHours: { start: number; end: number } | null;
   defaultView: 'list' | 'next';
+  // Today's "Coming up" list and its project line. Both are on until a person turns them off.
+  todayComingUp: boolean;
+  todayProjects: boolean;
+  // Dates and times also say how far away they are ("in 2 days"). Off: exact dates and times only.
+  relativeTimes: boolean;
+  // A gentle reminder the day before and the morning of a project's planned day, at this hour. Off until turned on.
+  plannedDay: HourSetting;
 }
 
 // What a PATCH may change: each nested setting is partial, so changing the digest hour keeps its on/off switch.
@@ -23,6 +30,10 @@ export interface MemberSettingsPatch {
   dueNudges?: Partial<HourSetting>;
   quietHours?: { start: number; end: number } | null;
   defaultView?: 'list' | 'next';
+  todayComingUp?: boolean;
+  todayProjects?: boolean;
+  relativeTimes?: boolean;
+  plannedDay?: Partial<HourSetting>;
 }
 
 // Every reminder is off until the person turns it on.
@@ -31,4 +42,8 @@ export const DEFAULT_SETTINGS: MemberSettings = {
   dueNudges: { on: false, hour: 8 },
   quietHours: null,
   defaultView: 'list',
+  todayComingUp: true,
+  todayProjects: true,
+  relativeTimes: false,
+  plannedDay: { on: false, hour: 8 },
 };

@@ -36,6 +36,7 @@ describe('createHousehold', () => {
     const member = await store.get({ PK: hhPk(householdId), SK: memberSk('auth0|u1') });
     expect(member?.settings).toEqual({
       digest: { on: false, hour: 19 }, dueNudges: { on: false, hour: 8 }, quietHours: null, defaultView: 'list',
+      todayComingUp: true, todayProjects: true, relativeTimes: false, plannedDay: { on: false, hour: 8 },
     });
   });
 

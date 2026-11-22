@@ -40,7 +40,7 @@ function ProjectContent({ id }: { id: string }) {
   }
   return (
     <ProjectPage
-      data={project.data} me={project.me} members={project.members} now={now} unsavedIds={project.unsavedIds} notices={notices} listState={listState}
+      data={project.data} me={project.me} members={project.members} now={now} unsavedIds={project.unsavedIds} notices={notices} listState={listState} relativeFrom={project.relativeFrom}
       actions={actions} onBack={() => { void navigate('/plan/projects'); }}
     />
   );

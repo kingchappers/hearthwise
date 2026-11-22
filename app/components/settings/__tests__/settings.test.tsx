@@ -22,6 +22,8 @@ import { DefaultView } from '../DefaultView';
 import { PushCheck } from '../PushCheck';
 import { QuietHours } from '../QuietHours';
 import { Reminders } from '../Reminders';
+import { RelativeTimes } from '../RelativeTimes';
+import { TodaySettings } from '../TodaySettings';
 
 const ui = (node: React.ReactNode) => render(<MantineProvider env="test">{node}</MantineProvider>);
 const withSettings = (over: Partial<MemberSettings> = {}) => { state.settings = { ...DEFAULT_SETTINGS, ...over }; };
@@ -195,5 +197,34 @@ describe('CalendarColour', () => {
   it('has names and labels for everything', async () => {
     const { container } = ui(<CalendarColour />);
     await expectNoViolations(container);
+  });
+});
+
+describe('TodaySettings', () => {
+  it('shows both switches on by default, and turns each off on its own', async () => {
+    ui(<TodaySettings />);
+    expect(screen.getByRole('switch', { name: /Show Coming up on Today/ })).toBeChecked();
+    expect(screen.getByRole('switch', { name: /Show projects on Today/ })).toBeChecked();
+    await userEvent.click(screen.getByRole('switch', { name: /Show Coming up on Today/ }));
+    expect(updateMe).toHaveBeenLastCalledWith({ settings: { todayComingUp: false } });
+    await userEvent.click(screen.getByRole('switch', { name: /Show projects on Today/ }));
+    expect(updateMe).toHaveBeenLastCalledWith({ settings: { todayProjects: false } });
+  });
+
+  it('shows a switch that was turned off as off, and has no accessibility violations', async () => {
+    withSettings({ todayComingUp: false });
+    const { container } = ui(<TodaySettings />);
+    expect(screen.getByRole('switch', { name: /Show Coming up on Today/ })).not.toBeChecked();
+    await expectNoViolations(container);
+  });
+});
+
+describe('RelativeTimes', () => {
+  it('is off by default, says exact dates stay, and turns on with one tap', async () => {
+    ui(<RelativeTimes />);
+    expect(screen.getByRole('switch', { name: /Show how far away dates are/ })).not.toBeChecked();
+    expect(screen.getByText(/The exact date stays/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('switch', { name: /Show how far away dates are/ }));
+    expect(updateMe).toHaveBeenLastCalledWith({ settings: { relativeTimes: true } });
   });
 });

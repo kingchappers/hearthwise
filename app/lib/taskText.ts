@@ -2,6 +2,7 @@
 import type { Repeat } from '../../src/shared/schedule';
 import { normalizedAssignee } from '../../src/tasks/ownership';
 import type { Task } from '../../src/tasks/types';
+import { withRelative } from './relativeTime';
 
 export interface NamedMember {
   userId: string;
@@ -14,10 +15,10 @@ export function formatDay(day: string): string {
   return DAY_FORMAT.format(new Date(`${day}T00:00:00Z`));
 }
 
-export function dueLabel(task: Pick<Task, 'dueOn'>, today: string): string | undefined {
+export function dueLabel(task: Pick<Task, 'dueOn'>, today: string, relative = false): string | undefined {
   if (task.dueOn === undefined) return undefined;
   if (task.dueOn === today) return 'Due today';
-  return task.dueOn < today ? `Due · ${formatDay(task.dueOn)}` : formatDay(task.dueOn);
+  return task.dueOn < today ? `Due · ${formatDay(task.dueOn)}` : withRelative(formatDay(task.dueOn), task.dueOn, today, relative);
 }
 
 export function memberName(roster: NamedMember[], userId: string): string {
