@@ -29,7 +29,7 @@ export interface AddSheetProps {
 }
 
 const KINDS: MoneyKind[] = ['expense', 'loan', 'payment'];
-const PAYER_LABEL: Record<MoneyKind, string> = { expense: 'Who paid?', loan: 'Who lent it?', payment: 'Who sent it?' };
+const PAYER_LABEL: Record<MoneyKind, string> = { expense: 'Who paid?', loan: 'Who lent it?', payment: 'Who paid it back?' };
 const BUTTON = { minHeight: 44 };
 
 const sameMoney = (entry: MoneyEntry, money: MoneyChange): boolean =>
@@ -149,15 +149,16 @@ function Content({ onClose, entry, wordsOnly = false, entries, people, today, ca
           </>
         )}
 
+        {!wordsOnly && form.kind === 'payment' && loans.length === 0 && <Text size="sm">{`No open loans to pay back. This will count towards the total.`}</Text>}
         {!wordsOnly && form.kind === 'payment' && (
           <NativeSelect
             label="Which loan is it for?" value={loanId} onChange={event => set({ loanId: event.currentTarget.value })}
-            data={[{ value: '', label: 'None, just a payment' }, ...loans.map(candidate => ({ value: candidate.id, label: `${candidate.description}, ${formatPounds(candidate.amountPence)}` }))]}
+            data={[{ value: '', label: 'None. It counts towards the total, not a loan.' }, ...loans.map(candidate => ({ value: candidate.id, label: `${candidate.description}, ${formatPounds(candidate.amountPence)}` }))]}
           />
         )}
         {duplicate && (
           <Text role="status" size="sm">
-            {`There is already a ${formatPounds(duplicate.amountPence)} payment from ${nameOf(people, duplicate.paidBy)} on this date. Is this a different one?`}
+            {`There is already a ${formatPounds(duplicate.amountPence)} payment from ${nameOf(people, duplicate.paidBy)} on this date. This may be one already added. You can still add it.`}
           </Text>
         )}
 

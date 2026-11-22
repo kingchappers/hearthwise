@@ -86,7 +86,7 @@ describe('WaitingList: for you', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Agree: Shop' }));
     expect(actions.respondChange).toHaveBeenCalledWith(asked, 'agree');
     expect(actions.respond).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'Keep as it is: Shop' }));
+    await userEvent.click(screen.getByRole('button', { name: "Don't change it: Shop" }));
     expect(actions.respondChange).toHaveBeenCalledWith(asked, 'decline');
   });
 

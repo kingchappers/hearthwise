@@ -33,10 +33,10 @@ export function WaitingList({ title, mode, entries, people, unsavedIds, canWrite
           <Button style={BUTTON} disabled={off} aria-label={`Agree: ${name}`} onClick={() => answer(entry, 'agree')}>Agree</Button>
           <Button
             style={BUTTON} variant="default" disabled={off}
-            aria-label={`${entry.pendingChange ? 'Keep as it is' : `Ask ${people.otherName} to check`}: ${name}`}
+            aria-label={`${entry.pendingChange ? "Don't change it" : `Ask ${people.otherName} to check`}: ${name}`}
             onClick={() => answer(entry, 'decline')}
           >
-            {entry.pendingChange ? 'Keep as it is' : `Ask ${people.otherName} to check`}
+            {entry.pendingChange ? "Don't change it" : `Ask ${people.otherName} to check`}
           </Button>
           {!entry.pendingChange && <AskWithReason otherName={people.otherName} name={name} disabled={off} onAsk={because => actions.respond(entry, 'decline', because)} />}
         </Group>

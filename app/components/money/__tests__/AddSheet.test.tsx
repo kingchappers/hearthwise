@@ -134,7 +134,7 @@ describe('AddSheet: adding', () => {
     renderSheet({ entries: [loan] });
     await userEvent.click(screen.getByRole('radio', { name: 'Payment' }));
     expect(screen.queryByLabelText('What for?')).not.toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText('Who sent it?'), ALEX);
+    await userEvent.selectOptions(screen.getByLabelText('Who paid it back?'), ALEX);
     await userEvent.selectOptions(screen.getByLabelText('Which loan is it for?'), loan.id);
     await type('How much?', '20');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
@@ -149,9 +149,9 @@ describe('AddSheet: adding', () => {
     renderSheet({ entries: [mine, theirs, paid, payment] });
     await userEvent.click(screen.getByRole('radio', { name: 'Payment' }));
     const options = () => [...screen.getByLabelText('Which loan is it for?').querySelectorAll('option')].map(option => option.textContent);
-    expect(options()).toEqual(['None, just a payment', 'From Alex, £50.00']);
-    await userEvent.selectOptions(screen.getByLabelText('Who sent it?'), ALEX);
-    expect(options()).toEqual(['None, just a payment', 'From Sam, £50.00']);
+    expect(options()).toEqual(['None. It counts towards the total, not a loan.', 'From Alex, £50.00']);
+    await userEvent.selectOptions(screen.getByLabelText('Who paid it back?'), ALEX);
+    expect(options()).toEqual(['None. It counts towards the total, not a loan.', 'From Sam, £50.00']);
   });
 
   it('adds a payment with no loan, described as a payment', async () => {
@@ -167,10 +167,10 @@ describe('AddSheet: adding', () => {
     const existing = entry({ kind: 'payment', paidBy: ALEX, amountPence: 2000, sharePence: 2000, status: 'waiting', on: TODAY });
     renderSheet({ entries: [existing] });
     await userEvent.click(screen.getByRole('radio', { name: 'Payment' }));
-    await userEvent.selectOptions(screen.getByLabelText('Who sent it?'), ALEX);
+    await userEvent.selectOptions(screen.getByLabelText('Who paid it back?'), ALEX);
     expect(screen.queryByText(/There is already/)).not.toBeInTheDocument();
     await type('How much?', '20');
-    expect(screen.getByRole('status')).toHaveTextContent('There is already a £20.00 payment from Alex on this date. Is this a different one?');
+    expect(screen.getByRole('status')).toHaveTextContent('There is already a £20.00 payment from Alex on this date. This may be one already added. You can still add it.');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(actions.add).toHaveBeenCalledTimes(1);
   });
