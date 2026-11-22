@@ -33,7 +33,7 @@ vi.mock('~/lib/plan', async importOriginal => ({ ...(await importOriginal<typeof
 vi.mock('~/hooks/usePlanActions', () => ({ usePlanActions: () => state.planActions }));
 vi.mock('~/hooks/useTaskActions', () => ({ useTaskActions: () => state.actions }));
 vi.mock('~/components/settings/PushPrompt', () => ({ PushPrompt: () => <p>push prompt</p> }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import Today, { meta } from '../_index';
 
@@ -240,7 +240,7 @@ describe('Today', () => {
 describe('Today: Let them know', () => {
   it('has the box, unticked, for the changes made on this page', () => {
     renderToday();
-    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();
   });
 });
 
