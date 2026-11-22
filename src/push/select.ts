@@ -33,6 +33,7 @@ export function sendHour({ hour, quietStart, quietEnd }: DeliverySettings): numb
 
 // ---- What to send a member, from their settings and the tasks ----
 
+import { addDays } from '../shared/schedule';
 import { effectiveAssignee, type Roster } from '../tasks/ownership';
 import type { MemberSettings } from '../shared/household';
 import type { Task } from '../tasks/types';
@@ -82,4 +83,19 @@ export function nudgesFor(member: Recipient, tasks: Task[], roster: Roster, mome
   return tasks
     .filter(task => isOpen(task) && task.dueOn === moment.date && isTheirs(task, member, roster))
     .map(task => ({ title: 'Due today', body: task.title, tag: `nudge-${task.id}-${moment.date}`, url: `/tasks/${task.id}` }));
+}
+
+const projectsPhrase = (count: number, day: string): string => (count === 1 ? `A project is planned ${day}` : `${count} projects are planned ${day}`);
+
+// A gentle note the day before and the morning of a project's planned day. It never names the project (a push can be read on a lock screen),
+// and says only how many are planned for today and for tomorrow. Nothing planned for either day means nothing to send.
+export function plannedDayFor(member: Recipient, plannedDays: string[], moment: LocalMoment): PushMessage | undefined {
+  if (!member.settings.plannedDay.on || !inWindow(member.settings.plannedDay.hour, moment.hour)) return undefined;
+  const today = plannedDays.filter(day => day === moment.date).length;
+  const tomorrow = plannedDays.filter(day => day === addDays(moment.date, 1)).length;
+  if (today === 0 && tomorrow === 0) return undefined;
+  const tag = `planned-${moment.date}`;
+  const url = '/plan/projects';
+  if (today > 0 && tomorrow > 0) return { title: projectsPhrase(today, 'today'), body: `${projectsPhrase(tomorrow, 'tomorrow')}.`, tag, url };
+  return { title: projectsPhrase(today > 0 ? today : tomorrow, today > 0 ? 'today' : 'tomorrow'), body: 'Open Hearthwise, then Plan, then Projects to see it.', tag, url };
 }

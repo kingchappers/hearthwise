@@ -4,12 +4,14 @@ import type { HouseholdContext } from '../household/types';
 import { ConditionFailedError } from '../store';
 import type { Store } from '../store';
 import { listTasks } from '../tasks/tasks';
+import { PROJECT_PREFIX } from '../projects/keys';
+import { toProject } from '../projects/records';
 import { HELD_PREFIX } from './notifyOther';
 import { deliver, type PushSender } from './sender';
 import { listSubscribedUsers } from './subscriptions';
-import { digestFor, localMoment, nudgesFor, type PushMessage } from './select';
+import { digestFor, inWindow, localMoment, nudgesFor, plannedDayFor, type PushMessage } from './select';
 
-type Field = 'lastDigestSent' | 'lastNudgeSent';
+type Field = 'lastDigestSent' | 'lastNudgeSent' | 'lastPlannedSent';
 
 // Marks the day as sent, only if nobody else has since. The claim comes before the send: a second run loses it and sends nothing.
 async function claim(store: Store, ctx: HouseholdContext, field: Field, date: string): Promise<boolean> {
@@ -41,6 +43,19 @@ async function sendReminders(store: Store, sender: PushSender, ctx: HouseholdCon
 
   const nudges = nudgesFor(recipient, tasks, ctx, moment);
   if (nudges.length > 0 && await claim(store, ctx, 'lastNudgeSent', moment.date)) await send(nudges);
+
+  // Projects are read only for a person who turned this on, and only inside their hour.
+  const { plannedDay } = ctx.member.settings;
+  if (plannedDay.on && inWindow(plannedDay.hour, moment.hour)) {
+    const planned = plannedDayFor(recipient, await plannedDays(store, ctx), moment);
+    if (planned && await claim(store, ctx, 'lastPlannedSent', moment.date)) await send([planned]);
+  }
+}
+
+// The planned day of each live, active project that has one.
+async function plannedDays(store: Store, ctx: HouseholdContext): Promise<string[]> {
+  const rows = await store.query(hhPk(ctx.householdId), { skPrefix: PROJECT_PREFIX });
+  return rows.map(toProject).filter(project => project.status === 'active' && project.deletedAt === undefined && project.plannedOn !== undefined).map(project => project.plannedOn!);
 }
 
 // Each held push is claimed with a delete that needs it to exist, and sent only by the run whose delete succeeded.
