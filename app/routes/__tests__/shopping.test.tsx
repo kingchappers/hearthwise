@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
 vi.mock('~/components/layout/DefaultLayout', () => ({ DefaultLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('~/lib/items', async importOriginal => ({ ...(await importOriginal<typeof import('~/lib/items')>()), useItems: () => state.items }));
 vi.mock('~/hooks/useItemActions', () => ({ useItemActions: () => state.actions }));
-vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Let Alex know</label> }));
+vi.mock('~/components/shared/LetThemKnow', () => ({ LetThemKnow: () => <label><input type="checkbox" />Tell Alex when I save a change</label> }));
 
 import Shopping, { meta } from '../shopping';
 
@@ -98,6 +98,6 @@ describe('Shopping: lines made from the plan', () => {
 describe('Shopping: Let them know', () => {
   it('has the box, unticked, above the list', () => {
     renderPage();
-    expect(screen.getByRole('checkbox', { name: 'Let Alex know' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Tell Alex when I save a change' })).not.toBeChecked();
   });
 });

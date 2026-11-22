@@ -8,14 +8,16 @@ export interface TotalCardProps {
   people: People;
   // How many money changes are queued: the other phone shows the total without them.
   unsaved: number;
+  // Entries still waiting for agreement. They are not in the total, so "All square" says so.
+  waiting?: number;
 }
 
 // The one figure: who pays whom and how much, said in words. Direction is never carried by colour.
-export function TotalCard({ total, people, unsaved }: TotalCardProps) {
+export function TotalCard({ total, people, unsaved, waiting = 0 }: TotalCardProps) {
   return (
     <Paper withBorder p="md" radius="md" component="section" aria-label="Total">
       <Stack gap={4}>
-        <Text fw={700} size="xl" style={{ overflowWrap: 'anywhere' }}>{totalText(total, people.meName, people.otherName)}</Text>
+        <Text fw={700} size="xl" style={{ overflowWrap: 'anywhere' }}>{totalText(total, people.meName, people.otherName, waiting)}</Text>
         {unsaved > 0 && <Text size="sm" role="status">{unsavedText(unsaved)}</Text>}
       </Stack>
     </Paper>
