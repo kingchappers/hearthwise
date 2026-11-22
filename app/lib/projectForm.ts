@@ -39,7 +39,10 @@ export function positionsForLines(steps: Placed[], lines: string[]): { text: str
   return out;
 }
 
-export const splitLines = (text: string): string[] => text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '');
+// A list pasted from another app brings its bullets and numbers ("- ", "* ", "1. ", "2) ", "[ ] "). They are not part of the words, and
+// a number would read as a second order beside the list's own.
+const LIST_MARKER = /^(?:(?:[-*\u2022]|\d+[.)])(?:\s+|$)|\[[ xX]?\]\s*)+/;
+export const splitLines = (text: string): string[] => text.split(/\r?\n/).map(line => line.trim().replace(LIST_MARKER, '').trim()).filter(line => line !== '');
 
 // What the planned-day fields say, as a change, or the reason it cannot be saved. An empty start is a clear; an end with no start is
 // refused; an end must be on or after the start and at most 13 days after it (a span of 14 days).

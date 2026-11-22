@@ -90,13 +90,16 @@ describe('Today', () => {
     state.tasks.tasks = [task({ title: 'First', dueOn: '2026-11-12' }), task({ title: 'Second', dueOn: TODAY })];
     renderToday();
     expect(screen.getByText('First')).toBeInTheDocument();
+    expect(screen.getByText('Task 1 of 2')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Show a different task' }));
     expect(screen.getByText('Second')).toBeInTheDocument();
+    expect(screen.getByText('Task 2 of 2')).toBeInTheDocument();
     expect(screen.queryByText('First')).not.toBeInTheDocument();
     const actions = state.actions as ReturnType<typeof makeActions>;
     for (const fn of [actions.complete, actions.save, actions.remove, actions.swap, actions.create]) expect(fn).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Show a different task' }));
-    expect(screen.getByText('Nothing left for now.')).toBeInTheDocument();
+    expect(screen.getByText("That's all for now.")).toBeInTheDocument();
+    expect(screen.getByText('Show all tasks to see everything, including the ones you set aside.')).toBeInTheDocument();
   });
 
   it('completes a task from the list with one tap', async () => {

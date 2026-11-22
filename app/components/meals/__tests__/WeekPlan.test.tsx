@@ -25,17 +25,33 @@ describe('WeekPlan', () => {
   it('shows the current week and the next four, Monday to Sunday, under their own headings', () => {
     const { container } = renderPlan([]);
     expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['This week', 'Next week', 'Week of 23 Nov', 'Week of 30 Nov', 'Week of 7 Dec']);
-    expect(screen.getAllByRole('button')).toHaveLength(35);
-    expect(screen.getAllByRole('button')[0]).toHaveTextContent('Mon 9 Nov');
-    expect(screen.getAllByRole('button')[34]).toHaveTextContent('Sun 13 Dec');
+    // Days already gone are not listed (this week starts at today), and each later week with no dinner is one line with a button.
+    expect(screen.getAllByRole('button')).toHaveLength(2 + 7 + 3);
+    expect(screen.getAllByRole('button')[0]).toHaveTextContent('Sat 14 Nov');
+    expect(screen.queryByText(/Mon 9 Nov/)).not.toBeInTheDocument();
     expect(container.querySelectorAll('h1').length).toBe(0);
   });
 
-  it('says Nothing planned yet for a day with nothing, and marks today, including earlier days of this week', () => {
+  it('says Nothing planned yet once for a later week with no dinner, and opens its days when asked', async () => {
+    renderPlan([]);
+    expect(screen.queryByText(/Mon 23 Nov/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show the days of Week of 23 Nov' }));
+    expect(screen.getByText(/Mon 23 Nov/)).toBeInTheDocument();
+    expect(screen.getByText(/Sun 29 Nov/)).toBeInTheDocument();
+    expect(screen.queryByText(/Mon 30 Nov/)).not.toBeInTheDocument();
+  });
+
+  it('lists every day of a later week that has a dinner, and not the collapse button', () => {
+    renderPlan([planDay('2026-11-25', { title: 'Takeaway' })]);
+    expect(screen.getByText(/Wed 25 Nov/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show the days of Week of 23 Nov' })).not.toBeInTheDocument();
+  });
+
+  it('says Nothing planned yet for a day with nothing, and marks today, and does not list earlier days', () => {
     renderPlan([]);
     expect(within(row(/Sat 14 Nov/)).getByText('Nothing planned yet')).toBeInTheDocument();
     expect(within(row(/Sat 14 Nov/)).getByText('Today')).toBeInTheDocument();
-    expect(within(row(/Mon 9 Nov/)).queryByText('Today')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Mon 9 Nov/)).not.toBeInTheDocument();
     expect(screen.getAllByText('Today')).toHaveLength(1);
   });
 

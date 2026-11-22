@@ -46,48 +46,10 @@ function SettingsContent() {
   return (
     <Stack maw={640}>
       <Title order={1} size="h3">Settings</Title>
-      <Text size="sm">Display settings are saved on this device.</Text>
-
-      <HouseholdSection />
-
-      <Card withBorder id="notifications">
-        <Title order={2} size="h4" mb="sm">Notifications</Title>
-        <Stack gap="lg">
-          <Text size="sm">Everything here is off until you turn it on. These settings are yours; the other person keeps their own.</Text>
-          <PushCheck />
-          <Reminders />
-          <QuietHours />
-        </Stack>
-      </Card>
-
+      {/* Text size, appearance and motion come first: the people who need them most are the least able to scroll for them. */}
       <Card withBorder>
-        <Title order={2} size="h4" mb="sm">Your view</Title>
-        <DefaultView />
-      </Card>
-
-      <Card withBorder>
-        <Title order={2} size="h4" mb="sm">Calendar</Title>
-        <CalendarColour />
-      </Card>
-
-      <Card withBorder>
-        <Title order={2} size="h4" mb="sm">Signing in</Title>
-        <Stack gap="sm" align="flex-start">
-          <Text size="sm">{SESSION_LIFETIME_TEXT}</Text>
-          <Button variant="default" onClick={requestSignOut}>Sign out</Button>
-        </Stack>
-      </Card>
-
-      <Card withBorder>
-        <Title order={2} size="h4" mb="sm">Deleted</Title>
-        <Stack gap="sm" align="flex-start">
-          <Text size="sm">Deleted things stay for 30 days, and can be restored.</Text>
-          <Anchor component={Link} to="/deleted">See deleted things</Anchor>
-        </Stack>
-      </Card>
-
-      <Card withBorder>
-        <Title order={2} size="h4" mb="sm">Display</Title>
+        <Title order={2} size="h4" mb="xs">Display</Title>
+        <Text size="sm" mb="sm">These are saved on this device.</Text>
         <Stack gap="md">
           <Input.Wrapper label="Text size" description="Makes text bigger everywhere. It changes straight away.">
             <SegmentedControl
@@ -132,6 +94,44 @@ function SettingsContent() {
             ))}
           </Stack>
         </Radio.Group>
+      </Card>
+
+      <HouseholdSection />
+
+      <Card withBorder id="notifications">
+        <Title order={2} size="h4" mb="sm">Notifications</Title>
+        <Stack gap="lg">
+          <Text size="sm">Everything here is off until you turn it on. These settings are yours; the other person keeps their own.</Text>
+          <PushCheck />
+          <Reminders />
+          <QuietHours />
+        </Stack>
+      </Card>
+
+      <Card withBorder>
+        <Title order={2} size="h4" mb="sm">Your view</Title>
+        <DefaultView />
+      </Card>
+
+      <Card withBorder>
+        <Title order={2} size="h4" mb="sm">Calendar</Title>
+        <CalendarColour />
+      </Card>
+
+      <Card withBorder>
+        <Title order={2} size="h4" mb="sm">Signing in</Title>
+        <Stack gap="sm" align="flex-start">
+          <Text size="sm">{SESSION_LIFETIME_TEXT}</Text>
+          <Button variant="default" onClick={requestSignOut}>Sign out</Button>
+        </Stack>
+      </Card>
+
+      <Card withBorder>
+        <Title order={2} size="h4" mb="sm">Deleted</Title>
+        <Stack gap="sm" align="flex-start">
+          <Text size="sm">Deleted things stay for 30 days, and can be restored.</Text>
+          <Anchor component={Link} to="/deleted">See deleted things</Anchor>
+        </Stack>
       </Card>
     </Stack>
   );

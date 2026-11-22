@@ -33,9 +33,18 @@ export function groupTasks(tasks: Task[], today: string): Record<Group, Task[]> 
 // The one task to offer next: what is due, then an undated to-do, then the soonest dated one. The viewer's own comes before an either
 // or both task of the same day. Tasks set aside with "Show a different task" are skipped, for this session only.
 export function nextThing(tasks: Task[], viewerId: string, today: string, roster: Roster, skipped: string[] = []): Task | undefined {
+  return nextThings(tasks, viewerId, today, roster, skipped)[0];
+}
+
+// How many tasks "Show one task" can offer in all (those set aside this visit included), so the card can say "Task 2 of 5".
+export function offerableCount(tasks: Task[], viewerId: string, roster: Roster): number {
+  return tasks.filter(task => isOpen(task) && [viewerId, 'either', 'both'].includes(effectiveAssignee(task, roster))).length;
+}
+
+function nextThings(tasks: Task[], viewerId: string, today: string, roster: Roster, skipped: string[]): Task[] {
   const mine = (task: Task): boolean => effectiveAssignee(task, roster) === viewerId;
   const candidates = tasks.filter(task => isOpen(task) && !skipped.includes(task.id) && [viewerId, 'either', 'both'].includes(effectiveAssignee(task, roster)));
   const rank = (task: Task): number => (task.dueOn === undefined ? 1 : task.dueOn <= today ? 0 : 2);
   candidates.sort((a, b) => rank(a) - rank(b) || (a.dueOn ?? '').localeCompare(b.dueOn ?? '') || Number(mine(b)) - Number(mine(a)) || a.title.localeCompare(b.title));
-  return candidates[0];
+  return candidates;
 }

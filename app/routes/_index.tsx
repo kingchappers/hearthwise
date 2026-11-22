@@ -19,7 +19,7 @@ import { pageTitle } from '~/lib/pageTitle';
 import { useNow } from '~/lib/useNow';
 import { usePlan } from '~/lib/plan';
 import { useTasks } from '~/lib/queries';
-import { nextThing } from '~/lib/tasks';
+import { nextThing, offerableCount } from '~/lib/tasks';
 import { nowAndNext } from '../../src/shared/timeline';
 import type { Route } from './+types/_index';
 
@@ -78,6 +78,8 @@ function TodayContent() {
       ) : (
         <NextThing
           task={next}
+          position={skipped.length + 1}
+          total={offerableCount(tasks.tasks, actions.me.userId, { members: actions.members })}
           today={tasks.today}
           roster={actions.members}
           viewerId={actions.me.userId}

@@ -24,7 +24,7 @@ export function Tonight({ today, plan, recipes, checkedAt, onPickEasy }: Tonight
         <Title id="tonight-heading" order={2} size="h5">Tonight</Title>
         <DinnerLine plan={plan} recipes={recipes} checkedAt={checkedAt} />
         <Group gap="xs">
-          {title === undefined && <Button onClick={onPickEasy}>Choose an easy dinner</Button>}
+          {title === undefined && <Button variant="default" onClick={onPickEasy}>Choose an easy dinner</Button>}
           {opens && plan?.meal?.recipeId !== undefined && (
             <Button component={Link} to={cookLink(plan.meal.recipeId, plan.meal.servings, today)} aria-label={`Open ${title}`}>Open recipe</Button>
           )}

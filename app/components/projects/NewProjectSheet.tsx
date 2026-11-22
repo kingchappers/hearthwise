@@ -25,7 +25,7 @@ function Form({ onClose, actions }: { onClose: () => void; actions: Pick<Project
       <Stack>
         <TextInput label="Title" value={title} onChange={event => setTitle(event.currentTarget.value)} maxLength={MAX_PROJECT_TITLE} data-autofocus />
         <LetThemKnow />
-        <Button type="submit" disabled={trimmed === ''} style={{ minHeight: 44 }}>{COPY.newProject}</Button>
+        <Button type="submit" disabled={trimmed === ''} style={{ minHeight: 44 }}>{COPY.addProject}</Button>
       </Stack>
     </form>
   );
