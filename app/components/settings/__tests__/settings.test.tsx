@@ -228,3 +228,17 @@ describe('RelativeTimes', () => {
     expect(updateMe).toHaveBeenLastCalledWith({ settings: { relativeTimes: true } });
   });
 });
+
+describe('Reminders: the planned-day reminder', () => {
+  it('is off until turned on, has its own hour, and says it never says which project', async () => {
+    ui(<Reminders />);
+    const box = screen.getByRole('switch', { name: /Planned-day reminder/ });
+    expect(box).not.toBeChecked();
+    expect(screen.getByText(/never which/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Planned-day reminder time')).toHaveValue('8');
+    await userEvent.click(box);
+    expect(updateMe).toHaveBeenLastCalledWith({ settings: { plannedDay: { on: true } } });
+    await userEvent.selectOptions(screen.getByLabelText('Planned-day reminder time'), '9');
+    expect(updateMe).toHaveBeenLastCalledWith({ settings: { plannedDay: { hour: 9 } } });
+  });
+});

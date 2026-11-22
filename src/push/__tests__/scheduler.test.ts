@@ -167,3 +167,62 @@ describe('with no sender configured', () => {
     expect((await store.get({ PK: hhPk(householdId), SK: memberSk(U1) }))?.lastDigestSent).toBeUndefined();
   });
 });
+
+describe('planned-day reminders', () => {
+  const plannedOn = (hour: number) => ({ ...DEFAULT_SETTINGS, plannedDay: { on: true, hour } });
+  const putProject = (store: Parameters<typeof putTask>[0], householdId: string, id: string, over: Record<string, unknown> = {}) =>
+    store.put({ PK: hhPk(householdId), SK: `PROJECT#${id}`, title: 'Secret decking plan', status: 'active', fieldTimes: {}, createdBy: U2, createdAt: 1, updatedAt: 1, updatedBy: U2, ...over });
+
+  it('is off until turned on, and sends nothing then', async () => {
+    const { store, householdId } = await twoMemberHousehold({});
+    await putProject(store, householdId, 'p1', { plannedOn: '2026-11-13' });
+    const sender = fakeSender();
+    await runSchedule(store, sender, at('2026-11-13T08:00:00Z'));
+    expect(sender.sent).toHaveLength(0);
+  });
+
+  it('says a project is planned today, never names it, and is sent once even if two runs overlap', async () => {
+    const { store, householdId } = await twoMemberHousehold({ u1: plannedOn(8) });
+    await putProject(store, householdId, 'p1', { plannedOn: '2026-11-13' });
+    const sender = fakeSender();
+    await Promise.all([runSchedule(store, sender, at('2026-11-13T08:00:00Z')), runSchedule(store, sender, at('2026-11-13T08:00:00Z'))]);
+    expect(sender.sent).toHaveLength(1);
+    expect(sender.sent[0].payload).toMatchObject({ title: 'A project is planned today', tag: 'planned-2026-11-13', url: '/plan/projects' });
+    expect(JSON.stringify(sender.sent[0].payload)).not.toMatch(/Secret|decking/i);
+  });
+
+  it('reminds the day before, and counts several, and says both days when both have one', async () => {
+    const { store, householdId } = await twoMemberHousehold({ u1: plannedOn(8) });
+    await putProject(store, householdId, 'p1', { plannedOn: '2026-11-14' });
+    await putProject(store, householdId, 'p2', { plannedOn: '2026-11-14' });
+    await putProject(store, householdId, 'p3', { plannedOn: '2026-11-13' });
+    const sender = fakeSender();
+    await runSchedule(store, sender, at('2026-11-13T08:00:00Z'));
+    expect(sender.sent[0].payload).toMatchObject({ title: 'A project is planned today', body: '2 projects are planned tomorrow.' });
+  });
+
+  it('says nothing for a project planned later, finished or deleted, or when the hour has not come', async () => {
+    const { store, householdId } = await twoMemberHousehold({ u1: plannedOn(8) });
+    await putProject(store, householdId, 'p1', { plannedOn: '2026-11-20' });
+    await putProject(store, householdId, 'p2', { plannedOn: '2026-11-13', status: 'finished' });
+    await putProject(store, householdId, 'p3', { plannedOn: '2026-11-13', deletedAt: 5 });
+    await putProject(store, householdId, 'p4', { plannedOn: '2026-11-13' });
+    const sender = fakeSender();
+    await runSchedule(store, sender, at('2026-11-13T07:00:00Z'));
+    expect(sender.sent).toHaveLength(0);
+    await runSchedule(store, sender, at('2026-11-13T08:00:00Z'));
+    expect(sender.sent).toHaveLength(1);
+    expect(sender.sent[0].payload.title).toBe('A project is planned today');
+  });
+
+  it('is sent only to the person who turned it on, and tomorrow\'s run sends the next day\'s', async () => {
+    const { store, householdId } = await twoMemberHousehold({ u1: plannedOn(8) });
+    await putProject(store, householdId, 'p1', { plannedOn: '2026-11-14' });
+    const sender = fakeSender();
+    await runSchedule(store, sender, at('2026-11-13T08:00:00Z'));
+    await runSchedule(store, sender, at('2026-11-14T08:00:00Z'));
+    expect(sender.sent.map(s => [s.endpoint, s.payload.tag])).toEqual([
+      [`https://fcm.googleapis.com/fcm/send/${U1}`, 'planned-2026-11-13'], [`https://fcm.googleapis.com/fcm/send/${U1}`, 'planned-2026-11-14'],
+    ]);
+  });
+});

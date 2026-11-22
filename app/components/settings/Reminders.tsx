@@ -3,9 +3,9 @@ import { DEFAULT_SETTINGS } from '../../../src/shared/household';
 import { useHousehold, useUpdateMe } from '~/lib/household';
 import { HOUR_OPTIONS, isInQuietHours } from './hours';
 
-type Which = 'digest' | 'dueNudges';
+type Which = 'digest' | 'dueNudges' | 'plannedDay';
 
-// Your own reminders. Both are off until you turn them on; the time is in the household's time zone.
+// Your own reminders. Each is off until you turn it on; the time is in the household's time zone.
 export function Reminders() {
   const household = useHousehold();
   const update = useUpdateMe();
@@ -38,6 +38,7 @@ export function Reminders() {
     <Stack gap="lg">
       {block('digest', 'Daily summary', 'One message a day with what is due today, and anything still waiting.', 'Daily summary time')}
       {block('dueNudges', 'Due-day reminders', 'A message for each task of yours that is due today.', 'Due-day reminder time')}
+      {block('plannedDay', 'Planned-day reminder', 'A message the day before and the morning of a project\'s planned day. It says how many are planned, never which.', 'Planned-day reminder time')}
       <Text size="sm">Times are in your household's time zone.</Text>
     </Stack>
   );

@@ -17,6 +17,7 @@ export interface Member {
   joinedAt: string;
   lastDigestSent?: string;
   lastNudgeSent?: string;
+  lastPlannedSent?: string;
 }
 
 // What the guard hands to a household handler. The household id comes from here, never from the request.

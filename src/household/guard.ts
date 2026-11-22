@@ -39,6 +39,7 @@ export function toMember(item: Item): Member {
   if (colour !== undefined) member.colour = colour;
   if (typeof item.lastDigestSent === 'string') member.lastDigestSent = item.lastDigestSent;
   if (typeof item.lastNudgeSent === 'string') member.lastNudgeSent = item.lastNudgeSent;
+  if (typeof item.lastPlannedSent === 'string') member.lastPlannedSent = item.lastPlannedSent;
   return member;
 }
 
